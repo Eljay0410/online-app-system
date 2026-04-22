@@ -8,8 +8,11 @@ const PersonalInfo = () => {
   const [sex, setSex] = useState("");
   const [civilStatus, setCivilStatus] = useState("");
   const [nationality, setNationality] = useState("");
-  const [ethnicGroup, setEthnicGroup] = useState("");
   const [religion, setReligion] = useState("");
+
+  const [hasEthnicGroup, setHasEthnicGroup] = useState("");
+  const [ethnicGroup, setEthnicGroup] = useState("");
+
   const [hasDisability, setHasDisability] = useState("");
   const [disabilityDetails, setDisabilityDetails] = useState("");
 
@@ -110,6 +113,15 @@ const PersonalInfo = () => {
     }
   };
 
+  const handleEthnicGroupChange = (e) => {
+    const value = e.target.value;
+    setHasEthnicGroup(value);
+
+    if (value === "no") {
+      setEthnicGroup("");
+    }
+  };
+
   const handleDisabilityChange = (e) => {
     const value = e.target.value;
     setHasDisability(value);
@@ -121,35 +133,40 @@ const PersonalInfo = () => {
 
   const validateForm = () => {
     let newErrors = {};
-  
+
     if (!dob) newErrors.dob = "Date of birth is required";
     if (!sex) newErrors.sex = "Sex is required";
     if (!civilStatus) newErrors.civilStatus = "Civil status is required";
     if (!nationality) newErrors.nationality = "Nationality is required";
-    if (!ethnicGroup) newErrors.ethnicGroup = "Ethnic group is required";
     if (!religion) newErrors.religion = "Religion is required";
+    if (!hasEthnicGroup) newErrors.hasEthnicGroup = "Please select an option";
+    if (hasEthnicGroup === "yes" && !ethnicGroup) {
+      newErrors.ethnicGroup = "Please specify ethnic group";
+    }
     if (!hasDisability) newErrors.hasDisability = "Please select an option";
-  
     if (hasDisability === "yes" && !disabilityDetails) {
       newErrors.disabilityDetails = "Please specify disability";
     }
-  
+
     setErrors(newErrors);
-  
+
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-  
+
     if (validateForm()) {
       alert("Form submitted!");
     }
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500"
+    >
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-x-4 gap-y-6">
         {/* First Name */}
         <div>
           <label className="block text-sm font-medium text-slate-600 mb-1">
@@ -159,11 +176,8 @@ const PersonalInfo = () => {
             type="text"
             placeholder="First name"
             required
-            className="w-full h-11 px-4 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full h-11 px-4 rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          {errors.dob && (
-            <p className="text-red-500 text-xs mt-1">{errors.dob}</p>
-          )}
         </div>
 
         {/* Middle Name */}
@@ -175,7 +189,7 @@ const PersonalInfo = () => {
             type="text"
             placeholder="Middle name"
             required
-            className="w-full h-11 px-4 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full h-11 px-4 rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
@@ -188,7 +202,7 @@ const PersonalInfo = () => {
             type="text"
             placeholder="Last name"
             required
-            className="w-full h-11 px-4 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full h-11 px-4 rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
@@ -200,7 +214,7 @@ const PersonalInfo = () => {
           <input
             type="text"
             placeholder="Jr., Sr., III"
-            className="w-full h-11 px-4 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full h-11 px-4 rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
@@ -213,7 +227,7 @@ const PersonalInfo = () => {
             type="text"
             placeholder="Address"
             required
-            className="w-full h-11 px-4 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full h-11 px-4 rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
@@ -226,7 +240,7 @@ const PersonalInfo = () => {
             type="text"
             placeholder="Contact Number"
             required
-            className="w-full h-11 px-4 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full h-11 px-4 rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
@@ -239,7 +253,7 @@ const PersonalInfo = () => {
             type="email"
             placeholder="Email Address"
             required
-            className="w-full h-11 px-4 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full h-11 px-4 rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
@@ -254,11 +268,11 @@ const PersonalInfo = () => {
             onChange={handleDOBChange}
             max={new Date().toISOString().split("T")[0]}
             required
-            className="w-full h-11 px-2 text-sm rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full h-11 px-2 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           {errors.dob && (
-              <p className="text-red-500 text-xs mt-1">{errors.dob}</p>
-            )}
+            <p className="text-red-500 text-xs mt-1">{errors.dob}</p>
+          )}
         </div>
 
         {/* Age */}
@@ -271,7 +285,7 @@ const PersonalInfo = () => {
             value={age}
             readOnly
             placeholder="Auto"
-            className="w-full h-11 px-3 text-sm rounded-xl border border-slate-200 bg-slate-100"
+            className="w-full h-11 px-3 text-sm rounded-xl border border-slate-300 bg-slate-100"
           />
         </div>
 
@@ -284,15 +298,15 @@ const PersonalInfo = () => {
             value={sex}
             onChange={(e) => setSex(e.target.value)}
             required
-            className="w-full h-11 px-3 text-sm rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full h-11 px-3 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            {errors.sex && (
-              <p className="text-red-500 text-xs mt-1">{errors.sex}</p>
-            )}
             <option value="">Select</option>
             <option value="male">Male</option>
             <option value="female">Female</option>
           </select>
+          {errors.sex && (
+            <p className="text-red-500 text-xs mt-1">{errors.sex}</p>
+          )}
         </div>
 
         {/* Civil Status */}
@@ -304,7 +318,7 @@ const PersonalInfo = () => {
             value={civilStatus}
             onChange={(e) => setCivilStatus(e.target.value)}
             required
-            className="w-full h-11 px-3 text-sm rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full h-11 px-3 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">Select</option>
             <option value="single">Single</option>
@@ -313,79 +327,109 @@ const PersonalInfo = () => {
             <option value="separated">Separated</option>
             <option value="divorced">Divorced</option>
           </select>
+          {errors.civilStatus && (
+            <p className="text-red-500 text-xs mt-1">{errors.civilStatus}</p>
+          )}
         </div>
 
         {/* Nationality */}
-        <div>
-          <label className="block text-sm font-medium text-slate-600 mb-1">
-            Nationality
-          </label>
-          <input
-            type="text"
-            list="nationality-options"
-            value={nationality}
-            onChange={(e) => setNationality(e.target.value)}
-            placeholder="Type or select nationality"
-            required
-            className="w-full h-11 px-3 text-sm rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          {errors.nationality && (
-          <p className="text-red-500 text-xs mt-1">{errors.nationality}</p>
-          )}
-          <datalist id="nationality-options">
-            {nationalityOptions.map((item) => (
-              <option key={item} value={item} />
-            ))}
-          </datalist>
-        </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-600 mb-1">
+              Nationality
+            </label>
+            <input
+              type="text"
+              list="nationality-options"
+              value={nationality}
+              onChange={(e) => setNationality(e.target.value)}
+              placeholder="Type or select nationality"
+              required
+              className="w-full h-11 px-3 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            {errors.nationality && (
+              <p className="text-red-500 text-xs mt-1">{errors.nationality}</p>
+            )}
+            <datalist id="nationality-options">
+              {nationalityOptions.map((item) => (
+                <option key={item} value={item} />
+              ))}
+            </datalist>
+          </div>
 
-        {/* Ethnic Group */}
-        <div>
-          <label className="block text-sm font-medium text-slate-600 mb-1">
-            Ethnic Group
-          </label>
-          <input
-            type="text"
-            list="ethnic-group-options"
-            value={ethnicGroup}
-            onChange={(e) => setEthnicGroup(e.target.value)}
-            placeholder="Type or select ethnic group"
-            required
-            className="w-full h-11 px-3 text-sm rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <datalist id="ethnic-group-options">
-            {ethnicGroupOptions.map((item) => (
-              <option key={item} value={item} />
-            ))}
-          </datalist>
-        </div>
+          {/* Religion */}
+          <div>
+            <label className="block text-sm font-medium text-slate-600 mb-1">
+              Religion
+            </label>
+            <input
+              type="text"
+              list="religion-options"
+              value={religion}
+              onChange={(e) => setReligion(e.target.value)}
+              placeholder="Type or select religion"
+              required
+              className="w-full h-11 px-3 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            {errors.religion && (
+              <p className="text-red-500 text-xs mt-1">{errors.religion}</p>
+            )}
+            <datalist id="religion-options">
+              {religionOptions.map((item) => (
+                <option key={item} value={item} />
+              ))}
+            </datalist>
+          </div>
 
-        {/* Religion */}
-        <div>
-          <label className="block text-sm font-medium text-slate-600 mb-1">
-            Religion
-          </label>
-          <input
-            type="text"
-            list="religion-options"
-            value={religion}
-            onChange={(e) => setReligion(e.target.value)}
-            placeholder="Type or select religion"
-            required
-            className="w-full h-11 px-3 text-sm rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          {errors.disabilityDetails && (
-            <p className="text-red-500 text-xs mt-1">
-              {errors.disabilityDetails}
-            </p>
-          )}
-          <datalist id="religion-options">
-            {religionOptions.map((item) => (
-              <option key={item} value={item} />
-            ))}
-          </datalist>
-        </div>
+          {/* Ethnic Group (Yes/No) */}
+          <div>
+            <label className="block text-sm font-medium text-slate-600 mb-1 whitespace-nowrap">
+            With ethnic group?
+            </label>
+            <select
+              value={hasEthnicGroup}
+              onChange={handleEthnicGroupChange}
+              required
+              className="w-full h-11 px-3 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Select</option>
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </select>
 
+            {errors.hasEthnicGroup && (
+              <p className="text-red-500 text-xs mt-1">{errors.hasEthnicGroup}</p>
+            )}
+          </div>
+
+          {/* Ethnic Group Details (same row, always reserved space) */}
+          <div>
+            <label className="block text-sm font-medium text-slate-600 mb-1">
+              Specify ethnic group
+            </label>
+            <input
+              type="text"
+              list="ethnic-group-options"
+              value={ethnicGroup}
+              onChange={(e) => setEthnicGroup(e.target.value)}
+              placeholder={hasEthnicGroup === "yes" ? "Enter ethnic group" : ""}
+              disabled={hasEthnicGroup !== "yes"}
+              className={`w-full h-11 px-3 text-sm rounded-xl border ${
+                hasEthnicGroup === "yes"
+                  ? "border-slate-200 bg-white"
+                  : "border-slate-200 bg-slate-100"
+              } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+            />
+
+            {errors.ethnicGroup && (
+              <p className="text-red-500 text-xs mt-1">{errors.ethnicGroup}</p>
+            )}
+
+            <datalist id="ethnic-group-options">
+              {ethnicGroupOptions.map((item) => (
+                <option key={item} value={item} />
+              ))}
+            </datalist>
+          </div>
         {/* Disabilities */}
         <div className="md:col-span-2">
           <label className="block text-sm font-medium text-slate-600 mb-1">
@@ -395,12 +439,15 @@ const PersonalInfo = () => {
             value={hasDisability}
             onChange={handleDisabilityChange}
             required
-            className="w-full h-11 px-3 text-sm rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full h-11 px-3 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">Select</option>
             <option value="yes">Yes</option>
             <option value="no">No</option>
           </select>
+          {errors.hasDisability && (
+            <p className="text-red-500 text-xs mt-1">{errors.hasDisability}</p>
+          )}
         </div>
 
         {hasDisability === "yes" && (
@@ -414,16 +461,23 @@ const PersonalInfo = () => {
               onChange={(e) => setDisabilityDetails(e.target.value)}
               placeholder="Enter disability details"
               required
-              className="w-full h-11 px-3 text-sm rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full h-11 px-3 text-sm rounded-xl border border-slate-\300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+            {errors.disabilityDetails && (
+              <p className="text-red-500 text-xs mt-1">
+                {errors.disabilityDetails}
+              </p>
+            )}
           </div>
         )}
       </div>
 
       <p className="text-slate-500">
-        Ito ang section para sa Personal Information...
+        Please make sure all the information is correct before proceeding to the next step.
       </p>
-    </div>
+
+      
+    </form>
   );
 };
 
