@@ -16,7 +16,7 @@ const Applicationform = () => {
     { id: 2, title: 'EDUCATIONAL BACKGROUND' },
     { id: 3, title: 'ELIGIBILITY' },
     { id: 4, title: 'LEARNING DEVELOPMENT' },
-    { id: 5, title: 'ATTACHMENT' },
+    { id: 5, title: 'JOB POSITION' },
     { id: 6, title: 'REVIEW' },
   ];
 
