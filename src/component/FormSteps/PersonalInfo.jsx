@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-const PersonalInfo = () => {
+const PersonalInfo = ({ onNext }) => {
   const [dob, setDob] = useState("");
   const [age, setAge] = useState("");
   const [errors, setErrors] = useState({});
@@ -84,6 +84,16 @@ const PersonalInfo = () => {
       ? `${nationality} - ${nationalityInput}`
       : nationality;
 
+  const inputClass = (fieldName) =>
+    `w-full h-11 px-4 rounded-xl border bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+      errors[fieldName] ? "border-red-500" : "border-slate-300"
+    }`;
+
+  const selectClass = (fieldName) =>
+    `w-full h-11 px-3 text-sm rounded-xl border bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+      errors[fieldName] ? "border-red-500" : "border-slate-300"
+    }`;
+
   const calculateAge = (birthDate) => {
     const today = new Date();
     const birth = new Date(birthDate);
@@ -105,10 +115,20 @@ const PersonalInfo = () => {
     const value = e.target.value;
     setDob(value);
 
+    if (errors.dob) {
+      setErrors((prev) => ({ ...prev, dob: "" }));
+    }
+
     if (value) {
       setAge(calculateAge(value));
     } else {
       setAge("");
+    }
+  };
+
+  const clearFieldError = (fieldName) => {
+    if (errors[fieldName]) {
+      setErrors((prev) => ({ ...prev, [fieldName]: "" }));
     }
   };
 
@@ -119,9 +139,11 @@ const PersonalInfo = () => {
     if (!middleName.trim()) newErrors.middleName = "Middle name is required";
     if (!lastName.trim()) newErrors.lastName = "Last name is required";
     if (!address.trim()) newErrors.address = "Address is required";
+
     if (!contactNumber.trim()) {
       newErrors.contactNumber = "Contact number is required";
     }
+
     if (!emailAddress.trim()) {
       newErrors.emailAddress = "Email address is required";
     }
@@ -150,54 +172,63 @@ const PersonalInfo = () => {
     }
 
     if (!ethnicGroup) newErrors.ethnicGroup = "Ethnic group is required";
-    if (!disability) newErrors.disability = "Please select disability";
+    
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleNext = (e) => {
     e.preventDefault();
 
-    if (validateForm()) {
-      alert("Form submitted!");
-      console.log({
-        firstName,
-        middleName,
-        lastName,
-        suffix,
-        address,
-        contactNumber,
-        emailAddress,
-        dob,
-        age,
-        sex,
-        civilStatus,
-        nationality: finalNationality,
-        religion: finalReligion,
-        ethnicGroup,
-        disability,
-      });
+    if (!validateForm()) return;
+
+    const formData = {
+      firstName,
+      middleName,
+      lastName,
+      suffix,
+      address,
+      contactNumber,
+      emailAddress,
+      dob,
+      age,
+      sex,
+      civilStatus,
+      nationality: finalNationality,
+      religion: finalReligion,
+      ethnicGroup,
+      disability,
+    };
+
+    if (onNext) {
+      onNext(formData);
+    } else {
+      console.log("Validated form data:", formData);
+      alert("Form is valid. Ready for next step.");
     }
   };
 
   return (
     <form
-      onSubmit={handleSubmit}
+      onSubmit={handleNext}
       className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500"
     >
       <div className="grid grid-cols-1 md:grid-cols-4 gap-x-4 gap-y-6">
         {/* First Name */}
         <div>
           <label className="block text-sm font-medium text-slate-600 mb-1">
-            First Name
+            First Name <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
             placeholder="First name"
             value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
-            className="w-full h-11 px-4 rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={(e) => {
+              setFirstName(e.target.value);
+              clearFieldError("firstName");
+            }}
+            className={inputClass("firstName")}
           />
           {errors.firstName && (
             <p className="text-red-500 text-xs mt-1">{errors.firstName}</p>
@@ -207,14 +238,17 @@ const PersonalInfo = () => {
         {/* Middle Name */}
         <div>
           <label className="block text-sm font-medium text-slate-600 mb-1">
-            Middle Name
+            Middle Name <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
             placeholder="Middle name"
             value={middleName}
-            onChange={(e) => setMiddleName(e.target.value)}
-            className="w-full h-11 px-4 rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={(e) => {
+              setMiddleName(e.target.value);
+              clearFieldError("middleName");
+            }}
+            className={inputClass("middleName")}
           />
           {errors.middleName && (
             <p className="text-red-500 text-xs mt-1">{errors.middleName}</p>
@@ -224,14 +258,17 @@ const PersonalInfo = () => {
         {/* Last Name */}
         <div>
           <label className="block text-sm font-medium text-slate-600 mb-1">
-            Last Name
+            Last Name <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
             placeholder="Last name"
             value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
-            className="w-full h-11 px-4 rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={(e) => {
+              setLastName(e.target.value);
+              clearFieldError("lastName");
+            }}
+            className={inputClass("lastName")}
           />
           {errors.lastName && (
             <p className="text-red-500 text-xs mt-1">{errors.lastName}</p>
@@ -255,14 +292,17 @@ const PersonalInfo = () => {
         {/* Address */}
         <div className="md:col-span-4">
           <label className="block text-sm font-medium text-slate-600 mb-1">
-            Address
+            Address <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
             placeholder="Address"
             value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            className="w-full h-11 px-4 rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={(e) => {
+              setAddress(e.target.value);
+              clearFieldError("address");
+            }}
+            className={inputClass("address")}
           />
           {errors.address && (
             <p className="text-red-500 text-xs mt-1">{errors.address}</p>
@@ -272,14 +312,17 @@ const PersonalInfo = () => {
         {/* Contact Number */}
         <div className="md:col-span-2">
           <label className="block text-sm font-medium text-slate-600 mb-1">
-            Contact Number
+            Contact Number <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
             placeholder="Contact Number"
             value={contactNumber}
-            onChange={(e) => setContactNumber(e.target.value)}
-            className="w-full h-11 px-4 rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={(e) => {
+              setContactNumber(e.target.value);
+              clearFieldError("contactNumber");
+            }}
+            className={inputClass("contactNumber")}
           />
           {errors.contactNumber && (
             <p className="text-red-500 text-xs mt-1">{errors.contactNumber}</p>
@@ -289,14 +332,17 @@ const PersonalInfo = () => {
         {/* Email Address */}
         <div className="md:col-span-2">
           <label className="block text-sm font-medium text-slate-600 mb-1">
-            Email Address
+            Email Address <span className="text-red-500">*</span>
           </label>
           <input
             type="email"
             placeholder="Email Address"
             value={emailAddress}
-            onChange={(e) => setEmailAddress(e.target.value)}
-            className="w-full h-11 px-4 rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={(e) => {
+              setEmailAddress(e.target.value);
+              clearFieldError("emailAddress");
+            }}
+            className={inputClass("emailAddress")}
           />
           {errors.emailAddress && (
             <p className="text-red-500 text-xs mt-1">{errors.emailAddress}</p>
@@ -306,14 +352,16 @@ const PersonalInfo = () => {
         {/* Date of Birth */}
         <div>
           <label className="block text-sm font-medium text-slate-600 mb-1">
-            Date of Birth
+            Date of Birth <span className="text-red-500">*</span>
           </label>
           <input
             type="date"
             value={dob}
             onChange={handleDOBChange}
             max={new Date().toISOString().split("T")[0]}
-            className="w-full h-11 px-2 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className={`w-full h-11 px-3 text-sm rounded-xl border bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+              errors.dob ? "border-red-500" : "border-slate-300"
+            }`}
           />
           {errors.dob && (
             <p className="text-red-500 text-xs mt-1">{errors.dob}</p>
@@ -337,12 +385,15 @@ const PersonalInfo = () => {
         {/* Sex */}
         <div>
           <label className="block text-sm font-medium text-slate-600 mb-1">
-            Sex
+            Sex <span className="text-red-500">*</span>
           </label>
           <select
             value={sex}
-            onChange={(e) => setSex(e.target.value)}
-            className="w-full h-11 px-3 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={(e) => {
+              setSex(e.target.value);
+              clearFieldError("sex");
+            }}
+            className={selectClass("sex")}
           >
             <option value="">Select</option>
             <option value="male">Male</option>
@@ -356,12 +407,15 @@ const PersonalInfo = () => {
         {/* Civil Status */}
         <div>
           <label className="block text-sm font-medium text-slate-600 mb-1">
-            Civil Status
+            Civil Status <span className="text-red-500">*</span>
           </label>
           <select
             value={civilStatus}
-            onChange={(e) => setCivilStatus(e.target.value)}
-            className="w-full h-11 px-3 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={(e) => {
+              setCivilStatus(e.target.value);
+              clearFieldError("civilStatus");
+            }}
+            className={selectClass("civilStatus")}
           >
             <option value="">Select</option>
             <option value="single">Single</option>
@@ -380,19 +434,20 @@ const PersonalInfo = () => {
           {/* Nationality */}
           <div>
             <label className="block text-sm font-medium text-slate-600 mb-1">
-              Nationality
+              Nationality <span className="text-red-500">*</span>
             </label>
             <select
               value={nationality}
               onChange={(e) => {
                 const value = e.target.value;
                 setNationality(value);
+                clearFieldError("nationality");
 
                 if (value !== "Dual Citizen" && value !== "Others") {
                   setNationalityInput("");
                 }
               }}
-              className="w-full h-11 px-3 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={selectClass("nationality")}
             >
               <option value="">Select</option>
               <option value="Filipino">Filipino</option>
@@ -408,13 +463,18 @@ const PersonalInfo = () => {
               <input
                 type="text"
                 value={nationalityInput}
-                onChange={(e) => setNationalityInput(e.target.value)}
+                onChange={(e) => {
+                  setNationalityInput(e.target.value);
+                  clearFieldError("nationality");
+                }}
                 placeholder={
                   nationality === "Dual Citizen"
                     ? "e.g. Filipino-American"
                     : "Specify nationality"
                 }
-                className="mt-2 w-full h-11 px-3 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={`mt-2 w-full h-11 px-3 text-sm rounded-xl border bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  errors.nationality ? "border-red-500" : "border-slate-300"
+                }`}
               />
             )}
           </div>
@@ -422,19 +482,20 @@ const PersonalInfo = () => {
           {/* Religion */}
           <div>
             <label className="block text-sm font-medium text-slate-600 mb-1">
-              Religion
+              Religion <span className="text-red-500">*</span>
             </label>
             <select
               value={religion}
               onChange={(e) => {
                 const value = e.target.value;
                 setReligion(value);
+                clearFieldError("religion");
 
                 if (value !== "Others") {
                   setReligionInput("");
                 }
               }}
-              className="w-full h-11 px-3 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={selectClass("religion")}
             >
               <option value="">Select</option>
               {religionOptions.map((item) => (
@@ -452,9 +513,14 @@ const PersonalInfo = () => {
               <input
                 type="text"
                 value={religionInput}
-                onChange={(e) => setReligionInput(e.target.value)}
+                onChange={(e) => {
+                  setReligionInput(e.target.value);
+                  clearFieldError("religion");
+                }}
                 placeholder="Specify religion"
-                className="mt-2 w-full h-11 px-3 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={`mt-2 w-full h-11 px-3 text-sm rounded-xl border bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  errors.religion ? "border-red-500" : "border-slate-300"
+                }`}
               />
             )}
           </div>
@@ -462,12 +528,15 @@ const PersonalInfo = () => {
           {/* Ethnic Group */}
           <div>
             <label className="block text-sm font-medium text-slate-600 mb-1">
-              Ethnic Group
+              Ethnic Group <span className="text-red-500">*</span>
             </label>
             <select
               value={ethnicGroup}
-              onChange={(e) => setEthnicGroup(e.target.value)}
-              className="w-full h-11 px-3 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={(e) => {
+                setEthnicGroup(e.target.value);
+                clearFieldError("ethnicGroup");
+              }}
+              className={selectClass("ethnicGroup")}
             >
               <option value="">Select</option>
               {ethnicGroupOptions.map((item) => (
@@ -486,12 +555,15 @@ const PersonalInfo = () => {
         {/* Disability */}
         <div className="md:col-span-2">
           <label className="block text-sm font-medium text-slate-600 mb-1">
-            Disability
+            Disability 
           </label>
           <select
             value={disability}
-            onChange={(e) => setDisability(e.target.value)}
-            className="w-full h-11 px-3 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={(e) => {
+              setDisability(e.target.value);
+              clearFieldError("disability");
+            }}
+            className={selectClass("disability")}
           >
             <option value="">Select</option>
             {disabilityOptions.map((item) => (
@@ -511,6 +583,15 @@ const PersonalInfo = () => {
         Please make sure all the information is correct before proceeding to the
         next step.
       </p>
+
+      <div className="flex justify-end">
+        <button
+          type="submit"
+          className="px-6 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition"
+        >
+          Next
+        </button>
+      </div>
     </form>
   );
 };
