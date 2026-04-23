@@ -77,15 +77,12 @@ const PersonalInfo = () => {
     "Others",
   ];
 
-  const finalReligion =
-  religion === "Others"
-    ? religionInput
-    : religion;
+  const finalReligion = religion === "Others" ? religionInput : religion;
 
   const finalNationality =
-  nationality === "Dual Citizen" || nationality === "Others"
-    ? `${nationality} - ${nationalityInput}`
-    : nationality;
+    nationality === "Dual Citizen" || nationality === "Others"
+      ? `${nationality} - ${nationalityInput}`
+      : nationality;
 
   const calculateAge = (birthDate) => {
     const today = new Date();
@@ -136,7 +133,7 @@ const PersonalInfo = () => {
     if (!nationality) {
       newErrors.nationality = "Nationality is required";
     }
-    
+
     if (
       (nationality === "Dual Citizen" || nationality === "Others") &&
       !nationalityInput.trim()
@@ -147,10 +144,11 @@ const PersonalInfo = () => {
     if (!religion) {
       newErrors.religion = "Religion is required";
     }
-    
+
     if (religion === "Others" && !religionInput.trim()) {
       newErrors.religion = "Please specify religion";
     }
+
     if (!ethnicGroup) newErrors.ethnicGroup = "Ethnic group is required";
     if (!disability) newErrors.disability = "Please select disability";
 
@@ -163,10 +161,25 @@ const PersonalInfo = () => {
 
     if (validateForm()) {
       alert("Form submitted!");
+      console.log({
+        firstName,
+        middleName,
+        lastName,
+        suffix,
+        address,
+        contactNumber,
+        emailAddress,
+        dob,
+        age,
+        sex,
+        civilStatus,
+        nationality: finalNationality,
+        religion: finalReligion,
+        ethnicGroup,
+        disability,
+      });
     }
   };
-
-  
 
   return (
     <form
@@ -362,62 +375,55 @@ const PersonalInfo = () => {
           )}
         </div>
 
-        {/* Nationality + Religion + Ethnic Group in one row */}
+        {/* Nationality + Religion + Ethnic Group */}
         <div className="md:col-span-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Nationality */}
+          <div>
+            <label className="block text-sm font-medium text-slate-600 mb-1">
+              Nationality
+            </label>
+            <select
+              value={nationality}
+              onChange={(e) => {
+                const value = e.target.value;
+                setNationality(value);
 
-         {/* Nationality */}
-        <div>
-          <label className="block text-sm font-medium text-slate-600 mb-1">
-            Nationality
-          </label>
+                if (value !== "Dual Citizen" && value !== "Others") {
+                  setNationalityInput("");
+                }
+              }}
+              className="w-full h-11 px-3 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Select</option>
+              <option value="Filipino">Filipino</option>
+              <option value="Dual Citizen">Dual Citizen</option>
+              <option value="Others">Others</option>
+            </select>
 
-          {/* Dropdown */}
-          <select
-            value={nationality}
-            onChange={(e) => {
-              const value = e.target.value;
-              setNationality(value);
+            {errors.nationality && (
+              <p className="text-red-500 text-xs mt-1">{errors.nationality}</p>
+            )}
 
-              // reset input kapag hindi needed
-              if (value !== "Dual Citizen" && value !== "Others") {
-                setNationalityInput("");
-              }
-            }}
-            className="w-full h-11 px-3 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">Select</option>
-            <option value="Filipino">Filipino</option>
-            <option value="Dual Citizen">Dual Citizen</option>
-            <option value="Others">Others</option>
-          </select>
+            {(nationality === "Dual Citizen" || nationality === "Others") && (
+              <input
+                type="text"
+                value={nationalityInput}
+                onChange={(e) => setNationalityInput(e.target.value)}
+                placeholder={
+                  nationality === "Dual Citizen"
+                    ? "e.g. Filipino-American"
+                    : "Specify nationality"
+                }
+                className="mt-2 w-full h-11 px-3 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            )}
+          </div>
 
-          {errors.nationality && (
-            <p className="text-red-500 text-xs mt-1">{errors.nationality}</p>
-          )}
-
-          {/* Inline typing (same area, not separate layout row) */}
-          {(nationality === "Dual Citizen" || nationality === "Others") && (
-            <input
-              type="text"
-              value={nationalityInput}
-              onChange={(e) => setNationalityInput(e.target.value)}
-              placeholder={
-                nationality === "Dual Citizen"
-                  ? "e.g. Filipino-American"
-                  : "Specify nationality"
-              }
-              className="mt-2 w-full h-11 px-3 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          )}
-        </div>
-
-         {/* Religion */}
+          {/* Religion */}
           <div>
             <label className="block text-sm font-medium text-slate-600 mb-1">
               Religion
             </label>
-
-            {/* Dropdown */}
             <select
               value={religion}
               onChange={(e) => {
@@ -442,7 +448,6 @@ const PersonalInfo = () => {
               <p className="text-red-500 text-xs mt-1">{errors.religion}</p>
             )}
 
-            {/* Input for Others */}
             {religion === "Others" && (
               <input
                 type="text"
