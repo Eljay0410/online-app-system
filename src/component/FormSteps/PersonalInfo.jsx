@@ -575,6 +575,7 @@ const PersonalInfo = ({ onNext }) => {
         </div>
       </div>
 
+      <div className="mt-10 flex items-center gap-4">
       <p className="text-slate-500">
         Please make sure all the information is correct before proceeding to the
         next step.
@@ -583,10 +584,11 @@ const PersonalInfo = ({ onNext }) => {
       <div className="flex justify-end">
         <button
           type="submit"
-          className="px-6 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition"
+          className="px-6 py-2 rounded-xl bg-[#0056b3] text-white hover:bg-blue-700 transition"
         >
-          Next
+          Next Step
         </button>
+        </div>
       </div>
     </form>
   );
