@@ -171,7 +171,6 @@ const PersonalInfo = ({ onNext }) => {
       newErrors.religion = "Please specify religion";
     }
 
-    if (!ethnicGroup) newErrors.ethnicGroup = "Ethnic group is required";
     
 
     setErrors(newErrors);
@@ -201,12 +200,9 @@ const PersonalInfo = ({ onNext }) => {
       disability,
     };
 
-    if (onNext) {
-      onNext(formData);
-    } else {
-      console.log("Validated form data:", formData);
-      alert("Form is valid. Ready for next step.");
-    }
+   if (onNext) {
+  onNext(formData);
+}
   };
 
   return (
@@ -528,7 +524,7 @@ const PersonalInfo = ({ onNext }) => {
           {/* Ethnic Group */}
           <div>
             <label className="block text-sm font-medium text-slate-600 mb-1">
-              Ethnic Group <span className="text-red-500">*</span>
+              Ethnic Group 
             </label>
             <select
               value={ethnicGroup}
