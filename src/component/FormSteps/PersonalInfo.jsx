@@ -584,7 +584,7 @@ const PersonalInfo = ({ onNext }) => {
       <div className="flex justify-end">
         <button
           type="submit"
-          className="px-6 py-2 rounded-xl bg-[#0056b3] text-white hover:bg-blue-700 transition"
+          className="px-6 py-2 rounded-xl bg-[#0056b3] text-white hover:bg-[#003a78] transition"
         >
           Next Step
         </button>
