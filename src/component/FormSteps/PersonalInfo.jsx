@@ -9,42 +9,19 @@ const PersonalInfo = () => {
   const [civilStatus, setCivilStatus] = useState("");
   const [nationality, setNationality] = useState("");
   const [religion, setReligion] = useState("");
-
-  const [hasEthnicGroup, setHasEthnicGroup] = useState("");
   const [ethnicGroup, setEthnicGroup] = useState("");
+  const [disability, setDisability] = useState("");
 
-  const [hasDisability, setHasDisability] = useState("");
-  const [disabilityDetails, setDisabilityDetails] = useState("");
-
-  const nationalityOptions = [
-    "Afghan",
-    "American",
-    "Argentine",
-    "Australian",
-    "Bangladeshi",
-    "Brazilian",
-    "British",
-    "Canadian",
-    "Chinese",
-    "Filipino",
-    "French",
-    "German",
-    "Indian",
-    "Indonesian",
-    "Italian",
-    "Japanese",
-    "Korean",
-    "Malaysian",
-    "Mexican",
-    "Nigerian",
-    "Pakistani",
-    "Singaporean",
-    "Spanish",
-    "Thai",
-    "Vietnamese",
-  ];
+  const [firstName, setFirstName] = useState("");
+  const [middleName, setMiddleName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [suffix, setSuffix] = useState("");
+  const [address, setAddress] = useState("");
+  const [contactNumber, setContactNumber] = useState("");
+  const [emailAddress, setEmailAddress] = useState("");
 
   const ethnicGroupOptions = [
+    "Not Applicable",
     "Aeta",
     "Agta",
     "Bajau",
@@ -85,6 +62,19 @@ const PersonalInfo = () => {
     "Others",
   ];
 
+  const disabilityOptions = [
+    "Not Applicable",
+    "Visual Disability",
+    "Hearing Disability",
+    "Speech Disability",
+    "Physical Disability",
+    "Psychosocial Disability",
+    "Intellectual Disability",
+    "Learning Disability",
+    "Mental Disability",
+    "Others",
+  ];
+
   const calculateAge = (birthDate) => {
     const today = new Date();
     const birth = new Date(birthDate);
@@ -113,43 +103,38 @@ const PersonalInfo = () => {
     }
   };
 
-  const handleEthnicGroupChange = (e) => {
-    const value = e.target.value;
-    setHasEthnicGroup(value);
-
-    if (value === "no") {
-      setEthnicGroup("");
-    }
-  };
-
-  const handleDisabilityChange = (e) => {
-    const value = e.target.value;
-    setHasDisability(value);
-
-    if (value === "no") {
-      setDisabilityDetails("");
-    }
-  };
-
   const validateForm = () => {
     let newErrors = {};
+
+    if (!firstName.trim()) newErrors.firstName = "First name is required";
+    if (!middleName.trim()) newErrors.middleName = "Middle name is required";
+    if (!lastName.trim()) newErrors.lastName = "Last name is required";
+    if (!address.trim()) newErrors.address = "Address is required";
+    if (!contactNumber.trim()) {
+      newErrors.contactNumber = "Contact number is required";
+    }
+    if (!emailAddress.trim()) {
+      newErrors.emailAddress = "Email address is required";
+    }
 
     if (!dob) newErrors.dob = "Date of birth is required";
     if (!sex) newErrors.sex = "Sex is required";
     if (!civilStatus) newErrors.civilStatus = "Civil status is required";
-    if (!nationality) newErrors.nationality = "Nationality is required";
-    if (!religion) newErrors.religion = "Religion is required";
-    if (!hasEthnicGroup) newErrors.hasEthnicGroup = "Please select an option";
-    if (hasEthnicGroup === "yes" && !ethnicGroup) {
-      newErrors.ethnicGroup = "Please specify ethnic group";
+
+    if (!nationality.trim()) {
+      newErrors.nationality = "Nationality is required";
+    } else if (
+      nationality === "Dual Citizen - " ||
+      nationality === "Others - "
+    ) {
+      newErrors.nationality = "Please complete nationality";
     }
-    if (!hasDisability) newErrors.hasDisability = "Please select an option";
-    if (hasDisability === "yes" && !disabilityDetails) {
-      newErrors.disabilityDetails = "Please specify disability";
-    }
+
+    if (!religion.trim()) newErrors.religion = "Religion is required";
+    if (!ethnicGroup) newErrors.ethnicGroup = "Ethnic group is required";
+    if (!disability) newErrors.disability = "Please select disability";
 
     setErrors(newErrors);
-
     return Object.keys(newErrors).length === 0;
   };
 
@@ -175,9 +160,13 @@ const PersonalInfo = () => {
           <input
             type="text"
             placeholder="First name"
-            required
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
             className="w-full h-11 px-4 rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+          {errors.firstName && (
+            <p className="text-red-500 text-xs mt-1">{errors.firstName}</p>
+          )}
         </div>
 
         {/* Middle Name */}
@@ -188,9 +177,13 @@ const PersonalInfo = () => {
           <input
             type="text"
             placeholder="Middle name"
-            required
+            value={middleName}
+            onChange={(e) => setMiddleName(e.target.value)}
             className="w-full h-11 px-4 rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+          {errors.middleName && (
+            <p className="text-red-500 text-xs mt-1">{errors.middleName}</p>
+          )}
         </div>
 
         {/* Last Name */}
@@ -201,9 +194,13 @@ const PersonalInfo = () => {
           <input
             type="text"
             placeholder="Last name"
-            required
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
             className="w-full h-11 px-4 rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+          {errors.lastName && (
+            <p className="text-red-500 text-xs mt-1">{errors.lastName}</p>
+          )}
         </div>
 
         {/* Suffix */}
@@ -214,6 +211,8 @@ const PersonalInfo = () => {
           <input
             type="text"
             placeholder="Jr., Sr., III"
+            value={suffix}
+            onChange={(e) => setSuffix(e.target.value)}
             className="w-full h-11 px-4 rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
@@ -226,9 +225,13 @@ const PersonalInfo = () => {
           <input
             type="text"
             placeholder="Address"
-            required
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
             className="w-full h-11 px-4 rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+          {errors.address && (
+            <p className="text-red-500 text-xs mt-1">{errors.address}</p>
+          )}
         </div>
 
         {/* Contact Number */}
@@ -239,9 +242,13 @@ const PersonalInfo = () => {
           <input
             type="text"
             placeholder="Contact Number"
-            required
+            value={contactNumber}
+            onChange={(e) => setContactNumber(e.target.value)}
             className="w-full h-11 px-4 rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+          {errors.contactNumber && (
+            <p className="text-red-500 text-xs mt-1">{errors.contactNumber}</p>
+          )}
         </div>
 
         {/* Email Address */}
@@ -252,9 +259,13 @@ const PersonalInfo = () => {
           <input
             type="email"
             placeholder="Email Address"
-            required
+            value={emailAddress}
+            onChange={(e) => setEmailAddress(e.target.value)}
             className="w-full h-11 px-4 rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+          {errors.emailAddress && (
+            <p className="text-red-500 text-xs mt-1">{errors.emailAddress}</p>
+          )}
         </div>
 
         {/* Date of Birth */}
@@ -267,7 +278,6 @@ const PersonalInfo = () => {
             value={dob}
             onChange={handleDOBChange}
             max={new Date().toISOString().split("T")[0]}
-            required
             className="w-full h-11 px-2 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           {errors.dob && (
@@ -297,7 +307,6 @@ const PersonalInfo = () => {
           <select
             value={sex}
             onChange={(e) => setSex(e.target.value)}
-            required
             className="w-full h-11 px-3 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">Select</option>
@@ -317,7 +326,6 @@ const PersonalInfo = () => {
           <select
             value={civilStatus}
             onChange={(e) => setCivilStatus(e.target.value)}
-            required
             className="w-full h-11 px-3 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">Select</option>
@@ -332,7 +340,9 @@ const PersonalInfo = () => {
           )}
         </div>
 
-        {/* Nationality */}
+        {/* Nationality + Religion + Ethnic Group in one row */}
+        <div className="md:col-span-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Nationality */}
           <div>
             <label className="block text-sm font-medium text-slate-600 mb-1">
               Nationality
@@ -342,17 +352,18 @@ const PersonalInfo = () => {
               list="nationality-options"
               value={nationality}
               onChange={(e) => setNationality(e.target.value)}
-              placeholder="Type or select nationality"
-              required
+              placeholder="Select or type nationality"
               className="w-full h-11 px-3 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+
             {errors.nationality && (
               <p className="text-red-500 text-xs mt-1">{errors.nationality}</p>
             )}
+
             <datalist id="nationality-options">
-              {nationalityOptions.map((item) => (
-                <option key={item} value={item} />
-              ))}
+              <option value="Filipino" />
+              <option value="Dual Citizen - " />
+              <option value="Others - " />
             </datalist>
           </div>
 
@@ -367,7 +378,6 @@ const PersonalInfo = () => {
               value={religion}
               onChange={(e) => setReligion(e.target.value)}
               placeholder="Type or select religion"
-              required
               className="w-full h-11 px-3 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             {errors.religion && (
@@ -380,103 +390,58 @@ const PersonalInfo = () => {
             </datalist>
           </div>
 
-          {/* Ethnic Group (Yes/No) */}
+          {/* Ethnic Group */}
           <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1 whitespace-nowrap">
-            With ethnic group?
+            <label className="block text-sm font-medium text-slate-600 mb-1">
+              Ethnic Group
             </label>
             <select
-              value={hasEthnicGroup}
-              onChange={handleEthnicGroupChange}
-              required
+              value={ethnicGroup}
+              onChange={(e) => setEthnicGroup(e.target.value)}
               className="w-full h-11 px-3 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Select</option>
-              <option value="yes">Yes</option>
-              <option value="no">No</option>
+              {ethnicGroupOptions.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
             </select>
-
-            {errors.hasEthnicGroup && (
-              <p className="text-red-500 text-xs mt-1">{errors.hasEthnicGroup}</p>
-            )}
-          </div>
-
-          {/* Ethnic Group Details (same row, always reserved space) */}
-          <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">
-              Specify ethnic group
-            </label>
-            <input
-              type="text"
-              list="ethnic-group-options"
-              value={ethnicGroup}
-              onChange={(e) => setEthnicGroup(e.target.value)}
-              placeholder={hasEthnicGroup === "yes" ? "Enter ethnic group" : ""}
-              disabled={hasEthnicGroup !== "yes"}
-              className={`w-full h-11 px-3 text-sm rounded-xl border ${
-                hasEthnicGroup === "yes"
-                  ? "border-slate-200 bg-white"
-                  : "border-slate-200 bg-slate-100"
-              } focus:outline-none focus:ring-2 focus:ring-blue-500`}
-            />
 
             {errors.ethnicGroup && (
               <p className="text-red-500 text-xs mt-1">{errors.ethnicGroup}</p>
             )}
-
-            <datalist id="ethnic-group-options">
-              {ethnicGroupOptions.map((item) => (
-                <option key={item} value={item} />
-              ))}
-            </datalist>
           </div>
-        {/* Disabilities */}
+        </div>
+
+        {/* Disability */}
         <div className="md:col-span-2">
           <label className="block text-sm font-medium text-slate-600 mb-1">
-            Do you have any disabilities?
+            Disability
           </label>
           <select
-            value={hasDisability}
-            onChange={handleDisabilityChange}
-            required
+            value={disability}
+            onChange={(e) => setDisability(e.target.value)}
             className="w-full h-11 px-3 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">Select</option>
-            <option value="yes">Yes</option>
-            <option value="no">No</option>
+            {disabilityOptions.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
           </select>
-          {errors.hasDisability && (
-            <p className="text-red-500 text-xs mt-1">{errors.hasDisability}</p>
+
+          {errors.disability && (
+            <p className="text-red-500 text-xs mt-1">{errors.disability}</p>
           )}
         </div>
-
-        {hasDisability === "yes" && (
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-slate-600 mb-1">
-              Please specify disability
-            </label>
-            <input
-              type="text"
-              value={disabilityDetails}
-              onChange={(e) => setDisabilityDetails(e.target.value)}
-              placeholder="Enter disability details"
-              required
-              className="w-full h-11 px-3 text-sm rounded-xl border border-slate-\300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            {errors.disabilityDetails && (
-              <p className="text-red-500 text-xs mt-1">
-                {errors.disabilityDetails}
-              </p>
-            )}
-          </div>
-        )}
       </div>
 
       <p className="text-slate-500">
-        Please make sure all the information is correct before proceeding to the next step.
+        Please make sure all the information is correct before proceeding to the
+        next step.
       </p>
-
-      
     </form>
   );
 };
