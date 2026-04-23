@@ -40,9 +40,10 @@ const Eligibility = () => {
     ]);
   };
 
-  const removeEligibility = (index) => {
-    const updated = eligibilities.filter((_, i) => i !== index);
-    setEligibilities(updated);
+  const removeEligibility = () => {
+    if (eligibilities.length > 1) {
+      setEligibilities(eligibilities.slice(0, -1));
+    }
   };
 
   const handleWorkChange = (index, field, value) => {
@@ -64,24 +65,27 @@ const Eligibility = () => {
     ]);
   };
 
-  const removeWorkExperience = (index) => {
-    const updated = workExperiences.filter((_, i) => i !== index);
-    setWorkExperiences(updated);
+  const removeWorkExperience = () => {
+    if (workExperiences.length > 1) {
+      setWorkExperiences(workExperiences.slice(0, -1));
+    }
   };
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
       {/* Eligibility Section */}
-      <div className="space-y-6">
-        
+      <div className="space-y-4">
+      
 
         {eligibilities.map((item, index) => (
           <div key={index} className="space-y-3">
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-x-4 gap-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">
-                  Type
-                </label>
+                {index === 0 && (
+                  <label className="block text-sm font-medium text-slate-600 mb-1">
+                    Type
+                  </label>
+                )}
                 <input
                   type="text"
                   value={item.type}
@@ -94,9 +98,11 @@ const Eligibility = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">
-                  Rating
-                </label>
+                {index === 0 && (
+                  <label className="block text-sm font-medium text-slate-600 mb-1">
+                    Rating
+                  </label>
+                )}
                 <input
                   type="text"
                   value={item.rating}
@@ -109,9 +115,11 @@ const Eligibility = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">
-                  Date of Examination
-                </label>
+                {index === 0 && (
+                  <label className="block text-sm font-medium text-slate-600 mb-1">
+                    Date of Examination
+                  </label>
+                )}
                 <input
                   type="date"
                   value={item.examDate}
@@ -123,9 +131,11 @@ const Eligibility = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">
-                  License Number
-                </label>
+                {index === 0 && (
+                  <label className="block text-sm font-medium text-slate-600 mb-1">
+                    License Number
+                  </label>
+                )}
                 <input
                   type="text"
                   value={item.licenseNumber}
@@ -142,9 +152,11 @@ const Eligibility = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">
-                  Valid Until
-                </label>
+                {index === 0 && (
+                  <label className="block text-sm font-medium text-slate-600 mb-1">
+                    Valid Until
+                  </label>
+                )}
                 <input
                   type="date"
                   value={item.validUntil}
@@ -155,43 +167,45 @@ const Eligibility = () => {
                 />
               </div>
             </div>
-
-            <div className="flex items-center gap-4">
-              <button
-                type="button"
-                onClick={addEligibility}
-                className="text-sm font-semibold text-blue-700 hover:underline"
-              >
-                Add +
-              </button>
-
-              {eligibilities.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => removeEligibility(index)}
-                  className="text-sm font-semibold text-red-600 hover:underline"
-                >
-                  Minus -
-                </button>
-              )}
-            </div>
           </div>
         ))}
+
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={addEligibility}
+            className="text-sm font-semibold text-blue-700 hover:underline"
+          >
+            Add +
+          </button>
+
+          {eligibilities.length > 1 && (
+            <button
+              type="button"
+              onClick={removeEligibility}
+              className="text-sm font-semibold text-red-600 hover:underline"
+            >
+              Remove Last
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Work Experience Section */}
-      <div className="space-y-6">
+      <div className="space-y-4">
         <h2 className="text-2xl font-bold text-blue-900 uppercase">
           Work Experience
         </h2>
 
         {workExperiences.map((item, index) => (
           <div key={index} className="space-y-3">
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-x-4 gap-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">
-                  Position / Title
-                </label>
+                {index === 0 && (
+                  <label className="block text-sm font-medium text-slate-600 mb-1">
+                    Position / Title
+                  </label>
+                )}
                 <input
                   type="text"
                   value={item.position}
@@ -204,9 +218,11 @@ const Eligibility = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">
-                  Agency / Office
-                </label>
+                {index === 0 && (
+                  <label className="block text-sm font-medium text-slate-600 mb-1">
+                    Agency / Office
+                  </label>
+                )}
                 <input
                   type="text"
                   value={item.agency}
@@ -219,9 +235,11 @@ const Eligibility = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">
-                  Status
-                </label>
+                {index === 0 && (
+                  <label className="block text-sm font-medium text-slate-600 mb-1">
+                    Status
+                  </label>
+                )}
                 <input
                   type="text"
                   value={item.status}
@@ -234,9 +252,11 @@ const Eligibility = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">
-                  From Year
-                </label>
+                {index === 0 && (
+                  <label className="block text-sm font-medium text-slate-600 mb-1">
+                    From Year
+                  </label>
+                )}
                 <input
                   type="number"
                   value={item.fromYear}
@@ -249,9 +269,11 @@ const Eligibility = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">
-                  To Year
-                </label>
+                {index === 0 && (
+                  <label className="block text-sm font-medium text-slate-600 mb-1">
+                    To Year
+                  </label>
+                )}
                 <input
                   type="number"
                   value={item.toYear}
@@ -263,28 +285,28 @@ const Eligibility = () => {
                 />
               </div>
             </div>
-
-            <div className="flex items-center gap-4">
-              <button
-                type="button"
-                onClick={addWorkExperience}
-                className="text-sm font-semibold text-blue-700 hover:underline"
-              >
-                Add +
-              </button>
-
-              {workExperiences.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => removeWorkExperience(index)}
-                  className="text-sm font-semibold text-red-600 hover:underline"
-                >
-                  Minus -
-                </button>
-              )}
-            </div>
           </div>
         ))}
+
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={addWorkExperience}
+            className="text-sm font-semibold text-blue-700 hover:underline"
+          >
+            Add +
+          </button>
+
+          {workExperiences.length > 1 && (
+            <button
+              type="button"
+              onClick={removeWorkExperience}
+              className="text-sm font-semibold text-red-600 hover:underline"
+            >
+              Remove Last
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
