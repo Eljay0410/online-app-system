@@ -8,7 +8,9 @@ const PersonalInfo = () => {
   const [sex, setSex] = useState("");
   const [civilStatus, setCivilStatus] = useState("");
   const [nationality, setNationality] = useState("");
+  const [nationalityInput, setNationalityInput] = useState("");
   const [religion, setReligion] = useState("");
+  const [religionInput, setReligionInput] = useState("");
   const [ethnicGroup, setEthnicGroup] = useState("");
   const [disability, setDisability] = useState("");
 
@@ -75,6 +77,16 @@ const PersonalInfo = () => {
     "Others",
   ];
 
+  const finalReligion =
+  religion === "Others"
+    ? religionInput
+    : religion;
+
+  const finalNationality =
+  nationality === "Dual Citizen" || nationality === "Others"
+    ? `${nationality} - ${nationalityInput}`
+    : nationality;
+
   const calculateAge = (birthDate) => {
     const today = new Date();
     const birth = new Date(birthDate);
@@ -121,16 +133,24 @@ const PersonalInfo = () => {
     if (!sex) newErrors.sex = "Sex is required";
     if (!civilStatus) newErrors.civilStatus = "Civil status is required";
 
-    if (!nationality.trim()) {
+    if (!nationality) {
       newErrors.nationality = "Nationality is required";
-    } else if (
-      nationality === "Dual Citizen - " ||
-      nationality === "Others - "
+    }
+    
+    if (
+      (nationality === "Dual Citizen" || nationality === "Others") &&
+      !nationalityInput.trim()
     ) {
-      newErrors.nationality = "Please complete nationality";
+      newErrors.nationality = "Please specify nationality";
     }
 
-    if (!religion.trim()) newErrors.religion = "Religion is required";
+    if (!religion) {
+      newErrors.religion = "Religion is required";
+    }
+    
+    if (religion === "Others" && !religionInput.trim()) {
+      newErrors.religion = "Please specify religion";
+    }
     if (!ethnicGroup) newErrors.ethnicGroup = "Ethnic group is required";
     if (!disability) newErrors.disability = "Please select disability";
 
@@ -145,6 +165,8 @@ const PersonalInfo = () => {
       alert("Form submitted!");
     }
   };
+
+  
 
   return (
     <form
@@ -342,52 +364,94 @@ const PersonalInfo = () => {
 
         {/* Nationality + Religion + Ethnic Group in one row */}
         <div className="md:col-span-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Nationality */}
-          <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">
-              Nationality
-            </label>
+
+         {/* Nationality */}
+        <div>
+          <label className="block text-sm font-medium text-slate-600 mb-1">
+            Nationality
+          </label>
+
+          {/* Dropdown */}
+          <select
+            value={nationality}
+            onChange={(e) => {
+              const value = e.target.value;
+              setNationality(value);
+
+              // reset input kapag hindi needed
+              if (value !== "Dual Citizen" && value !== "Others") {
+                setNationalityInput("");
+              }
+            }}
+            className="w-full h-11 px-3 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Select</option>
+            <option value="Filipino">Filipino</option>
+            <option value="Dual Citizen">Dual Citizen</option>
+            <option value="Others">Others</option>
+          </select>
+
+          {errors.nationality && (
+            <p className="text-red-500 text-xs mt-1">{errors.nationality}</p>
+          )}
+
+          {/* Inline typing (same area, not separate layout row) */}
+          {(nationality === "Dual Citizen" || nationality === "Others") && (
             <input
               type="text"
-              list="nationality-options"
-              value={nationality}
-              onChange={(e) => setNationality(e.target.value)}
-              placeholder="Select or type nationality"
-              className="w-full h-11 px-3 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={nationalityInput}
+              onChange={(e) => setNationalityInput(e.target.value)}
+              placeholder={
+                nationality === "Dual Citizen"
+                  ? "e.g. Filipino-American"
+                  : "Specify nationality"
+              }
+              className="mt-2 w-full h-11 px-3 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+          )}
+        </div>
 
-            {errors.nationality && (
-              <p className="text-red-500 text-xs mt-1">{errors.nationality}</p>
-            )}
-
-            <datalist id="nationality-options">
-              <option value="Filipino" />
-              <option value="Dual Citizen - " />
-              <option value="Others - " />
-            </datalist>
-          </div>
-
-          {/* Religion */}
+         {/* Religion */}
           <div>
             <label className="block text-sm font-medium text-slate-600 mb-1">
               Religion
             </label>
-            <input
-              type="text"
-              list="religion-options"
+
+            {/* Dropdown */}
+            <select
               value={religion}
-              onChange={(e) => setReligion(e.target.value)}
-              placeholder="Type or select religion"
+              onChange={(e) => {
+                const value = e.target.value;
+                setReligion(value);
+
+                if (value !== "Others") {
+                  setReligionInput("");
+                }
+              }}
               className="w-full h-11 px-3 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            >
+              <option value="">Select</option>
+              {religionOptions.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+
             {errors.religion && (
               <p className="text-red-500 text-xs mt-1">{errors.religion}</p>
             )}
-            <datalist id="religion-options">
-              {religionOptions.map((item) => (
-                <option key={item} value={item} />
-              ))}
-            </datalist>
+
+            {/* Input for Others */}
+            {religion === "Others" && (
+              <input
+                type="text"
+                value={religionInput}
+                onChange={(e) => setReligionInput(e.target.value)}
+                placeholder="Specify religion"
+                className="mt-2 w-full h-11 px-3 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            )}
           </div>
 
           {/* Ethnic Group */}
