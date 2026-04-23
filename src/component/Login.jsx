@@ -2,7 +2,7 @@ import imageSample from "../assets/imagesample.svg";
 
 const Login = () => {
   return (
-    <div className="min-h-screen bg-slate-100 flex pt-20">
+    <div className="min-h-screen bg-slate-100 flex pt-10">
 
       {/* LEFT SIDE (FORM - FIXED WIDTH) */}
       <div className="w-full max-w-md bg-white flex flex-col justify-center px-10 py-12 shadow-md">
