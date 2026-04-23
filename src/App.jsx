@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route, useNavigate } from 'react-router-dom';
 import Navbar from './component/Navbar';
 import Applicationform from './component/Applicationform';
+import Login from './component/Login';
 
 const Hero = () => {
   const navigate = useNavigate();
@@ -42,6 +43,8 @@ function App() {
       <Routes>
         <Route path="/" element={<Hero />} />
         <Route path="/apply" element={<Applicationform />} />
+        <Route path="/login" element={<Login />} />
+        
       </Routes>
     </div>
   );
