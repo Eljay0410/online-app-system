@@ -34,7 +34,7 @@ const Navbar = () => {
             </Link>
 
             <a
-              href="#"
+              href="/jobopenings"
               className="text-white hover:text-black font-medium transition-colors"
             >
               Find Jobs
@@ -50,7 +50,7 @@ const Navbar = () => {
             </a>
 
             <a
-              href="#"
+              href="/about"
               className="text-white hover:text-black font-medium transition-colors"
             >
               About
