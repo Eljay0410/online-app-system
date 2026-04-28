@@ -1,4 +1,5 @@
 import imageSample from "../assets/imagesample.svg";
+import { Link } from "react-router-dom";
 
 const Login = () => {
   return (
@@ -42,20 +43,23 @@ const Login = () => {
         {/* REGISTER TEXT */}
         <p className="text-xs text-slate-500 mt-6 text-center">
           If you are new applicant, register your account{" "}
-          <span className="text-blue-600 font-medium cursor-pointer hover:underline">
+          <Link
+            to="/apply"
+            className="text-blue-600 font-medium cursor-pointer hover:underline"
+          >
             Here
-          </span>
+          </Link>
         </p>
       </div>
 
-      {/* RIGHT SIDE (IMAGE - FULL SPACE) */}
-      <div className="flex-1 flex items-center justify-center bg-blue-600">
-        <img
-          src={imageSample}
-          alt="Login Illustration"
-          className="w-full h-full "
-        />
-      </div>
+      {/* RIGHT SIDE (IMAGE - HIDDEN ON MOBILE) */}
+        <div className="hidden md:flex flex-1 items-center justify-center bg-blue-600">
+          <img
+            src={imageSample}
+            alt="Login Illustration"
+            className="w-full h-full object-cover"
+          />
+        </div>
 
     </div>
   );

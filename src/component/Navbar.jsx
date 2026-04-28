@@ -41,7 +41,9 @@ const Navbar = () => {
             </a>
 
             <a
-              href="#"
+              href="https://depedcsjdm.weebly.com/"
+              target="_blank"
+              rel="noopener noreferrer"
               className="text-white hover:text-black font-medium transition-colors"
             >
               DepEd
