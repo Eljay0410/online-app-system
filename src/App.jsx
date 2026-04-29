@@ -1,16 +1,27 @@
 import React from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, useLocation } from "react-router-dom";
 import Navbar from "./component/Navbar";
+import NavbarApplicant from "./component/Navbar-applicant";
 import Applicationform from "./component/Applicationform";
 import Login from "./component/Login";
 import Home from "./component/FormSteps/Home";
 import Jobopening from "./component/Jobopening";
 import Aboutpage from "./component/Aboutpage";
+import Applicantdash from "./component/Applicantdash";
 
 function App() {
+
+  const location = useLocation();
+
+  const everyroute =
+    location.pathname === "/applicantdashboard" ||
+    location.pathname === "/superadmin" ||
+    location.pathname === "/hr";
+    
+
   return (
     <div className="min-h-screen bg-white font-['Poppins']">
-      <Navbar />
+      {everyroute ?  <NavbarApplicant />: <Navbar /> }
 
       <Routes>
         <Route path="/" element={<Home />} />
@@ -18,6 +29,7 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/jobopenings" element={<Jobopening />} />
         <Route path="/about" element={<Aboutpage />} />
+        <Route path="/Applicantdashboard" element={<Applicantdash />} />
       </Routes>
     </div>
   );
