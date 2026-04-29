@@ -225,6 +225,7 @@ const PersonalInfo = ({ onNext }) => {
               clearFieldError("firstName");
             }}
             className={inputClass("firstName")}
+            autoComplete="off"
           />
           {errors.firstName && (
             <p className="text-red-500 text-xs mt-1">{errors.firstName}</p>
@@ -245,6 +246,7 @@ const PersonalInfo = ({ onNext }) => {
               clearFieldError("middleName");
             }}
             className={inputClass("middleName")}
+            autoComplete="off"
           />
           {errors.middleName && (
             <p className="text-red-500 text-xs mt-1">{errors.middleName}</p>
@@ -265,6 +267,7 @@ const PersonalInfo = ({ onNext }) => {
               clearFieldError("lastName");
             }}
             className={inputClass("lastName")}
+            autoComplete="off"
           />
           {errors.lastName && (
             <p className="text-red-500 text-xs mt-1">{errors.lastName}</p>
@@ -299,6 +302,7 @@ const PersonalInfo = ({ onNext }) => {
               clearFieldError("address");
             }}
             className={inputClass("address")}
+            autoComplete="off"
           />
           {errors.address && (
             <p className="text-red-500 text-xs mt-1">{errors.address}</p>
@@ -319,6 +323,7 @@ const PersonalInfo = ({ onNext }) => {
               clearFieldError("contactNumber");
             }}
             className={inputClass("contactNumber")}
+            autoComplete="off"
           />
           {errors.contactNumber && (
             <p className="text-red-500 text-xs mt-1">{errors.contactNumber}</p>
@@ -339,6 +344,7 @@ const PersonalInfo = ({ onNext }) => {
               clearFieldError("emailAddress");
             }}
             className={inputClass("emailAddress")}
+            autoComplete="off"
           />
           {errors.emailAddress && (
             <p className="text-red-500 text-xs mt-1">{errors.emailAddress}</p>
@@ -375,6 +381,7 @@ const PersonalInfo = ({ onNext }) => {
             readOnly
             placeholder="Auto"
             className="w-full h-11 px-3 text-sm rounded-xl border border-slate-300 bg-slate-100"
+            autoComplete="off"
           />
         </div>
 

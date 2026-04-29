@@ -1,7 +1,8 @@
 import { useState } from "react";
 
-const Attachment = () => {
+const Attachment = ({ onNext }) => {
   const [positionType, setPositionType] = useState("");
+  const [error, setError] = useState("");
 
   const showAttachments =
     positionType === "Non-Teaching" ||
@@ -19,18 +20,45 @@ const Attachment = () => {
       "Master Teacher V",
     ].includes(positionType);
 
-  return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      
+  const handleSubmit = (e) => {
+    e.preventDefault();
 
+    if (!positionType) {
+      setError("Position applied for is required");
+      return;
+    }
+
+    const formData = {
+      positionType,
+    };
+
+    console.log("Attachment Data:", formData);
+
+    if (onNext) {
+      onNext(formData);
+    }
+  };
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      autoComplete="off"
+      className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500"
+    >
       <div>
         <label className="block text-sm font-medium text-slate-600 mb-1">
-          Position Applied For
+          Position Applied For <span className="text-red-500">*</span>
         </label>
+
         <select
           value={positionType}
-          onChange={(e) => setPositionType(e.target.value)}
-          className="w-full md:w-[420px] h-11 px-4 rounded-xl border border-slate-300 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-slate-400"
+          onChange={(e) => {
+            setPositionType(e.target.value);
+            setError("");
+          }}
+          className={`w-full md:w-[420px] h-11 px-4 rounded-xl border bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-slate-400 ${
+            error ? "border-red-500" : "border-slate-300"
+          }`}
         >
           <option value="">Select position</option>
           <option value="Non-Teaching">Non-Teaching</option>
@@ -47,80 +75,35 @@ const Attachment = () => {
           <option value="Master Teacher IV">Master Teacher IV</option>
           <option value="Master Teacher V">Master Teacher V</option>
         </select>
+
+        {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
       </div>
 
       {positionType === "Teacher I" && (
         <div className="space-y-4 rounded-xl border border-blue-200 bg-blue-50 p-5 text-sm text-slate-700">
           <p className="font-semibold text-blue-800">
             If you are applying for Teacher I, you are required to personally
-            submit the hard copies of your attachments to the Human Resource Office.
+            submit the hard copies of your attachments to the Human Resource
+            Office.
           </p>
 
           <div>
             <p className="font-semibold mb-2">Required documents:</p>
             <ol className="list-decimal pl-5 space-y-2">
-              <li>
-                Unique Application Number (UAN) generated at the review section of this application.
-              </li>
-              <li>
-                Letter of intent addressed to the Schools Division Superintendent (SDS)
-                containing the following:
-                <div className="pl-5 mt-1 space-y-1">
-                  <p>i. Statement of purpose / expression of interest</p>
-                  <p>ii. Learning area / subject group they intend to teach, if applicable</p>
-                </div>
-              </li>
-              <li>
-                Fully accomplished Personal Data Sheet (PDS) with Work Experience Sheet
-                and recent passport-sized or unfiltered digital picture (CS Form No. 212,
-                Revised 2025), digitally signed or electronically signed
-              </li>
-              <li>Photocopy of Voter’s ID and/or any proof of residency</li>
-              <li>Photocopy of valid and updated PRC License/ID</li>
-              <li>Photocopy of Certificate of Board Rating</li>
-              <li>
-                Photocopy of scholastic/academic records, such as Transcript of Records
-                (TOR) and Diploma, including completion of graduate and post-graduate
-                units/degrees, if available
-              </li>
-              <li>
-                Photocopy of duly signed Service Record or Certificate of Employment,
-                whichever is applicable
-              </li>
-              <li>
-                Photocopy of latest appointment, for those applying for promotion
-              </li>
-              <li>
-                Photocopy of certificate/s of relevant specialized training or
-                professional development programs, if any
-              </li>
-              <li>
-                Photocopy of valid TESDA National Certificate (NC) II and Trainers
-                Methodology Certificate (TMC), if applicable
-              </li>
-              <li>
-                Photocopy of required Performance Ratings with at least a Very
-                Satisfactory rating.
-                <p className="mt-1">
-                  Note: The applicant shall submit at most three (3) performance
-                  ratings, depending on the performance requirements of the position
-                  applied for. The latest performance rating shall cover one (1)
-                  complete performance rating period in the current position.
-                </p>
-              </li>
-              <li>
-                Checklist of Requirements and Omnibus Sworn Statement on the
-                Certification on the Authenticity and Veracity (CAV) of the documents
-                submitted, and Data Privacy Consent Form pursuant to RA No. 10173
-                (Data Privacy Act of 2012), sworn before a public officer authorized
-                to administer oaths pursuant to Section 41 of EO No. 292, as amended
-                by RA No. 6733 and further amended by RA No. 10755
-              </li>
-              <li>
-                Other documents as may be required by the HRMPSB, including but not
-                limited to a portfolio for the assessment of identified PPST
-                non-classroom observable indicators
-              </li>
+              <li>Unique Application Number (UAN) generated at the review section.</li>
+              <li>Letter of intent addressed to the Schools Division Superintendent.</li>
+              <li>Fully accomplished Personal Data Sheet (PDS).</li>
+              <li>Photocopy of Voter’s ID and/or any proof of residency.</li>
+              <li>Photocopy of valid and updated PRC License/ID.</li>
+              <li>Photocopy of Certificate of Board Rating.</li>
+              <li>Photocopy of Transcript of Records and Diploma.</li>
+              <li>Photocopy of Service Record or Certificate of Employment.</li>
+              <li>Photocopy of latest appointment, if applicable.</li>
+              <li>Photocopy of relevant training certificates, if any.</li>
+              <li>Photocopy of TESDA NC II and TMC, if applicable.</li>
+              <li>Photocopy of required Performance Ratings.</li>
+              <li>Checklist of Requirements and Omnibus Sworn Statement.</li>
+              <li>Other documents as may be required by the HRMPSB.</li>
             </ol>
           </div>
         </div>
@@ -155,7 +138,16 @@ const Attachment = () => {
           </p>
         </div>
       )}
-    </div>
+
+      <div className="flex justify-end">
+        <button
+          type="submit"
+          className="px-6 py-2 rounded-xl bg-[#0056b3] text-white hover:bg-[#003a78] transition"
+        >
+          Next Step
+        </button>
+      </div>
+    </form>
   );
 };
 
