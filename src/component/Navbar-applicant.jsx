@@ -163,7 +163,7 @@ export default function NavbarApplicant() {
                   onClick={() => setIsOpen(false)}
                   className="w-full bg-slate-100 text-slate-900 py-3 rounded-xl font-semibold text-center"
                 >
-                  Profile
+                  My Profile
                 </Link>
 
                 <button
