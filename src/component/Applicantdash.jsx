@@ -1,116 +1,175 @@
 import React from "react";
-import { FileText, Clock, CheckCircle, XCircle } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Briefcase, Calendar, FileText, Eye } from "lucide-react";
 
-const Applicantdash = () => {
+export default function ApplicantDash() {
   const applications = [
     {
       id: 1,
-      position: "Administrative Assistant",
-      status: "Under Review",
-      date: "April 29, 2026",
+      position: "Teacher I",
+      school: "DepEd CSJDM",
+      dateApplied: "2026-04-30",
+      status: "approved",
     },
     {
       id: 2,
-      position: "Financial Services Specialist",
-      status: "Submitted",
-      date: "April 28, 2026",
+      position: "Administrative Assistant",
+      school: "DepEd CSJDM",
+      dateApplied: "2026-04-25",
+      status: "rejected",
     },
   ];
 
-  const getStatusStyle = (status) => {
-    if (status === "Submitted") return "bg-blue-100 text-blue-700";
-    if (status === "Under Review") return "bg-yellow-100 text-yellow-700";
-    if (status === "Approved") return "bg-green-100 text-green-700";
-    if (status === "Rejected") return "bg-red-100 text-red-700";
-    return "bg-slate-100 text-slate-700";
+  const statusLabels = {
+    approved: "For Interview",
+    rejected: "Denied",
   };
 
+  const statusStyles = {
+    approved: "bg-blue-100 text-blue-700 border-blue-200",
+    rejected: "bg-red-100 text-red-700 border-red-200",
+  };
+
+  const visibleApplications = applications.filter(
+    (application) => application.status !== "under_review"
+  );
+
   return (
-    <div className="min-h-screen bg-slate-50 pt-28 px-6 pb-10">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900">
+    <div className="min-h-screen bg-slate-50 pt-28 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-6xl mx-auto space-y-8">
+        {/* Header */}
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-blue-900">
             Applicant Dashboard
           </h1>
-          <p className="text-slate-500 mt-2">
-            Welcome back! Track your job applications here.
+          <p className="text-slate-600 mt-1">
+            View your application status and previous submissions.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mb-8">
-          <div className="bg-white rounded-2xl shadow-sm p-5 border-slate-300">
-            <FileText className="text-blue-600 mb-3" />
-            <p className="text-sm text-slate-500">Total Applications</p>
-            <h2 className="text-2xl font-bold">2</h2>
+        {/* Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+            <div className="flex items-center gap-3">
+              <div className="bg-blue-100 text-blue-700 p-3 rounded-xl">
+                <FileText size={22} />
+              </div>
+              <div>
+                <p className="text-sm text-slate-500">Applications</p>
+                <h2 className="text-2xl font-bold text-slate-800">
+                  {visibleApplications.length}
+                </h2>
+              </div>
+            </div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm p-5 border-slate-300">
-            <Clock className="text-yellow-600 mb-3" />
-            <p className="text-sm text-slate-500">Under Review</p>
-            <h2 className="text-2xl font-bold">1</h2>
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+            <div className="flex items-center gap-3">
+              <div className="bg-blue-100 text-blue-700 p-3 rounded-xl">
+                <Briefcase size={22} />
+              </div>
+              <div>
+                <p className="text-sm text-slate-500">For Interview</p>
+                <h2 className="text-2xl font-bold text-slate-800">
+                  {
+                    visibleApplications.filter(
+                      (application) => application.status === "approved"
+                    ).length
+                  }
+                </h2>
+              </div>
+            </div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm p-5 border-slate-300">
-            <CheckCircle className="text-green-600 mb-3" />
-            <p className="text-sm text-slate-500">Approved</p>
-            <h2 className="text-2xl font-bold">0</h2>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-sm p-5 border-slate-300">
-            <XCircle className="text-red-600 mb-3" />
-            <p className="text-sm text-slate-500">Rejected</p>
-            <h2 className="text-2xl font-bold">0</h2>
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+            <div className="flex items-center gap-3">
+              <div className="bg-red-100 text-red-700 p-3 rounded-xl">
+                <Calendar size={22} />
+              </div>
+              <div>
+                <p className="text-sm text-slate-500">Denied</p>
+                <h2 className="text-2xl font-bold text-slate-800">
+                  {
+                    visibleApplications.filter(
+                      (application) => application.status === "rejected"
+                    ).length
+                  }
+                </h2>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border-slate-300 overflow-hidden">
-          <div className="p-5 border-slate-300">
-            <h2 className="text-xl font-semibold text-slate-900">
-              My Applications
+        {/* Applications Table */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-200">
+            <h2 className="text-lg font-semibold text-blue-900">
+              Previous Applications
             </h2>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-100 text-slate-600">
-                <tr>
-                  <th className="text-left p-4">Position</th>
-                  <th className="text-left p-4">Date Applied</th>
-                  <th className="text-left p-4">Status</th>
-                  <th className="text-left p-4">Action</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {applications.map((app) => (
-                  <tr key={app.id} className="border- hover:bg-slate-50">
-                    <td className="p-4 font-medium text-slate-800">
-                      {app.position}
-                    </td>
-                    <td className="p-4 text-slate-600">{app.date}</td>
-                    <td className="p-4">
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusStyle(
-                          app.status
-                        )}`}
-                      >
-                        {app.status}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      <button className="px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition">
-                        View
-                      </button>
-                    </td>
+          {visibleApplications.length === 0 ? (
+            <div className="p-6 text-center text-slate-500">
+              No previous applications found.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-slate-100 text-slate-600 uppercase text-xs">
+                  <tr>
+                    <th className="px-5 py-3">Position</th>
+                    <th className="px-5 py-3">Office / School</th>
+                    <th className="px-5 py-3">Date Applied</th>
+                    <th className="px-5 py-3">Status</th>
+                    <th className="px-5 py-3 text-right">Action</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+
+                <tbody>
+                  {visibleApplications.map((application) => (
+                    <tr
+                      key={application.id}
+                      className="border-t border-slate-100 hover:bg-slate-50"
+                    >
+                      <td className="px-5 py-4 font-medium text-slate-800">
+                        {application.position}
+                      </td>
+
+                      <td className="px-5 py-4 text-slate-600">
+                        {application.school}
+                      </td>
+
+                      <td className="px-5 py-4 text-slate-600">
+                        {application.dateApplied}
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <span
+                          className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold border ${
+                            statusStyles[application.status]
+                          }`}
+                        >
+                          {statusLabels[application.status]}
+                        </span>
+                      </td>
+
+                      <td className="px-5 py-4 text-right">
+                        <Link
+                          to={`/application-history/${application.id}`}
+                          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition"
+                        >
+                          <Eye size={16} />
+                          View
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
-};
-
-export default Applicantdash;
+}
