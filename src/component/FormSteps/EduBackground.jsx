@@ -78,7 +78,7 @@ const EducationalBackground = () => {
     e.preventDefault();
 
     const bachelorErrors = validateList(bachelors);
-    const postGraduateErrors = validateList(postGraduate);
+    const postGraduateErrors = [];
 
     setErrors({
       bachelors: bachelorErrors,
@@ -89,11 +89,9 @@ const EducationalBackground = () => {
       (row) => Object.keys(row).length > 0
     );
 
-    const hasPostGraduateErrors = postGraduateErrors.some(
-      (row) => Object.keys(row).length > 0
-    );
+  
 
-    if (hasBachelorErrors || hasPostGraduateErrors) return;
+    if (hasBachelorErrors) return;
 
     const formData = {
       bachelors,
@@ -271,7 +269,7 @@ const EducationalBackground = () => {
               <div>
                 {index === 0 && (
                   <label className="block text-sm font-medium text-slate-600 mb-1">
-                    School <span className="text-red-500">*</span>
+                    School 
                   </label>
                 )}
                 <input
@@ -301,7 +299,7 @@ const EducationalBackground = () => {
               <div>
                 {index === 0 && (
                   <label className="block text-sm font-medium text-slate-600 mb-1">
-                    Course <span className="text-red-500">*</span>
+                    Course 
                   </label>
                 )}
                 <input
@@ -331,7 +329,7 @@ const EducationalBackground = () => {
               <div>
                 {index === 0 && (
                   <label className="block text-sm font-medium text-slate-600 mb-1">
-                    Year Graduated <span className="text-red-500">*</span>
+                    Year Graduated 
                   </label>
                 )}
                 <input
