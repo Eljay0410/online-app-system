@@ -70,17 +70,39 @@ const Review = ({ data, onBack, onSubmit }) => {
               {personalInfo.middleName} {personalInfo.lastName}{" "}
               {personalInfo.suffix}
             </p>
-            <p><strong>Address:</strong> {personalInfo.address}</p>
-            <p><strong>Contact Number:</strong> {personalInfo.contactNumber}</p>
-            <p><strong>Email:</strong> {personalInfo.emailAddress}</p>
-            <p><strong>Date of Birth:</strong> {personalInfo.dob}</p>
-            <p><strong>Age:</strong> {personalInfo.age}</p>
-            <p><strong>Sex:</strong> {personalInfo.sex}</p>
-            <p><strong>Civil Status:</strong> {personalInfo.civilStatus}</p>
-            <p><strong>Nationality:</strong> {personalInfo.nationality}</p>
-            <p><strong>Religion:</strong> {personalInfo.religion}</p>
-            <p><strong>Ethnic Group:</strong> {personalInfo.ethnicGroup}</p>
-            <p><strong>Disability:</strong> {personalInfo.disability}</p>
+            <p>
+              <strong>Address:</strong> {personalInfo.address}
+            </p>
+            <p>
+              <strong>Contact Number:</strong> {personalInfo.contactNumber}
+            </p>
+            <p>
+              <strong>Email:</strong> {personalInfo.emailAddress}
+            </p>
+            <p>
+              <strong>Date of Birth:</strong> {personalInfo.dob}
+            </p>
+            <p>
+              <strong>Age:</strong> {personalInfo.age}
+            </p>
+            <p>
+              <strong>Sex:</strong> {personalInfo.sex}
+            </p>
+            <p>
+              <strong>Civil Status:</strong> {personalInfo.civilStatus}
+            </p>
+            <p>
+              <strong>Nationality:</strong> {personalInfo.nationality}
+            </p>
+            <p>
+              <strong>Religion:</strong> {personalInfo.religion}
+            </p>
+            <p>
+              <strong>Ethnic Group:</strong> {personalInfo.ethnicGroup}
+            </p>
+            <p>
+              <strong>Disability:</strong> {personalInfo.disability}
+            </p>
           </div>
         </div>
 
@@ -97,10 +119,18 @@ const Review = ({ data, onBack, onSubmit }) => {
 
           {education.bachelors?.map((item, index) => (
             <div key={index} className="text-sm text-slate-700 space-y-1">
-              <p><strong>School:</strong> {item.school}</p>
-              <p><strong>Course:</strong> {item.course}</p>
-              <p><strong>Year Graduated:</strong> {item.year}</p>
-              <p><strong>Award:</strong> {item.award}</p>
+              <p>
+                <strong>School:</strong> {item.school}
+              </p>
+              <p>
+                <strong>Course:</strong> {item.course}
+              </p>
+              <p>
+                <strong>Year Graduated:</strong> {item.year}
+              </p>
+              <p>
+                <strong>Award:</strong> {item.award || "N/A"}
+              </p>
             </div>
           ))}
 
@@ -110,10 +140,18 @@ const Review = ({ data, onBack, onSubmit }) => {
 
           {education.postGraduate?.map((item, index) => (
             <div key={index} className="text-sm text-slate-700 space-y-1">
-              <p><strong>School:</strong> {item.school}</p>
-              <p><strong>Course:</strong> {item.course}</p>
-              <p><strong>Year Graduated:</strong> {item.year}</p>
-              <p><strong>Award:</strong> {item.award}</p>
+              <p>
+                <strong>School:</strong> {item.school || "N/A"}
+              </p>
+              <p>
+                <strong>Course:</strong> {item.course || "N/A"}
+              </p>
+              <p>
+                <strong>Year Graduated:</strong> {item.year || "N/A"}
+              </p>
+              <p>
+                <strong>Award:</strong> {item.award || "N/A"}
+              </p>
             </div>
           ))}
         </div>
@@ -125,11 +163,22 @@ const Review = ({ data, onBack, onSubmit }) => {
 
           {eligibility.eligibilities?.map((item, index) => (
             <div key={index} className="text-sm text-slate-700 space-y-1">
-              <p><strong>Type:</strong> {item.type}</p>
-              <p><strong>Rating:</strong> {item.rating}</p>
-              <p><strong>Date of Examination:</strong> {item.examDate}</p>
-              <p><strong>License Number:</strong> {item.licenseNumber}</p>
-              <p><strong>Valid Until:</strong> {item.validUntil}</p>
+              <p>
+                <strong>Type:</strong> {item.type}
+              </p>
+              <p>
+                <strong>Rating:</strong> {item.rating}
+              </p>
+              <p>
+                <strong>Date of Examination:</strong> {item.examDate}
+              </p>
+              <p>
+                <strong>License Number:</strong>{" "}
+                {item.licenseNumber || "N/A"}
+              </p>
+              <p>
+                <strong>Valid Until:</strong> {item.validUntil || "N/A"}
+              </p>
             </div>
           ))}
 
@@ -139,11 +188,18 @@ const Review = ({ data, onBack, onSubmit }) => {
 
           {eligibility.workExperiences?.map((item, index) => (
             <div key={index} className="text-sm text-slate-700 space-y-1">
-              <p><strong>Position:</strong> {item.position}</p>
-              <p><strong>Agency / Office:</strong> {item.agency}</p>
-              <p><strong>Status:</strong> {item.status}</p>
               <p>
-                <strong>Inclusive Date:</strong> {item.fromYear} - {item.toYear}
+                <strong>Position:</strong> {item.position}
+              </p>
+              <p>
+                <strong>Agency / Office:</strong> {item.agency}
+              </p>
+              <p>
+                <strong>Status:</strong> {item.status}
+              </p>
+              <p>
+                <strong>Inclusive Date:</strong> {item.fromYear} -{" "}
+                {item.toYear}
               </p>
             </div>
           ))}
@@ -158,27 +214,102 @@ const Review = ({ data, onBack, onSubmit }) => {
 
           {learningDevelopment.trainings?.map((item, index) => (
             <div key={index} className="text-sm text-slate-700 space-y-1">
-              <p><strong>Title:</strong> {item.title}</p>
               <p>
-                <strong>Inclusive Date:</strong> {item.fromDate} - {item.toDate}
+                <strong>Title:</strong> {item.title}
               </p>
-              <p><strong>Hours:</strong> {item.hours}</p>
-              <p><strong>Conducted By:</strong> {item.conductedBy}</p>
+              <p>
+                <strong>Inclusive Date:</strong> {item.fromDate} -{" "}
+                {item.toDate}
+              </p>
+              <p>
+                <strong>Hours:</strong> {item.hours}
+              </p>
+              <p>
+                <strong>Conducted By:</strong> {item.conductedBy}
+              </p>
             </div>
           ))}
         </div>
 
-        {/* JOB POSITION */}
+        {/* JOB POSITION & ATTACHMENTS */}
         <div className="space-y-2">
           <h2 className="text-lg font-semibold text-blue-900">
-            Job Position
+            Job Position & Attachments
           </h2>
           <div className="border-b border-slate-300" />
 
-          <div className="text-sm text-slate-700 space-y-1">
+          <div className="text-sm text-slate-700 space-y-2">
             <p>
-              <strong>Position Applied For:</strong> {jobPosition.positionType}
+              <strong>Position Applied For:</strong>{" "}
+              {jobPosition.positionType || "N/A"}
             </p>
+
+            {jobPosition.positionType === "Teacher I" && (
+              <div className="space-y-4 rounded-xl border border-blue-200 bg-blue-50 p-5 text-sm text-slate-700">
+                <p className="font-semibold text-blue-800">
+                  If you are applying for Teacher I, you are required to
+                  personally submit the hard copies of your attachments to the
+                  Human Resource Office.
+                </p>
+
+                <div>
+                  <p className="font-semibold mb-2">Required documents:</p>
+                  <ol className="list-decimal pl-5 space-y-2">
+                    <li>
+                      Unique Application Number (UAN) generated at the review
+                      section.
+                    </li>
+                    <li>
+                      Letter of intent addressed to the Schools Division
+                      Superintendent.
+                    </li>
+                    <li>Fully accomplished Personal Data Sheet (PDS).</li>
+                    <li>
+                      Photocopy of Voter’s ID and/or any proof of residency.
+                    </li>
+                    <li>Photocopy of valid and updated PRC License/ID.</li>
+                    <li>Photocopy of Certificate of Board Rating.</li>
+                    <li>Photocopy of Transcript of Records and Diploma.</li>
+                    <li>
+                      Photocopy of Service Record or Certificate of Employment.
+                    </li>
+                    <li>Photocopy of latest appointment, if applicable.</li>
+                    <li>Photocopy of relevant training certificates, if any.</li>
+                    <li>Photocopy of TESDA NC II and TMC, if applicable.</li>
+                    <li>Photocopy of required Performance Ratings.</li>
+                    <li>
+                      Checklist of Requirements and Omnibus Sworn Statement.
+                    </li>
+                    <li>Other documents as may be required by the HRMPSB.</li>
+                  </ol>
+                </div>
+              </div>
+            )}
+
+            <div>
+              <p className="font-semibold text-slate-800">
+                Attached Files:
+              </p>
+
+              <ul className="list-disc pl-5 space-y-1">
+                <li>
+                  <strong>Transcript of Records:</strong>{" "}
+                  {jobPosition.files?.tor?.name || "Not uploaded"}
+                </li>
+                <li>
+                  <strong>Diploma:</strong>{" "}
+                  {jobPosition.files?.diploma?.name || "Not uploaded"}
+                </li>
+                <li>
+                  <strong>Certificate of Employment:</strong>{" "}
+                  {jobPosition.files?.coe?.name || "Not uploaded"}
+                </li>
+                <li>
+                  <strong>PRC License / Eligibility:</strong>{" "}
+                  {jobPosition.files?.prc?.name || "Not uploaded"}
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
 
