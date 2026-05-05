@@ -47,13 +47,6 @@ export default function NavbarApplicant() {
               Home
             </Link>
 
-            <Link
-              to="/jobopenings"
-              className="text-white hover:text-black font-medium transition-colors"
-            >
-              Find Jobs
-            </Link>
-
             <a
               href="https://depedcsjdm.weebly.com/"
               target="_blank"

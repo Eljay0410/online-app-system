@@ -37,18 +37,42 @@ export default function ApplicantDash() {
   return (
     <div className="min-h-screen bg-slate-50 pt-28 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto space-y-8">
-        {/* Header */}
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-blue-900">
-            Applicant Dashboard
-          </h1>
-          <p className="text-slate-600 mt-1">
-            View your application status and previous submissions.
-          </p>
+
+        {/* HEADER */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          
+          {/* LEFT */}
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-blue-900">
+              Applicant Dashboard
+            </h1>
+            <p className="text-slate-600 mt-1">
+              View your application status and previous submissions.
+            </p>
+          </div>
+
+          {/* RIGHT */}
+          <div className="flex items-center gap-3">
+            <Link
+              to="/application-history"
+              className="px-4 py-2 rounded-full border border-slate-300 text-slate-700 text-sm hover:bg-slate-100 transition"
+            >
+              History
+            </Link>
+
+            <Link
+              to="/jobs"
+              className="px-5 py-2 rounded-full bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition"
+            >
+              Apply New
+            </Link>
+          </div>
+
         </div>
 
-        {/* Cards */}
+        {/* CARDS */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
             <div className="flex items-center gap-3">
               <div className="bg-blue-100 text-blue-700 p-3 rounded-xl">
@@ -98,10 +122,12 @@ export default function ApplicantDash() {
               </div>
             </div>
           </div>
+
         </div>
 
-        {/* Applications Table */}
+        {/* TABLE */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          
           <div className="px-5 py-4 border-b border-slate-200">
             <h2 className="text-lg font-semibold text-blue-900">
               Previous Applications
@@ -114,7 +140,9 @@ export default function ApplicantDash() {
             </div>
           ) : (
             <div className="overflow-x-auto">
+              
               <table className="w-full text-sm text-left">
+                
                 <thead className="bg-slate-100 text-slate-600 uppercase text-xs">
                   <tr>
                     <th className="px-5 py-3">Position</th>
@@ -165,10 +193,13 @@ export default function ApplicantDash() {
                     </tr>
                   ))}
                 </tbody>
+
               </table>
+
             </div>
           )}
         </div>
+
       </div>
     </div>
   );
