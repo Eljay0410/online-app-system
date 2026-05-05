@@ -77,6 +77,19 @@ const Attachment = ({ data, onChange, onBack, onNext }) => {
     });
   };
 
+  const handleRemoveFile = (field) => {
+    const updatedFiles = {
+      ...files,
+      [field]: null,
+    };
+
+    setFiles(updatedFiles);
+
+    syncData({
+      files: updatedFiles,
+    });
+  };
+
   const validateFiles = () => {
     const errors = {};
 
@@ -137,6 +150,16 @@ const Attachment = ({ data, onChange, onBack, onNext }) => {
           </span>
         )}
       </label>
+
+      {files[field] && (
+        <button
+          type="button"
+          onClick={() => handleRemoveFile(field)}
+          className="text-sm font-semibold text-red-600 hover:underline"
+        >
+          Remove Attachment
+        </button>
+      )}
 
       {fileErrors[field] && (
         <p className="text-xs text-red-500">{fileErrors[field]}</p>
