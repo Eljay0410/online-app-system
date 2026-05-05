@@ -2,7 +2,17 @@ import { useState } from "react";
 
 const Attachment = ({ data, onChange, onBack, onNext }) => {
   const [positionType, setPositionType] = useState(data?.positionType || "");
+  const [files, setFiles] = useState(
+    data?.files || {
+      tor: null,
+      diploma: null,
+      coe: null,
+      prc: null,
+    }
+  );
+
   const [error, setError] = useState("");
+  const [fileErrors, setFileErrors] = useState({});
 
   const showAttachments =
     positionType === "Non-Teaching" ||
@@ -20,14 +30,65 @@ const Attachment = ({ data, onChange, onBack, onNext }) => {
       "Master Teacher V",
     ].includes(positionType);
 
+  const syncData = (updated) => {
+    onChange &&
+      onChange({
+        positionType,
+        files,
+        ...updated,
+      });
+  };
+
   const handlePositionChange = (value) => {
     setPositionType(value);
     setError("");
+    setFileErrors({});
 
-    onChange &&
-      onChange({
-        positionType: value,
-      });
+    const updatedFiles = {
+      tor: null,
+      diploma: null,
+      coe: null,
+      prc: null,
+    };
+
+    setFiles(updatedFiles);
+
+    syncData({
+      positionType: value,
+      files: updatedFiles,
+    });
+  };
+
+  const handleFileChange = (field, file) => {
+    const updatedFiles = {
+      ...files,
+      [field]: file,
+    };
+
+    setFiles(updatedFiles);
+
+    setFileErrors((prev) => ({
+      ...prev,
+      [field]: "",
+    }));
+
+    syncData({
+      files: updatedFiles,
+    });
+  };
+
+  const validateFiles = () => {
+    const errors = {};
+
+    if (showAttachments) {
+      if (!files.tor) errors.tor = "TOR is required";
+      if (!files.diploma) errors.diploma = "Diploma is required";
+      if (!files.coe) errors.coe = "Certificate of Employment is required";
+      if (!files.prc) errors.prc = "PRC License / Eligibility is required";
+    }
+
+    setFileErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const handleSubmit = (e) => {
@@ -38,14 +99,50 @@ const Attachment = ({ data, onChange, onBack, onNext }) => {
       return;
     }
 
-    const formData = {
-      positionType,
-    };
+    if (!validateFiles()) return;
 
-    console.log("Attachment Data:", formData);
-
-    onNext && onNext(formData);
+    onNext &&
+      onNext({
+        positionType,
+        files,
+      });
   };
+
+  const FileUpload = ({ label, field }) => (
+    <div className="space-y-2">
+      <label className="block text-sm font-medium text-slate-700">
+        {label} <span className="text-red-500">*</span>
+      </label>
+
+      <input
+        type="file"
+        id={field}
+        className="hidden"
+        onChange={(e) => handleFileChange(field, e.target.files[0] || null)}
+      />
+
+      <label
+        htmlFor={field}
+        className={`flex flex-col items-center justify-center h-24 w-full border-2 border-dashed rounded-xl cursor-pointer transition ${
+          fileErrors[field]
+            ? "border-red-400 bg-red-50"
+            : "border-slate-300 bg-slate-50 hover:border-blue-500 hover:bg-blue-50"
+        }`}
+      >
+        {!files[field] ? (
+          <span className="text-sm text-slate-500">Click to upload file</span>
+        ) : (
+          <span className="text-sm font-medium text-green-600 text-center px-2">
+            Uploaded: {files[field].name}
+          </span>
+        )}
+      </label>
+
+      {fileErrors[field] && (
+        <p className="text-xs text-red-500">{fileErrors[field]}</p>
+      )}
+    </div>
+  );
 
   return (
     <form
@@ -95,8 +192,13 @@ const Attachment = ({ data, onChange, onBack, onNext }) => {
           <div>
             <p className="font-semibold mb-2">Required documents:</p>
             <ol className="list-decimal pl-5 space-y-2">
-              <li>Unique Application Number (UAN) generated at the review section.</li>
-              <li>Letter of intent addressed to the Schools Division Superintendent.</li>
+              <li>
+                Unique Application Number (UAN) generated at the review section.
+              </li>
+              <li>
+                Letter of intent addressed to the Schools Division
+                Superintendent.
+              </li>
               <li>Fully accomplished Personal Data Sheet (PDS).</li>
               <li>Photocopy of Voter’s ID and/or any proof of residency.</li>
               <li>Photocopy of valid and updated PRC License/ID.</li>
@@ -120,26 +222,14 @@ const Attachment = ({ data, onChange, onBack, onNext }) => {
             Attachments / Requirements
           </h2>
 
-          <div className="space-y-3">
-            <div className="h-24 flex items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-slate-500 text-sm">
-              Upload Transcript of Records
-            </div>
-
-            <div className="h-24 flex items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-slate-500 text-sm">
-              Upload Diploma
-            </div>
-
-            <div className="h-24 flex items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-slate-500 text-sm">
-              Upload Certificate of Employment
-            </div>
-
-            <div className="h-24 flex items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-slate-500 text-sm">
-              Upload PRC License / Eligibility
-            </div>
-          </div>
+          <FileUpload label="Upload Transcript of Records" field="tor" />
+          <FileUpload label="Upload Diploma" field="diploma" />
+          <FileUpload label="Upload Certificate of Employment" field="coe" />
+          <FileUpload label="Upload PRC License / Eligibility" field="prc" />
 
           <p className="text-slate-500 text-sm">
-            Please upload the required supporting documents for your selected position.
+            Please upload the required supporting documents for your selected
+            position.
           </p>
         </div>
       )}
