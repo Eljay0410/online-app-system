@@ -83,8 +83,13 @@ const EducationalBackground = ({ data, onChange, onBack, onNext }) => {
     return list.map((item) => {
       const rowErrors = {};
 
-      if (required && !item.school.trim()) rowErrors.school = "School is required";
-      if (required && !item.course.trim()) rowErrors.course = "Course is required";
+      if (required && !item.school.trim()) {
+        rowErrors.school = "School is required";
+      }
+
+      if (required && !item.course.trim()) {
+        rowErrors.course = "Course is required";
+      }
 
       if (required && !item.year) {
         rowErrors.year = "Year is required";
@@ -109,11 +114,15 @@ const EducationalBackground = ({ data, onChange, onBack, onNext }) => {
       postGraduate: postGraduateErrors,
     });
 
-    const hasErrors = bachelorErrors.some(
+    const hasBachelorErrors = bachelorErrors.some(
       (row) => Object.keys(row).length > 0
     );
 
-    if (hasErrors) return;
+    const hasPostGraduateErrors = postGraduateErrors.some(
+      (row) => Object.keys(row).length > 0
+    );
+
+    if (hasBachelorErrors || hasPostGraduateErrors) return;
 
     onNext &&
       onNext({
@@ -131,70 +140,105 @@ const EducationalBackground = ({ data, onChange, onBack, onNext }) => {
 
         {bachelors.map((item, index) => (
           <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <input
-              placeholder="School"
-              value={item.school}
-              onChange={(e) =>
-                handleChange(
-                  "bachelors",
-                  bachelors,
-                  setBachelors,
-                  index,
-                  "school",
-                  e.target.value
-                )
-              }
-              className={inputClass(errors.bachelors[index]?.school)}
-            />
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-1">
+                School <span className="text-red-500">*</span>
+              </label>
+              <input
+                placeholder="School"
+                value={item.school}
+                onChange={(e) =>
+                  handleChange(
+                    "bachelors",
+                    bachelors,
+                    setBachelors,
+                    index,
+                    "school",
+                    e.target.value
+                  )
+                }
+                className={inputClass(errors.bachelors[index]?.school)}
+              />
+              {errors.bachelors[index]?.school && (
+                <p className="text-red-500 text-xs mt-1">
+                  {errors.bachelors[index].school}
+                </p>
+              )}
+            </div>
 
-            <input
-              placeholder="Course"
-              value={item.course}
-              onChange={(e) =>
-                handleChange(
-                  "bachelors",
-                  bachelors,
-                  setBachelors,
-                  index,
-                  "course",
-                  e.target.value
-                )
-              }
-              className={inputClass(errors.bachelors[index]?.course)}
-            />
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-1">
+                Course <span className="text-red-500">*</span>
+              </label>
+              <input
+                placeholder="Course"
+                value={item.course}
+                onChange={(e) =>
+                  handleChange(
+                    "bachelors",
+                    bachelors,
+                    setBachelors,
+                    index,
+                    "course",
+                    e.target.value
+                  )
+                }
+                className={inputClass(errors.bachelors[index]?.course)}
+              />
+              {errors.bachelors[index]?.course && (
+                <p className="text-red-500 text-xs mt-1">
+                  {errors.bachelors[index].course}
+                </p>
+              )}
+            </div>
 
-            <input
-              type="number"
-              placeholder="Year"
-              value={item.year}
-              onChange={(e) =>
-                handleChange(
-                  "bachelors",
-                  bachelors,
-                  setBachelors,
-                  index,
-                  "year",
-                  e.target.value
-                )
-              }
-              className={inputClass(errors.bachelors[index]?.year)}
-            />
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-1">
+                Year <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                placeholder="Year"
+                value={item.year}
+                onChange={(e) =>
+                  handleChange(
+                    "bachelors",
+                    bachelors,
+                    setBachelors,
+                    index,
+                    "year",
+                    e.target.value
+                  )
+                }
+                className={inputClass(errors.bachelors[index]?.year)}
+              />
+              {errors.bachelors[index]?.year && (
+                <p className="text-red-500 text-xs mt-1">
+                  {errors.bachelors[index].year}
+                </p>
+              )}
+            </div>
 
-            <input
-              placeholder="Award"
-              value={item.award}
-              onChange={(e) =>
-                handleChange(
-                  "bachelors",
-                  bachelors,
-                  setBachelors,
-                  index,
-                  "award",
-                  e.target.value
-                )
-              }
-              className="w-full h-11 px-4 rounded-xl border border-slate-300"
-            />
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-1">
+                Award
+              </label>
+              <input
+                placeholder="Award"
+                value={item.award}
+                onChange={(e) =>
+                  handleChange(
+                    "bachelors",
+                    bachelors,
+                    setBachelors,
+                    index,
+                    "award",
+                    e.target.value
+                  )
+                }
+                className="w-full h-11 px-4 rounded-xl border border-slate-300"
+              />
+            </div>
           </div>
         ))}
 
@@ -210,9 +254,7 @@ const EducationalBackground = ({ data, onChange, onBack, onNext }) => {
           {bachelors.length > 1 && (
             <button
               type="button"
-              onClick={() =>
-                removeItem("bachelors", bachelors, setBachelors)
-              }
+              onClick={() => removeItem("bachelors", bachelors, setBachelors)}
               className="text-sm font-semibold text-red-600 hover:underline"
             >
               - Delete Last
@@ -228,70 +270,105 @@ const EducationalBackground = ({ data, onChange, onBack, onNext }) => {
 
         {postGraduate.map((item, index) => (
           <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <input
-              placeholder="School"
-              value={item.school}
-              onChange={(e) =>
-                handleChange(
-                  "postGraduate",
-                  postGraduate,
-                  setPostGraduate,
-                  index,
-                  "school",
-                  e.target.value
-                )
-              }
-              className={inputClass(errors.postGraduate[index]?.school)}
-            />
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-1">
+                School
+              </label>
+              <input
+                placeholder="School"
+                value={item.school}
+                onChange={(e) =>
+                  handleChange(
+                    "postGraduate",
+                    postGraduate,
+                    setPostGraduate,
+                    index,
+                    "school",
+                    e.target.value
+                  )
+                }
+                className={inputClass(errors.postGraduate[index]?.school)}
+              />
+              {errors.postGraduate[index]?.school && (
+                <p className="text-red-500 text-xs mt-1">
+                  {errors.postGraduate[index].school}
+                </p>
+              )}
+            </div>
 
-            <input
-              placeholder="Course"
-              value={item.course}
-              onChange={(e) =>
-                handleChange(
-                  "postGraduate",
-                  postGraduate,
-                  setPostGraduate,
-                  index,
-                  "course",
-                  e.target.value
-                )
-              }
-              className={inputClass(errors.postGraduate[index]?.course)}
-            />
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-1">
+                Course
+              </label>
+              <input
+                placeholder="Course"
+                value={item.course}
+                onChange={(e) =>
+                  handleChange(
+                    "postGraduate",
+                    postGraduate,
+                    setPostGraduate,
+                    index,
+                    "course",
+                    e.target.value
+                  )
+                }
+                className={inputClass(errors.postGraduate[index]?.course)}
+              />
+              {errors.postGraduate[index]?.course && (
+                <p className="text-red-500 text-xs mt-1">
+                  {errors.postGraduate[index].course}
+                </p>
+              )}
+            </div>
 
-            <input
-              type="number"
-              placeholder="Year"
-              value={item.year}
-              onChange={(e) =>
-                handleChange(
-                  "postGraduate",
-                  postGraduate,
-                  setPostGraduate,
-                  index,
-                  "year",
-                  e.target.value
-                )
-              }
-              className={inputClass(errors.postGraduate[index]?.year)}
-            />
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-1">
+                Year
+              </label>
+              <input
+                type="number"
+                placeholder="Year"
+                value={item.year}
+                onChange={(e) =>
+                  handleChange(
+                    "postGraduate",
+                    postGraduate,
+                    setPostGraduate,
+                    index,
+                    "year",
+                    e.target.value
+                  )
+                }
+                className={inputClass(errors.postGraduate[index]?.year)}
+              />
+              {errors.postGraduate[index]?.year && (
+                <p className="text-red-500 text-xs mt-1">
+                  {errors.postGraduate[index].year}
+                </p>
+              )}
+            </div>
 
-            <input
-              placeholder="Award"
-              value={item.award}
-              onChange={(e) =>
-                handleChange(
-                  "postGraduate",
-                  postGraduate,
-                  setPostGraduate,
-                  index,
-                  "award",
-                  e.target.value
-                )
-              }
-              className="w-full h-11 px-4 rounded-xl border border-slate-300"
-            />
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-1">
+                Award
+              </label>
+              <input
+                placeholder="Award"
+                value={item.award}
+                onChange={(e) =>
+                  handleChange(
+                    "postGraduate",
+                    postGraduate,
+                    setPostGraduate,
+                    index,
+                    "award",
+                    e.target.value
+                  )
+                }
+                className="w-full h-11 px-4 rounded-xl border border-slate-300"
+              />
+            </div>
           </div>
         ))}
 
