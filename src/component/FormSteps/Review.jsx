@@ -1,12 +1,49 @@
+import { useState } from "react";
+
 const Review = ({ data, onBack, onSubmit }) => {
+  const [uan, setUan] = useState(data?.uan || "");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isLocked, setIsLocked] = useState(Boolean(data?.uan));
+
   const personalInfo = data?.personalInfo || {};
   const education = data?.educationalBackground || {};
   const eligibility = data?.eligibility || {};
   const learningDevelopment = data?.learningDevelopment || {};
   const jobPosition = data?.jobPosition || {};
 
+  const handleGenerateUAN = async () => {
+    try {
+      setIsGenerating(true);
+
+      const response = await fetch("http://localhost:5000/generate-uan", {
+        method: "POST",
+      });
+
+      const result = await response.json();
+
+      if (!result.success) {
+        alert(result.message || "Failed to generate UAN");
+        return;
+      }
+
+      setUan(result.uan);
+      setIsLocked(true);
+    } catch (error) {
+      console.error(error);
+      alert("Server error while generating UAN");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const handleSubmitApplication = () => {
+    if (!uan) {
+      alert("Please generate UAN first.");
+      return;
+    }
+
     const applicationData = {
+      uan,
       personalInfo,
       education,
       eligibility,
@@ -56,6 +93,26 @@ const Review = ({ data, onBack, onSubmit }) => {
         <p className="text-slate-600">
           Please review all the information before submitting your application.
         </p>
+
+        
+
+        {uan && (
+          <>
+            <div className="rounded-xl border border-green-200 bg-green-50 p-4">
+              <p className="text-sm text-slate-600">
+                Unique Application Number
+              </p>
+              <p className="text-2xl font-bold tracking-widest text-green-700">
+                {uan}
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+              🔒 Your application is now locked. You can no longer edit your
+              data. Please proceed to submit your application.
+            </div>
+          </>
+        )}
 
         {/* PERSONAL INFO */}
         <div className="space-y-2">
@@ -287,9 +344,7 @@ const Review = ({ data, onBack, onSubmit }) => {
             )}
 
             <div>
-              <p className="font-semibold text-slate-800">
-                Attached Files:
-              </p>
+              <p className="font-semibold text-slate-800">Attached Files:</p>
 
               <ul className="list-disc pl-5 space-y-1">
                 <li>
@@ -313,9 +368,12 @@ const Review = ({ data, onBack, onSubmit }) => {
           </div>
         </div>
 
-        <div className="mt-6 text-sm text-slate-600 italic">
-          After submitting your application, you will receive your unique
-          application number (UAN).
+        
+
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
+          ⚠️ Once you generate your Unique Application Number (UAN), you will no
+          longer be able to go back and edit your information. Please make sure
+          all details are correct before proceeding.
         </div>
       </div>
 
@@ -324,7 +382,12 @@ const Review = ({ data, onBack, onSubmit }) => {
         <button
           type="button"
           onClick={onBack}
-          className="px-6 py-2 border-2 border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-all"
+          disabled={isLocked}
+          className={`px-6 py-2 border-2 rounded-xl font-bold transition-all ${
+            isLocked
+              ? "border-gray-300 text-gray-400 cursor-not-allowed"
+              : "border-slate-200 text-slate-600 hover:bg-slate-50"
+          }`}
         >
           Back
         </button>
@@ -338,13 +401,24 @@ const Review = ({ data, onBack, onSubmit }) => {
             Print
           </button>
 
-          <button
-            type="button"
-            onClick={handleSubmitApplication}
-            className="px-6 py-2 rounded-xl bg-green-600 text-white font-bold hover:bg-green-700 transition"
-          >
-            Submit Application
-          </button>
+          {!uan ? (
+            <button
+              type="button"
+              onClick={handleGenerateUAN}
+              disabled={isGenerating}
+              className="px-6 py-2 rounded-xl bg-green-600 text-white font-bold hover:bg-green-700 transition disabled:opacity-60"
+            >
+              {isGenerating ? "Generating..." : "Generate UAN"}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleSubmitApplication}
+              className="px-6 py-2 rounded-xl bg-green-600 text-white font-bold hover:bg-green-700 transition"
+            >
+              Submit Application
+            </button>
+          )}
         </div>
       </div>
     </div>
