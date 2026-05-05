@@ -61,8 +61,8 @@ export default function ApplicantDash() {
             </Link>
 
             <Link
-              to="/jobs"
-              className="px-5 py-2 rounded-full bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition"
+              to="/apply"
+              className="px-5 py-2 rounded-full bg-[#0056b3] text-white text-sm font-medium hover:bg-[#003a78] transition"
             >
               Apply New
             </Link>
@@ -184,7 +184,7 @@ export default function ApplicantDash() {
                       <td className="px-5 py-4 text-right">
                         <Link
                           to={`/application-history/${application.id}`}
-                          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition"
+                          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#0056b3] text-white hover:bg-[#003a78] transition"
                         >
                           <Eye size={16} />
                           View
