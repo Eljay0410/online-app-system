@@ -1,7 +1,7 @@
 import { useState } from "react";
 
-const Attachment = ({ onNext }) => {
-  const [positionType, setPositionType] = useState("");
+const Attachment = ({ data, onChange, onBack, onNext }) => {
+  const [positionType, setPositionType] = useState(data?.positionType || "");
   const [error, setError] = useState("");
 
   const showAttachments =
@@ -20,6 +20,16 @@ const Attachment = ({ onNext }) => {
       "Master Teacher V",
     ].includes(positionType);
 
+  const handlePositionChange = (value) => {
+    setPositionType(value);
+    setError("");
+
+    onChange &&
+      onChange({
+        positionType: value,
+      });
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
 
@@ -34,9 +44,7 @@ const Attachment = ({ onNext }) => {
 
     console.log("Attachment Data:", formData);
 
-    if (onNext) {
-      onNext(formData);
-    }
+    onNext && onNext(formData);
   };
 
   return (
@@ -52,10 +60,7 @@ const Attachment = ({ onNext }) => {
 
         <select
           value={positionType}
-          onChange={(e) => {
-            setPositionType(e.target.value);
-            setError("");
-          }}
+          onChange={(e) => handlePositionChange(e.target.value)}
           className={`w-full md:w-[420px] h-11 px-4 rounded-xl border bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-slate-400 ${
             error ? "border-red-500" : "border-slate-300"
           }`}
@@ -139,10 +144,18 @@ const Attachment = ({ onNext }) => {
         </div>
       )}
 
-      <div className="flex justify-end">
+      <div className="flex justify-between items-center pt-6">
+        <button
+          type="button"
+          onClick={onBack}
+          className="px-6 py-2 border-2 border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-all"
+        >
+          Back
+        </button>
+
         <button
           type="submit"
-          className="px-6 py-2 rounded-xl bg-[#0056b3] text-white hover:bg-[#003a78] transition"
+          className="px-6 py-2 rounded-xl bg-[#0056b3] text-white font-bold hover:bg-[#003a78] transition"
         >
           Next Step
         </button>

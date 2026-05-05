@@ -11,6 +11,48 @@ import Review from "./FormSteps/Review";
 const Applicationform = () => {
   const [currentStep, setCurrentStep] = useState(1);
 
+  const [formData, setFormData] = useState({
+    personalInfo: {},
+    educationalBackground: {
+      bachelors: [{ school: "", course: "", year: "", award: "" }],
+      postGraduate: [{ school: "", course: "", year: "", award: "" }],
+    },
+    eligibility: {
+      eligibilities: [
+        {
+          type: "",
+          rating: "",
+          examDate: "",
+          licenseNumber: "",
+          validUntil: "",
+        },
+      ],
+      workExperiences: [
+        {
+          position: "",
+          agency: "",
+          status: "",
+          fromYear: "",
+          toYear: "",
+        },
+      ],
+    },
+    learningDevelopment: {
+      trainings: [{ title: "", hours: "", date: "", conductedBy: "" }],
+    },
+    jobPosition: {
+      position: "",
+      attachments: {},
+    },
+  });
+
+  const updateFormData = (section, data) => {
+    setFormData((prev) => ({
+      ...prev,
+      [section]: data,
+    }));
+  };
+
   const steps = [
     { id: 1, title: "PERSONAL INFORMATION" },
     { id: 2, title: "EDUCATIONAL BACKGROUND" },
@@ -25,31 +67,80 @@ const Applicationform = () => {
       case 1:
         return (
           <PersonalInfo
-            onNext={(formData) => {
-              console.log("Personal Info:", formData);
+            data={formData.personalInfo}
+            onChange={(data) => updateFormData("personalInfo", data)}
+            onNext={(data) => {
+              updateFormData("personalInfo", data);
               setCurrentStep(2);
             }}
           />
         );
+
       case 2:
-        return <EducationalBackground />;
-      case 3:
-        return <Eligibility />;
-      case 4:
-        return <LearningDevelopment />;
-      case 5:
-        return <Attachment />;
-      case 6:
-        return <Review />;
-      default:
         return (
-          <PersonalInfo
-            onNext={(formData) => {
-              console.log("Personal Info:", formData);
-              setCurrentStep(2);
+          <EducationalBackground
+            data={formData.educationalBackground}
+            onChange={(data) => updateFormData("educationalBackground", data)}
+            onBack={() => setCurrentStep(1)}
+            onNext={(data) => {
+              updateFormData("educationalBackground", data);
+              setCurrentStep(3);
             }}
           />
         );
+
+      case 3:
+        return (
+          <Eligibility
+            data={formData.eligibility}
+            onChange={(data) => updateFormData("eligibility", data)}
+            onBack={() => setCurrentStep(2)}
+            onNext={(data) => {
+              updateFormData("eligibility", data);
+              setCurrentStep(4);
+            }}
+          />
+        );
+
+      case 4:
+        return (
+          <LearningDevelopment
+            data={formData.learningDevelopment}
+            onChange={(data) => updateFormData("learningDevelopment", data)}
+            onBack={() => setCurrentStep(3)}
+            onNext={(data) => {
+              updateFormData("learningDevelopment", data);
+              setCurrentStep(5);
+            }}
+          />
+        );
+
+      case 5:
+        return (
+          <Attachment
+            data={formData.jobPosition}
+            onChange={(data) => updateFormData("jobPosition", data)}
+            onBack={() => setCurrentStep(4)}
+            onNext={(data) => {
+              updateFormData("jobPosition", data);
+              setCurrentStep(6);
+            }}
+          />
+        );
+
+      case 6:
+       return (
+        <Review
+          data={formData}
+          onBack={() => setCurrentStep(5)}
+          onSubmit={(applicationData) => {
+            console.log("Final Application:", applicationData);
+          }}
+        />
+      );
+
+      default:
+        return null;
     }
   };
 
@@ -61,7 +152,6 @@ const Applicationform = () => {
         </h1>
 
         <div className="flex flex-col md:flex-row justify-start gap-8 items-start">
-          {/* LEFT SIDE: Vertical Stepper */}
           <div className="w-full md:w-64 flex-shrink-0 sticky top-32 self-start mt-4">
             {steps.map((step, index) => (
               <div
@@ -96,7 +186,7 @@ const Applicationform = () => {
 
                 {index !== steps.length - 1 && (
                   <div
-                    className={`absolute right-[17px] top-9 w-[1.5px] h-10 -z-0 ${
+                    className={`absolute right-[17px] top-9 w-[1.5px] h-10 ${
                       currentStep > step.id ? "bg-green-500" : "bg-slate-300"
                     }`}
                   />
@@ -105,43 +195,13 @@ const Applicationform = () => {
             ))}
           </div>
 
-          {/* RIGHT SIDE: Form Content */}
           <div className="flex-1 min-h-[500px]">
-            <div className="border-l-[1.5px] border-slate-300 pl-10 md:pl-10 h-full">
+            <div className="border-l-[1.5px] border-slate-300 pl-10 h-full">
               <h2 className="text-2xl font-bold text-[#003a78] mb-8 tracking-tight uppercase">
                 {steps.find((s) => s.id === currentStep)?.title}
               </h2>
 
               {renderStepContent()}
-
-              {/* Navigation Buttons - hidden on Educational Background */}
-              {currentStep !== 2 && (
-                <div className="mt-12 flex gap-4">
-                  {currentStep > 1 && (
-                    <button
-                      onClick={() => setCurrentStep((prev) => prev - 1)}
-                      className="px-6 py-2 border-2 border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-all"
-                    >
-                      Back
-                    </button>
-                  )}
-
-                  {currentStep > 1 && currentStep < 6 && (
-                    <button
-                      onClick={() => setCurrentStep((prev) => prev + 1)}
-                      className="bg-[#0056b3] text-white px-8 py-2 rounded-xl font-bold shadow-lg shadow-blue-100 hover:bg-[#004494] transition-all"
-                    >
-                      Next Step
-                    </button>
-                  )}
-
-                  {currentStep === 6 && (
-                    <button className="bg-green-600 text-white px-8 py-2 rounded-xl font-bold hover:bg-green-700 transition-all">
-                      Submit Application
-                    </button>
-                  )}
-                </div>
-              )}
             </div>
           </div>
         </div>
