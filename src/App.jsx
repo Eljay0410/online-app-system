@@ -15,6 +15,7 @@ function App() {
   const location = useLocation();
 
   const everyroute =
+    location.pathname === "/profile" ||
     location.pathname === "/applicantdashboard" ||
     location.pathname === "/superadmin" ||
     location.pathname === "/hr";
