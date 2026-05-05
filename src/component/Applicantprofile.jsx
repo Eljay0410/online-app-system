@@ -256,7 +256,7 @@ export default function ApplicantProfile() {
 
               <div className="space-y-4 text-sm">
                 <div>
-                  <p className="text-xs text-slate-500">Applicant Number</p>
+                  <p className="text-xs text-slate-500">Unique Application Number</p>
                   <p className="font-medium text-slate-800">
                     {profile.applicantNumber}
                   </p>

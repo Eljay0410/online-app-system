@@ -8,6 +8,7 @@ import Home from "./component/FormSteps/Home";
 import Jobopening from "./component/Jobopening";
 import Aboutpage from "./component/Aboutpage";
 import Applicantdash from "./component/Applicantdash";
+import Applicantprofile from "./component/Applicantprofile";
 
 function App() {
 
@@ -30,6 +31,7 @@ function App() {
         <Route path="/jobopenings" element={<Jobopening />} />
         <Route path="/about" element={<Aboutpage />} />
         <Route path="/Applicantdashboard" element={<Applicantdash />} />
+        <Route path="/profile" element={<Applicantprofile />} />
       </Routes>
     </div>
   );
