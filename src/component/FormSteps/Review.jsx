@@ -11,6 +11,63 @@ const Review = ({ data, onBack, onSubmit }) => {
   const learningDevelopment = data?.learningDevelopment || {};
   const jobPosition = data?.jobPosition || {};
 
+  const teacherPromotionPositions = [
+    "Teacher II",
+    "Teacher III",
+    "Teacher IV",
+    "Teacher V",
+    "Teacher VI",
+    "Teacher VII",
+    "Master Teacher I",
+    "Master Teacher II",
+    "Master Teacher III",
+    "Master Teacher IV",
+    "Master Teacher V",
+  ];
+
+  const teacherUploadRequirements = [
+    { field: "uan", label: "Unique Application Number" },
+    { field: "letterOfIntent", label: "Letter of Intent" },
+    { field: "pds", label: "Personal Data Sheet" },
+    { field: "residency", label: "Proof of Residency" },
+    { field: "prcLicense", label: "PRC License / ID" },
+    { field: "boardRating", label: "Certificate of Board Rating" },
+    { field: "academicRecord", label: "Academic Records" },
+    { field: "serviceRecord", label: "Service Record / COE" },
+    { field: "latestAppointment", label: "Latest Appointment" },
+    { field: "trainingCertificates", label: "Training Certificates" },
+    { field: "tesdaCertificate", label: "TESDA NC II / TMC" },
+    { field: "performanceRating", label: "Performance Ratings" },
+    { field: "cavDataPrivacy", label: "CAV / Omnibus / Data Privacy Form" },
+    { field: "otherDocuments", label: "Other Supporting Documents" },
+  ];
+
+  const nonTeachingUploadRequirements = [
+    { field: "uan", label: "Unique Application Number" },
+    { field: "letterOfIntent", label: "Letter of Intent" },
+    { field: "pds", label: "Personal Data Sheet" },
+    { field: "residency", label: "Proof of Residency" },
+    { field: "prcLicense", label: "PRC License / ID" },
+    { field: "eligibilityRating", label: "Certificate of Eligibility / Rating" },
+    { field: "academicRecord", label: "Academic Records" },
+    { field: "trainingCertificates", label: "Training Certificates" },
+    { field: "employmentCertificate", label: "Employment / Service Record" },
+    { field: "latestAppointment", label: "Latest Appointment" },
+    { field: "performanceRating", label: "Performance Rating" },
+    { field: "cavDataPrivacy", label: "CAV / Omnibus / Data Privacy Form" },
+    { field: "otherDocuments", label: "Other Supporting Documents" },
+  ];
+
+  const currentUploadRequirements =
+    jobPosition.positionCategory === "Non-Teaching"
+      ? nonTeachingUploadRequirements
+      : teacherUploadRequirements;
+
+  const showUploadedFiles =
+    jobPosition.positionCategory === "Non-Teaching"
+      ? Boolean(jobPosition.positionType)
+      : teacherPromotionPositions.includes(jobPosition.positionType);
+
   const handleGenerateUAN = async () => {
     try {
       setIsGenerating(true);
@@ -58,6 +115,10 @@ const Review = ({ data, onBack, onSubmit }) => {
     }
   };
 
+  const formatFileName = (file) => {
+    return file?.name || "Not uploaded";
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <style>
@@ -93,8 +154,6 @@ const Review = ({ data, onBack, onSubmit }) => {
         <p className="text-slate-600">
           Please review all the information before submitting your application.
         </p>
-
-        
 
         {uan && (
           <>
@@ -221,13 +280,13 @@ const Review = ({ data, onBack, onSubmit }) => {
           {eligibility.eligibilities?.map((item, index) => (
             <div key={index} className="text-sm text-slate-700 space-y-1">
               <p>
-                <strong>Type:</strong> {item.type}
+                <strong>Type:</strong> {item.type || "N/A"}
               </p>
               <p>
-                <strong>Rating:</strong> {item.rating}
+                <strong>Rating:</strong> {item.rating || "N/A"}
               </p>
               <p>
-                <strong>Date of Examination:</strong> {item.examDate}
+                <strong>Date of Examination:</strong> {item.examDate || "N/A"}
               </p>
               <p>
                 <strong>License Number:</strong>{" "}
@@ -246,17 +305,17 @@ const Review = ({ data, onBack, onSubmit }) => {
           {eligibility.workExperiences?.map((item, index) => (
             <div key={index} className="text-sm text-slate-700 space-y-1">
               <p>
-                <strong>Position:</strong> {item.position}
+                <strong>Position:</strong> {item.position || "N/A"}
               </p>
               <p>
-                <strong>Agency / Office:</strong> {item.agency}
+                <strong>Agency / Office:</strong> {item.agency || "N/A"}
               </p>
               <p>
-                <strong>Status:</strong> {item.status}
+                <strong>Status:</strong> {item.status || "N/A"}
               </p>
               <p>
-                <strong>Inclusive Date:</strong> {item.fromYear} -{" "}
-                {item.toYear}
+                <strong>Inclusive Date:</strong> {item.from || "N/A"} -{" "}
+                {item.toYear || "Present"}
               </p>
             </div>
           ))}
@@ -272,17 +331,17 @@ const Review = ({ data, onBack, onSubmit }) => {
           {learningDevelopment.trainings?.map((item, index) => (
             <div key={index} className="text-sm text-slate-700 space-y-1">
               <p>
-                <strong>Title:</strong> {item.title}
+                <strong>Title:</strong> {item.title || "N/A"}
               </p>
               <p>
-                <strong>Inclusive Date:</strong> {item.fromDate} -{" "}
-                {item.toDate}
+                <strong>Inclusive Date:</strong> {item.fromDate || "N/A"} -{" "}
+                {item.toDate || "N/A"}
               </p>
               <p>
-                <strong>Hours:</strong> {item.hours}
+                <strong>Hours:</strong> {item.hours || "N/A"}
               </p>
               <p>
-                <strong>Conducted By:</strong> {item.conductedBy}
+                <strong>Conducted By:</strong> {item.conductedBy || "N/A"}
               </p>
             </div>
           ))}
@@ -296,6 +355,11 @@ const Review = ({ data, onBack, onSubmit }) => {
           <div className="border-b border-slate-300" />
 
           <div className="text-sm text-slate-700 space-y-2">
+            <p>
+              <strong>Position Category:</strong>{" "}
+              {jobPosition.positionCategory || "N/A"}
+            </p>
+
             <p>
               <strong>Position Applied For:</strong>{" "}
               {jobPosition.positionType || "N/A"}
@@ -313,62 +377,73 @@ const Review = ({ data, onBack, onSubmit }) => {
                   <p className="font-semibold mb-2">Required documents:</p>
                   <ol className="list-decimal pl-5 space-y-2">
                     <li>
-                      Unique Application Number (UAN) generated at the review
-                      section.
+                      Unique Application Number generated through this link:
+                      https://tinyurl.com/DepEdCSJDM-UAN
                     </li>
                     <li>
-                      Letter of intent addressed to the Schools Division
-                      Superintendent.
+                      Letter of intent addressed to the SDS with statement of
+                      purpose and learning area/subject group, if applicable.
                     </li>
-                    <li>Fully accomplished Personal Data Sheet (PDS).</li>
                     <li>
-                      Photocopy of Voter’s ID and/or any proof of residency.
+                      Fully accomplished Personal Data Sheet with Work
+                      Experience Sheet and recent picture.
                     </li>
+                    <li>Photocopy of Voter&apos;s ID and/or proof of residency.</li>
                     <li>Photocopy of valid and updated PRC License/ID.</li>
                     <li>Photocopy of Certificate of Board Rating.</li>
-                    <li>Photocopy of Transcript of Records and Diploma.</li>
+                    <li>Photocopy of TOR and Diploma.</li>
                     <li>
                       Photocopy of Service Record or Certificate of Employment.
                     </li>
                     <li>Photocopy of latest appointment, if applicable.</li>
-                    <li>Photocopy of relevant training certificates, if any.</li>
-                    <li>Photocopy of TESDA NC II and TMC, if applicable.</li>
-                    <li>Photocopy of required Performance Ratings.</li>
                     <li>
-                      Checklist of Requirements and Omnibus Sworn Statement.
+                      Photocopy of relevant specialized trainings or
+                      professional development programs, if any.
                     </li>
-                    <li>Other documents as may be required by the HRMPSB.</li>
+                    <li>
+                      Photocopy of TESDA NC II or Trainers Methodology
+                      Certificate, if applicable.
+                    </li>
+                    <li>
+                      Photocopy of required Performance Ratings with at least
+                      Very Satisfactory rating.
+                    </li>
+                    <li>
+                      Checklist of Requirements, Omnibus Sworn Statement, CAV,
+                      and Data Privacy Consent Form.
+                    </li>
+                    <li>
+                      Other HRMPSB requirements, including PPST portfolio, if
+                      applicable.
+                    </li>
                   </ol>
                 </div>
               </div>
             )}
 
-            <div>
-              <p className="font-semibold text-slate-800">Attached Files:</p>
+            {showUploadedFiles && (
+              <div>
+                <p className="font-semibold text-slate-800">Attached Files:</p>
 
-              <ul className="list-disc pl-5 space-y-1">
-                <li>
-                  <strong>Transcript of Records:</strong>{" "}
-                  {jobPosition.files?.tor?.name || "Not uploaded"}
-                </li>
-                <li>
-                  <strong>Diploma:</strong>{" "}
-                  {jobPosition.files?.diploma?.name || "Not uploaded"}
-                </li>
-                <li>
-                  <strong>Certificate of Employment:</strong>{" "}
-                  {jobPosition.files?.coe?.name || "Not uploaded"}
-                </li>
-                <li>
-                  <strong>PRC License / Eligibility:</strong>{" "}
-                  {jobPosition.files?.prc?.name || "Not uploaded"}
-                </li>
-              </ul>
-            </div>
+                <ul className="list-disc pl-5 space-y-1">
+                  {currentUploadRequirements.map((requirement) => (
+                    <li key={requirement.field}>
+                      <strong>{requirement.label}:</strong>{" "}
+                      {formatFileName(jobPosition.files?.[requirement.field])}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {!showUploadedFiles && jobPosition.positionType !== "Teacher I" && (
+              <p>
+                <strong>Attached Files:</strong> No online attachment upload
+                required for this selected position.
+              </p>
+            )}
           </div>
         </div>
-
-        
 
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
           ⚠️ Once you generate your Unique Application Number (UAN), you will no

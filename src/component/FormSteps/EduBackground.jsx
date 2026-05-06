@@ -141,9 +141,11 @@ const EducationalBackground = ({ data, onChange, onBack, onNext }) => {
         {bachelors.map((item, index) => (
           <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">
-                School <span className="text-red-500">*</span>
-              </label>
+              {index === 0 && (
+                <label className="block text-sm font-medium text-slate-600 mb-1">
+                  School <span className="text-red-500">*</span>
+                </label>
+              )}
               <input
                 placeholder="School"
                 value={item.school}
@@ -167,9 +169,11 @@ const EducationalBackground = ({ data, onChange, onBack, onNext }) => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">
-                Course <span className="text-red-500">*</span>
-              </label>
+              {index === 0 && (
+                <label className="block text-sm font-medium text-slate-600 mb-1">
+                  Course <span className="text-red-500">*</span>
+                </label>
+              )}
               <input
                 placeholder="Course"
                 value={item.course}
@@ -193,9 +197,11 @@ const EducationalBackground = ({ data, onChange, onBack, onNext }) => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">
-                Year <span className="text-red-500">*</span>
-              </label>
+              {index === 0 && (
+                <label className="block text-sm font-medium text-slate-600 mb-1">
+                  Year <span className="text-red-500">*</span>
+                </label>
+              )}
               <input
                 type="number"
                 placeholder="Year"
@@ -220,9 +226,11 @@ const EducationalBackground = ({ data, onChange, onBack, onNext }) => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">
-                Award
-              </label>
+              {index === 0 && (
+                <label className="block text-sm font-medium text-slate-600 mb-1">
+                  Award
+                </label>
+              )}
               <input
                 placeholder="Award"
                 value={item.award}
@@ -257,7 +265,7 @@ const EducationalBackground = ({ data, onChange, onBack, onNext }) => {
               onClick={() => removeItem("bachelors", bachelors, setBachelors)}
               className="text-sm font-semibold text-red-600 hover:underline"
             >
-              - Delete Last
+              - Remove Last
             </button>
           )}
         </div>
@@ -271,9 +279,11 @@ const EducationalBackground = ({ data, onChange, onBack, onNext }) => {
         {postGraduate.map((item, index) => (
           <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">
-                School
-              </label>
+              {index === 0 && (
+                <label className="block text-sm font-medium text-slate-600 mb-1">
+                  School
+                </label>
+              )}
               <input
                 placeholder="School"
                 value={item.school}
@@ -297,9 +307,11 @@ const EducationalBackground = ({ data, onChange, onBack, onNext }) => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">
-                Course
-              </label>
+              {index === 0 && (
+                <label className="block text-sm font-medium text-slate-600 mb-1">
+                  Course
+                </label>
+              )}
               <input
                 placeholder="Course"
                 value={item.course}
@@ -323,9 +335,11 @@ const EducationalBackground = ({ data, onChange, onBack, onNext }) => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">
-                Year
-              </label>
+              {index === 0 && (
+                <label className="block text-sm font-medium text-slate-600 mb-1">
+                  Year
+                </label>
+              )}
               <input
                 type="number"
                 placeholder="Year"
@@ -350,9 +364,11 @@ const EducationalBackground = ({ data, onChange, onBack, onNext }) => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">
-                Award
-              </label>
+              {index === 0 && (
+                <label className="block text-sm font-medium text-slate-600 mb-1">
+                  Award
+                </label>
+              )}
               <input
                 placeholder="Award"
                 value={item.award}
@@ -391,7 +407,7 @@ const EducationalBackground = ({ data, onChange, onBack, onNext }) => {
               }
               className="text-sm font-semibold text-red-600 hover:underline"
             >
-              - Delete Last
+              - Remove Last
             </button>
           )}
         </div>
