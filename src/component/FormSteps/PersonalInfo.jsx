@@ -4,6 +4,9 @@ const PersonalInfo = ({ data = {}, onChange, onNext }) => {
   const [errors, setErrors] = useState({});
 
   const [firstName, setFirstName] = useState(data.firstName || "");
+  const [noMiddleName, setNoMiddleName] = useState(
+    data.noMiddleName ?? false
+  );
   const [middleName, setMiddleName] = useState(data.middleName || "");
   const [lastName, setLastName] = useState(data.lastName || "");
   const [suffix, setSuffix] = useState(data.suffix || "");
@@ -20,11 +23,32 @@ const PersonalInfo = ({ data = {}, onChange, onNext }) => {
   );
   const [religion, setReligion] = useState(data.religion || "");
   const [religionInput, setReligionInput] = useState(data.religionInput || "");
+
+  const [hasEthnicGroup, setHasEthnicGroup] = useState(
+    data.hasEthnicGroup ?? false
+  );
   const [ethnicGroup, setEthnicGroup] = useState(data.ethnicGroup || "");
+
+  const [hasDisability, setHasDisability] = useState(
+    data.hasDisability ?? false
+  );
   const [disability, setDisability] = useState(data.disability || "");
 
+  const suffixOptions = [
+    "Jr.",
+    "Sr.",
+    "II",
+    "III",
+    "IV",
+    "V",
+    "VI",
+    "VII",
+    "VIII",
+    "IX",
+    "X",
+  ];
+
   const ethnicGroupOptions = [
-    "Not Applicable",
     "Aeta",
     "Agta",
     "Bajau",
@@ -65,23 +89,11 @@ const PersonalInfo = ({ data = {}, onChange, onNext }) => {
     "Others",
   ];
 
-  const disabilityOptions = [
-    "Not Applicable",
-    "Visual Disability",
-    "Hearing Disability",
-    "Speech Disability",
-    "Physical Disability",
-    "Psychosocial Disability",
-    "Intellectual Disability",
-    "Learning Disability",
-    "Mental Disability",
-    "Others",
-  ];
-
   const syncData = (updated) => {
     onChange &&
       onChange({
         firstName,
+        noMiddleName,
         middleName,
         lastName,
         suffix,
@@ -96,7 +108,9 @@ const PersonalInfo = ({ data = {}, onChange, onNext }) => {
         nationalityInput,
         religion,
         religionInput,
+        hasEthnicGroup,
         ethnicGroup,
+        hasDisability,
         disability,
         ...updated,
       });
@@ -118,6 +132,10 @@ const PersonalInfo = ({ data = {}, onChange, onNext }) => {
     return computedAge;
   };
 
+  const isValidEmail = (email) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  };
+
   const inputClass = (fieldName) =>
     `w-full h-11 px-4 rounded-xl border bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
       errors[fieldName] ? "border-red-500" : "border-slate-300"
@@ -127,6 +145,16 @@ const PersonalInfo = ({ data = {}, onChange, onNext }) => {
     `w-full h-11 px-3 text-sm rounded-xl border bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
       errors[fieldName] ? "border-red-500" : "border-slate-300"
     }`;
+
+  const errorText = (fieldName) =>
+    errors[fieldName] ? (
+      <div className="mt-1 flex items-center gap-2 text-xs text-red-500">
+        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold leading-none text-white">
+          !
+        </span>
+        <span>{errors[fieldName]}</span>
+      </div>
+    ) : null;
 
   const clearFieldError = (fieldName) => {
     if (errors[fieldName]) {
@@ -148,17 +176,93 @@ const PersonalInfo = ({ data = {}, onChange, onNext }) => {
     });
   };
 
+  const handleContactNumberChange = (e) => {
+    const value = e.target.value.replace(/\D/g, "").slice(0, 11);
+
+    setContactNumber(value);
+    clearFieldError("contactNumber");
+    syncData({ contactNumber: value });
+  };
+
+  const handleNoMiddleNameChange = (e) => {
+    const checked = e.target.checked;
+
+    setNoMiddleName(checked);
+    clearFieldError("middleName");
+
+    if (checked) {
+      setMiddleName("");
+      syncData({
+        noMiddleName: checked,
+        middleName: "",
+      });
+      return;
+    }
+
+    syncData({ noMiddleName: checked });
+  };
+
+  const handleHasEthnicGroupChange = (e) => {
+    const checked = e.target.checked;
+
+    setHasEthnicGroup(checked);
+    clearFieldError("ethnicGroup");
+
+    if (!checked) {
+      setEthnicGroup("");
+      syncData({
+        hasEthnicGroup: checked,
+        ethnicGroup: "",
+      });
+      return;
+    }
+
+    syncData({ hasEthnicGroup: checked });
+  };
+
+  const handleHasDisabilityChange = (e) => {
+    const checked = e.target.checked;
+
+    setHasDisability(checked);
+    clearFieldError("disability");
+
+    if (!checked) {
+      setDisability("");
+      syncData({
+        hasDisability: checked,
+        disability: "",
+      });
+      return;
+    }
+
+    syncData({ hasDisability: checked });
+  };
+
   const validateForm = () => {
     const newErrors = {};
 
     if (!firstName.trim()) newErrors.firstName = "First name is required";
-    if (!middleName.trim()) newErrors.middleName = "Middle name is required";
+
+    if (!noMiddleName && !middleName.trim()) {
+      newErrors.middleName = "Middle name is required";
+    }
+
     if (!lastName.trim()) newErrors.lastName = "Last name is required";
     if (!address.trim()) newErrors.address = "Address is required";
-    if (!contactNumber.trim())
+
+    if (!contactNumber.trim()) {
       newErrors.contactNumber = "Contact number is required";
-    if (!emailAddress.trim())
+    } else if (!/^09\d{9}$/.test(contactNumber)) {
+      newErrors.contactNumber =
+        "Contact number must start with 09 and be exactly 11 digits";
+    }
+
+    if (!emailAddress.trim()) {
       newErrors.emailAddress = "Email address is required";
+    } else if (!isValidEmail(emailAddress)) {
+      newErrors.emailAddress = "Please enter a valid email address";
+    }
+
     if (!dob) newErrors.dob = "Date of birth is required";
     if (!sex) newErrors.sex = "Sex is required";
     if (!civilStatus) newErrors.civilStatus = "Civil status is required";
@@ -177,6 +281,14 @@ const PersonalInfo = ({ data = {}, onChange, onNext }) => {
       newErrors.religion = "Please specify religion";
     }
 
+    if (hasEthnicGroup && !ethnicGroup) {
+      newErrors.ethnicGroup = "Ethnic group is required";
+    }
+
+    if (hasDisability && !disability.trim()) {
+      newErrors.disability = "Disability is required";
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -188,7 +300,8 @@ const PersonalInfo = ({ data = {}, onChange, onNext }) => {
 
     const finalData = {
       firstName,
-      middleName,
+      noMiddleName,
+      middleName: noMiddleName ? "" : middleName,
       lastName,
       suffix,
       address,
@@ -202,15 +315,17 @@ const PersonalInfo = ({ data = {}, onChange, onNext }) => {
       nationalityInput,
       religion,
       religionInput,
-      ethnicGroup,
-      disability,
+      hasEthnicGroup,
+      ethnicGroup: hasEthnicGroup ? ethnicGroup : "",
+      hasDisability,
+      disability: hasDisability ? disability : "",
     };
 
     onNext && onNext(finalData);
   };
 
   return (
-    <form onSubmit={handleNext} className="space-y-6">
+    <form onSubmit={handleNext} className="space-y-6" noValidate>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-x-4 gap-y-6">
         <div>
           <label className="block text-sm font-medium text-slate-600 mb-1">
@@ -226,22 +341,30 @@ const PersonalInfo = ({ data = {}, onChange, onNext }) => {
             className={inputClass("firstName")}
             placeholder="First name"
           />
+          {errorText("firstName")}
         </div>
 
         <div>
           <label className="block text-sm font-medium text-slate-600 mb-1">
-            Middle Name <span className="text-red-500">*</span>
+            Middle Name{" "}
+            {!noMiddleName && <span className="text-red-500">*</span>}
           </label>
           <input
             value={middleName}
+            disabled={noMiddleName}
             onChange={(e) => {
               setMiddleName(e.target.value);
               clearFieldError("middleName");
               syncData({ middleName: e.target.value });
             }}
-            className={inputClass("middleName")}
-            placeholder="Middle name"
+            className={`${inputClass("middleName")} ${
+              noMiddleName
+                ? "bg-slate-100 cursor-not-allowed text-slate-400"
+                : ""
+            }`}
+            placeholder={noMiddleName ? "No middle name" : "Middle name"}
           />
+          {errorText("middleName")}
         </div>
 
         <div>
@@ -258,21 +381,40 @@ const PersonalInfo = ({ data = {}, onChange, onNext }) => {
             className={inputClass("lastName")}
             placeholder="Last name"
           />
+          {errorText("lastName")}
         </div>
 
         <div>
           <label className="block text-sm font-medium text-slate-600 mb-1">
             Suffix
           </label>
-          <input
+          <select
             value={suffix}
             onChange={(e) => {
               setSuffix(e.target.value);
               syncData({ suffix: e.target.value });
             }}
-            className="w-full h-11 px-4 rounded-xl border border-slate-300 bg-white"
-            placeholder="Jr., Sr., III"
-          />
+            className={selectClass("suffix")}
+          >
+            <option value="">Not Applicable</option>
+            {suffixOptions.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="md:col-span-4 -mt-4">
+          <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-600">
+            <input
+              type="checkbox"
+              checked={noMiddleName}
+              onChange={handleNoMiddleNameChange}
+              className="h-4 w-4"
+            />
+            I don&apos;t have a middle name
+          </label>
         </div>
 
         <div className="md:col-span-4">
@@ -289,6 +431,7 @@ const PersonalInfo = ({ data = {}, onChange, onNext }) => {
             className={inputClass("address")}
             placeholder="Address"
           />
+          {errorText("address")}
         </div>
 
         <div className="md:col-span-2">
@@ -297,14 +440,13 @@ const PersonalInfo = ({ data = {}, onChange, onNext }) => {
           </label>
           <input
             value={contactNumber}
-            onChange={(e) => {
-              setContactNumber(e.target.value);
-              clearFieldError("contactNumber");
-              syncData({ contactNumber: e.target.value });
-            }}
+            onChange={handleContactNumberChange}
             className={inputClass("contactNumber")}
-            placeholder="Contact Number"
+            placeholder="09XXXXXXXXX"
+            maxLength={11}
+            inputMode="numeric"
           />
+          {errorText("contactNumber")}
         </div>
 
         <div className="md:col-span-2">
@@ -312,7 +454,7 @@ const PersonalInfo = ({ data = {}, onChange, onNext }) => {
             Email Address <span className="text-red-500">*</span>
           </label>
           <input
-            type="email"
+            type="text"
             value={emailAddress}
             onChange={(e) => {
               setEmailAddress(e.target.value);
@@ -322,6 +464,7 @@ const PersonalInfo = ({ data = {}, onChange, onNext }) => {
             className={inputClass("emailAddress")}
             placeholder="Email Address"
           />
+          {errorText("emailAddress")}
         </div>
 
         <div>
@@ -335,6 +478,7 @@ const PersonalInfo = ({ data = {}, onChange, onNext }) => {
             max={new Date().toISOString().split("T")[0]}
             className={inputClass("dob")}
           />
+          {errorText("dob")}
         </div>
 
         <div>
@@ -366,6 +510,7 @@ const PersonalInfo = ({ data = {}, onChange, onNext }) => {
             <option value="male">Male</option>
             <option value="female">Female</option>
           </select>
+          {errorText("sex")}
         </div>
 
         <div>
@@ -388,116 +533,141 @@ const PersonalInfo = ({ data = {}, onChange, onNext }) => {
             <option value="separated">Separated</option>
             <option value="divorced">Divorced</option>
           </select>
-        </div>
-
-        <div className="md:col-span-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">
-              Nationality <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={nationality}
-              onChange={(e) => {
-                setNationality(e.target.value);
-                clearFieldError("nationality");
-                syncData({ nationality: e.target.value });
-              }}
-              className={selectClass("nationality")}
-            >
-              <option value="">Select</option>
-              <option value="Filipino">Filipino</option>
-              <option value="Dual Citizen">Dual Citizen</option>
-              <option value="Others">Others</option>
-            </select>
-
-            {(nationality === "Dual Citizen" || nationality === "Others") && (
-              <input
-                value={nationalityInput}
-                onChange={(e) => {
-                  setNationalityInput(e.target.value);
-                  syncData({ nationalityInput: e.target.value });
-                }}
-                placeholder="Specify nationality"
-                className="mt-2 w-full h-11 px-3 text-sm rounded-xl border border-slate-300"
-              />
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">
-              Religion <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={religion}
-              onChange={(e) => {
-                setReligion(e.target.value);
-                clearFieldError("religion");
-                syncData({ religion: e.target.value });
-              }}
-              className={selectClass("religion")}
-            >
-              <option value="">Select</option>
-              {religionOptions.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-
-            {religion === "Others" && (
-              <input
-                value={religionInput}
-                onChange={(e) => {
-                  setReligionInput(e.target.value);
-                  syncData({ religionInput: e.target.value });
-                }}
-                placeholder="Specify religion"
-                className="mt-2 w-full h-11 px-3 text-sm rounded-xl border border-slate-300"
-              />
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">
-              Ethnic Group
-            </label>
-            <select
-              value={ethnicGroup}
-              onChange={(e) => {
-                setEthnicGroup(e.target.value);
-                syncData({ ethnicGroup: e.target.value });
-              }}
-              className={selectClass("ethnicGroup")}
-            >
-              <option value="">Select</option>
-              {ethnicGroupOptions.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </div>
+          {errorText("civilStatus")}
         </div>
 
         <div className="md:col-span-2">
           <label className="block text-sm font-medium text-slate-600 mb-1">
-            Disability
+            Nationality <span className="text-red-500">*</span>
           </label>
           <select
-            value={disability}
+            value={nationality}
             onChange={(e) => {
-              setDisability(e.target.value);
-              syncData({ disability: e.target.value });
+              setNationality(e.target.value);
+              clearFieldError("nationality");
+              syncData({ nationality: e.target.value });
             }}
-            className={selectClass("disability")}
+            className={selectClass("nationality")}
           >
             <option value="">Select</option>
-            {disabilityOptions.map((item) => (
+            <option value="Filipino">Filipino</option>
+            <option value="Dual Citizen">Dual Citizen</option>
+            <option value="Others">Others</option>
+          </select>
+
+          {(nationality === "Dual Citizen" || nationality === "Others") && (
+            <input
+              value={nationalityInput}
+              onChange={(e) => {
+                setNationalityInput(e.target.value);
+                clearFieldError("nationality");
+                syncData({ nationalityInput: e.target.value });
+              }}
+              placeholder="Specify nationality"
+              className="mt-2 w-full h-11 px-3 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          )}
+
+          {errorText("nationality")}
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="block text-sm font-medium text-slate-600 mb-1">
+            Religion <span className="text-red-500">*</span>
+          </label>
+          <select
+            value={religion}
+            onChange={(e) => {
+              setReligion(e.target.value);
+              clearFieldError("religion");
+              syncData({ religion: e.target.value });
+            }}
+            className={selectClass("religion")}
+          >
+            <option value="">Select</option>
+            {religionOptions.map((item) => (
               <option key={item} value={item}>
                 {item}
               </option>
             ))}
           </select>
+
+          {religion === "Others" && (
+            <input
+              value={religionInput}
+              onChange={(e) => {
+                setReligionInput(e.target.value);
+                clearFieldError("religion");
+                syncData({ religionInput: e.target.value });
+              }}
+              placeholder="Specify religion"
+              className="mt-2 w-full h-11 px-3 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          )}
+
+          {errorText("religion")}
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-600 mb-1">
+            <input
+              type="checkbox"
+              checked={hasEthnicGroup}
+              onChange={handleHasEthnicGroupChange}
+              className="h-4 w-4"
+            />
+            Do you belong to an ethnic group?
+          </label>
+
+          {hasEthnicGroup && (
+            <>
+              <select
+                value={ethnicGroup}
+                onChange={(e) => {
+                  setEthnicGroup(e.target.value);
+                  clearFieldError("ethnicGroup");
+                  syncData({ ethnicGroup: e.target.value });
+                }}
+                className={selectClass("ethnicGroup")}
+              >
+                <option value="">Select ethnic group</option>
+                {ethnicGroupOptions.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+              {errorText("ethnicGroup")}
+            </>
+          )}
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-600 mb-1">
+            <input
+              type="checkbox"
+              checked={hasDisability}
+              onChange={handleHasDisabilityChange}
+              className="h-4 w-4"
+            />
+            Do you have a disability?
+          </label>
+
+          {hasDisability && (
+            <>
+              <input
+                value={disability}
+                onChange={(e) => {
+                  setDisability(e.target.value);
+                  clearFieldError("disability");
+                  syncData({ disability: e.target.value });
+                }}
+                className={inputClass("disability")}
+                placeholder="Specify disability"
+              />
+              {errorText("disability")}
+            </>
+          )}
         </div>
       </div>
 
