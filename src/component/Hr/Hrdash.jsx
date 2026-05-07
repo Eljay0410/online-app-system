@@ -1,87 +1,118 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Briefcase, Calendar, FileText, Eye } from "lucide-react";
+import {
+  Briefcase,
+  Calendar,
+  CheckCircle,
+  Eye,
+  FileText,
+  UserPlus,
+  Users,
+  XCircle,
+} from "lucide-react";
 
-export default function ApplicantDash() {
-  const applications = [
+export default function Hrdash() {
+  const applicants = [
     {
       id: 1,
+      name: "Juan Dela Cruz",
       position: "Teacher I",
-      school: "DepEd CSJDM",
-      dateApplied: "2026-04-30",
-      status: "approved",
+      office: "DepEd CSJDM",
+      dateSubmitted: "2026-04-30",
+      status: "for_interview",
     },
     {
       id: 2,
+      name: "Maria Santos",
       position: "Administrative Assistant",
-      school: "DepEd CSJDM",
-      dateApplied: "2026-04-25",
-      status: "rejected",
+      office: "DepEd CSJDM",
+      dateSubmitted: "2026-04-25",
+      status: "denied",
+    },
+    {
+      id: 3,
+      name: "Carlo Reyes",
+      position: "Teacher II",
+      office: "DepEd CSJDM",
+      dateSubmitted: "2026-04-22",
+      status: "pending",
     },
   ];
 
   const statusLabels = {
-    approved: "For Interview",
-    rejected: "Denied",
+    for_interview: "For Interview",
+    denied: "Denied",
+    pending: "Pending Review",
   };
 
   const statusStyles = {
-    approved: "bg-blue-100 text-blue-700 border-blue-200",
-    rejected: "bg-red-100 text-red-700 border-red-200",
+    for_interview: "bg-blue-100 text-blue-700 border-blue-200",
+    denied: "bg-red-100 text-red-700 border-red-200",
+    pending: "bg-yellow-100 text-yellow-700 border-yellow-200",
   };
-
-  const visibleApplications = applications.filter(
-    (application) => application.status !== "under_review"
-  );
 
   return (
     <div className="min-h-screen bg-slate-50 pt-28 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto space-y-8">
-
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          
           {/* LEFT */}
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-blue-900">
-              Applicant Dashboard
+              HR Admin Dashboard
             </h1>
             <p className="text-slate-600 mt-1">
-              View your application status and previous submissions.
+              Manage applicants, review submissions, and monitor hiring status.
             </p>
           </div>
 
           {/* RIGHT */}
           <div className="flex items-center gap-3">
             <Link
-              to="/application-history"
+              to="/hr/applicants"
               className="px-4 py-2 rounded-full border border-slate-300 text-slate-700 text-sm hover:bg-slate-100 transition"
             >
-              History
+              Applicants
             </Link>
 
             <Link
-              to="/apply"
+              to="/hr/add-job"
               className="px-5 py-2 rounded-full bg-[#0056b3] text-white text-sm font-medium hover:bg-[#003a78] transition"
             >
-              Apply New
+              Add Job
             </Link>
           </div>
-
         </div>
 
         {/* CARDS */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
             <div className="flex items-center gap-3">
               <div className="bg-blue-100 text-blue-700 p-3 rounded-xl">
+                <Users size={22} />
+              </div>
+              <div>
+                <p className="text-sm text-slate-500">Applicants</p>
+                <h2 className="text-2xl font-bold text-slate-800">
+                  {applicants.length}
+                </h2>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+            <div className="flex items-center gap-3">
+              <div className="bg-yellow-100 text-yellow-700 p-3 rounded-xl">
                 <FileText size={22} />
               </div>
               <div>
-                <p className="text-sm text-slate-500">Applications</p>
+                <p className="text-sm text-slate-500">Pending</p>
                 <h2 className="text-2xl font-bold text-slate-800">
-                  {visibleApplications.length}
+                  {
+                    applicants.filter(
+                      (applicant) => applicant.status === "pending"
+                    ).length
+                  }
                 </h2>
               </div>
             </div>
@@ -90,14 +121,14 @@ export default function ApplicantDash() {
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
             <div className="flex items-center gap-3">
               <div className="bg-blue-100 text-blue-700 p-3 rounded-xl">
-                <Briefcase size={22} />
+                <Calendar size={22} />
               </div>
               <div>
                 <p className="text-sm text-slate-500">For Interview</p>
                 <h2 className="text-2xl font-bold text-slate-800">
                   {
-                    visibleApplications.filter(
-                      (application) => application.status === "approved"
+                    applicants.filter(
+                      (applicant) => applicant.status === "for_interview"
                     ).length
                   }
                 </h2>
@@ -108,82 +139,131 @@ export default function ApplicantDash() {
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
             <div className="flex items-center gap-3">
               <div className="bg-red-100 text-red-700 p-3 rounded-xl">
-                <Calendar size={22} />
+                <XCircle size={22} />
               </div>
               <div>
                 <p className="text-sm text-slate-500">Denied</p>
                 <h2 className="text-2xl font-bold text-slate-800">
                   {
-                    visibleApplications.filter(
-                      (application) => application.status === "rejected"
+                    applicants.filter(
+                      (applicant) => applicant.status === "denied"
                     ).length
                   }
                 </h2>
               </div>
             </div>
           </div>
+        </div>
 
+        {/* QUICK ACTIONS */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Link
+            to="/hr/applicants"
+            className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 hover:bg-slate-50 transition"
+          >
+            <div className="flex items-center gap-3">
+              <div className="bg-blue-100 text-blue-700 p-3 rounded-xl">
+                <Briefcase size={22} />
+              </div>
+              <div>
+                <h2 className="font-semibold text-slate-800">Review Applicants</h2>
+                <p className="text-sm text-slate-500">Check submitted applications.</p>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            to="/hr/add-job"
+            className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 hover:bg-slate-50 transition"
+          >
+            <div className="flex items-center gap-3">
+              <div className="bg-green-100 text-green-700 p-3 rounded-xl">
+                <UserPlus size={22} />
+              </div>
+              <div>
+                <h2 className="font-semibold text-slate-800">Post Job</h2>
+                <p className="text-sm text-slate-500">Create a new vacancy.</p>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            to="/hr/interviews"
+            className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 hover:bg-slate-50 transition"
+          >
+            <div className="flex items-center gap-3">
+              <div className="bg-emerald-100 text-emerald-700 p-3 rounded-xl">
+                <CheckCircle size={22} />
+              </div>
+              <div>
+                <h2 className="font-semibold text-slate-800">Interviews</h2>
+                <p className="text-sm text-slate-500">View interview schedule.</p>
+              </div>
+            </div>
+          </Link>
         </div>
 
         {/* TABLE */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-          
           <div className="px-5 py-4 border-b border-slate-200">
             <h2 className="text-lg font-semibold text-blue-900">
-              Previous Applications
+              Recent Applications
             </h2>
           </div>
 
-          {visibleApplications.length === 0 ? (
+          {applicants.length === 0 ? (
             <div className="p-6 text-center text-slate-500">
-              No previous applications found.
+              No applications found.
             </div>
           ) : (
             <div className="overflow-x-auto">
-              
               <table className="w-full text-sm text-left">
-                
                 <thead className="bg-slate-100 text-slate-600 uppercase text-xs">
                   <tr>
+                    <th className="px-5 py-3">Applicant</th>
                     <th className="px-5 py-3">Position</th>
                     <th className="px-5 py-3">Office / School</th>
-                    <th className="px-5 py-3">Date Applied</th>
+                    <th className="px-5 py-3">Date Submitted</th>
                     <th className="px-5 py-3">Status</th>
                     <th className="px-5 py-3 text-right">Action</th>
                   </tr>
                 </thead>
 
                 <tbody>
-                  {visibleApplications.map((application) => (
+                  {applicants.map((applicant) => (
                     <tr
-                      key={application.id}
+                      key={applicant.id}
                       className="border-t border-slate-100 hover:bg-slate-50"
                     >
                       <td className="px-5 py-4 font-medium text-slate-800">
-                        {application.position}
+                        {applicant.name}
                       </td>
 
                       <td className="px-5 py-4 text-slate-600">
-                        {application.school}
+                        {applicant.position}
                       </td>
 
                       <td className="px-5 py-4 text-slate-600">
-                        {application.dateApplied}
+                        {applicant.office}
+                      </td>
+
+                      <td className="px-5 py-4 text-slate-600">
+                        {applicant.dateSubmitted}
                       </td>
 
                       <td className="px-5 py-4">
                         <span
                           className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold border ${
-                            statusStyles[application.status]
+                            statusStyles[applicant.status]
                           }`}
                         >
-                          {statusLabels[application.status]}
+                          {statusLabels[applicant.status]}
                         </span>
                       </td>
 
                       <td className="px-5 py-4 text-right">
                         <Link
-                          to={`/application-history/${application.id}`}
+                          to={`/hr/applicants/${applicant.id}`}
                           className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#0056b3] text-white hover:bg-[#003a78] transition"
                         >
                           <Eye size={16} />
@@ -193,13 +273,10 @@ export default function ApplicantDash() {
                     </tr>
                   ))}
                 </tbody>
-
               </table>
-
             </div>
           )}
         </div>
-
       </div>
     </div>
   );

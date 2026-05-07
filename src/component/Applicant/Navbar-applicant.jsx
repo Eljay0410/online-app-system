@@ -66,15 +66,30 @@ export default function NavbarApplicant() {
             {isLoggedIn ? (
               <div className="relative">
                 <button
-                    onClick={() => setIsProfileOpen(!isProfileOpen)}
-                    className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow hover:scale-105 transition"
+                  onClick={() => setIsProfileOpen(!isProfileOpen)}
+                  className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow hover:scale-105 transition"
                 >
-                    <span className="text-slate-700 font-bold">P</span>
-                    {/* pwede mo palitan ng image later */}
+                  <span className="text-slate-700 font-bold">P</span>
                 </button>
 
                 {isProfileOpen && (
-                  <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-md border border-slate-200 overflow-hidden">
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-md border border-slate-200 overflow-hidden">
+                    <Link
+                      to="/apply"
+                      onClick={() => setIsProfileOpen(false)}
+                      className="block px-4 py-3 text-slate-700 hover:bg-slate-100"
+                    >
+                      Apply New
+                    </Link>
+
+                    <Link
+                      to="/application-history"
+                      onClick={() => setIsProfileOpen(false)}
+                      className="block px-4 py-3 text-slate-700 hover:bg-slate-100"
+                    >
+                      History
+                    </Link>
+
                     <Link
                       to="/profile"
                       onClick={() => setIsProfileOpen(false)}
@@ -143,30 +158,46 @@ export default function NavbarApplicant() {
           <Link
             to="/about"
             onClick={() => setIsOpen(false)}
-            className="block px-3 py-4 text-base font-medium text-slate-700"
+            className="block px-3 py-4 text-base font-medium text-slate-700 border-b border-slate-50"
           >
             About
           </Link>
 
-          <div className="flex flex-col gap-3 mt-4">
-            {isLoggedIn ? (
-              <>
-                <Link
-                  to="/profile"
-                  onClick={() => setIsOpen(false)}
-                  className="w-full bg-slate-100 text-slate-900 py-3 rounded-xl font-semibold text-center"
-                >
-                  My Profile
-                </Link>
+          {isLoggedIn ? (
+            <div className="flex flex-col gap-3 mt-4">
+              <Link
+                to="/apply"
+                onClick={() => setIsOpen(false)}
+                className="w-full bg-[#0056b3] text-white py-3 rounded-xl font-semibold text-center"
+              >
+                Apply New
+              </Link>
 
-                <button
-                  onClick={handleLogout}
-                  className="w-full bg-red-500 text-white py-3 rounded-xl font-semibold"
-                >
-                  Logout
-                </button>
-              </>
-            ) : (
+              <Link
+                to="/application-history"
+                onClick={() => setIsOpen(false)}
+                className="w-full bg-slate-100 text-slate-900 py-3 rounded-xl font-semibold text-center"
+              >
+                History
+              </Link>
+
+              <Link
+                to="/profile"
+                onClick={() => setIsOpen(false)}
+                className="w-full bg-slate-100 text-slate-900 py-3 rounded-xl font-semibold text-center"
+              >
+                My Profile
+              </Link>
+
+              <button
+                onClick={handleLogout}
+                className="w-full bg-red-500 text-white py-3 rounded-xl font-semibold"
+              >
+                Logout
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3 mt-4">
               <Link
                 to="/login"
                 onClick={() => setIsOpen(false)}
@@ -174,8 +205,8 @@ export default function NavbarApplicant() {
               >
                 Log in
               </Link>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
     </nav>

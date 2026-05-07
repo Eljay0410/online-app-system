@@ -1,14 +1,17 @@
 import React from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
 import Navbar from "./component/Navbar";
-import NavbarApplicant from "./component/Navbar-applicant";
-import Applicationform from "./component/Applicationform";
+import NavbarApplicant from "./component/Applicant/Navbar-applicant";
+import Applicationform from "./component/Applicant/Applicationform";
 import Login from "./component/Login";
 import Home from "./component/FormSteps/Home";
-import Jobopening from "./component/Jobopening";
+import Jobopening from "./component/Hr/Jobopening";
 import Aboutpage from "./component/Aboutpage";
-import Applicantdash from "./component/Applicantdash";
-import Applicantprofile from "./component/Applicantprofile";
+import Applicantdash from "./component/Applicant/Applicantdash";
+import Applicantprofile from "./component/Applicant/Applicantprofile";
+import HRAdminApp from "./component/Hr/Hrdash";
+import Applynewdash from "./component/Applicant/Applynewdash";
+import ApplicantView from "./component/Applicant/ApplicantView";
 
 function App() {
 
@@ -18,7 +21,8 @@ function App() {
     location.pathname === "/profile" ||
     location.pathname === "/applicantdashboard" ||
     location.pathname === "/superadmin" ||
-    location.pathname === "/hr";
+    location.pathname === "/hr" ||
+    location.pathname === "/applicantview";
     
 
   return (
@@ -33,6 +37,9 @@ function App() {
         <Route path="/about" element={<Aboutpage />} />
         <Route path="/Applicantdashboard" element={<Applicantdash />} />
         <Route path="/profile" element={<Applicantprofile />} />
+        <Route path="/hr" element={<HRAdminApp />} />
+        <Route path="/applynew" element={<Applynewdash />} />
+        <Route path="/applicantview/:id" element={<ApplicantView />} />
       </Routes>
     </div>
   );

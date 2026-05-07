@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 
-import PersonalInfo from "./FormSteps/PersonalInfo";
-import EducationalBackground from "./FormSteps/EduBackground";
-import Eligibility from "./FormSteps/Eligibility";
-import LearningDevelopment from "./FormSteps/LearningDev";
-import Attachment from "./FormSteps/Attachment";
-import Review from "./FormSteps/Review";
+import PersonalInfo from "../FormSteps/PersonalInfo";
+import EducationalBackground from "../FormSteps/EduBackground";
+import Eligibility from "../FormSteps/Eligibility";
+import LearningDevelopment from "../FormSteps/LearningDev";
+import Attachment from "../FormSteps/Attachment";
+import Review from "../FormSteps/Review";
 
 const Applicationform = () => {
   const [currentStep, setCurrentStep] = useState(1);
