@@ -1,16 +1,12 @@
+import pg from "pg";
 import dotenv from "dotenv";
-import { Pool } from "pg";
 
 dotenv.config();
 
-const connectionString = process.env.DATABASE_URL;
-
-if (!connectionString) {
-  throw new Error("DATABASE_URL is missing from .env");
-}
+const { Pool } = pg;
 
 const pool = new Pool({
-  connectionString,
+  connectionString: process.env.DATABASE_URL,
 });
 
 export default pool;

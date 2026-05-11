@@ -1,10 +1,9 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Briefcase,
   Calendar,
   CheckCircle,
-  Eye,
   FileText,
   UserPlus,
   Users,
@@ -12,76 +11,65 @@ import {
 } from "lucide-react";
 
 export default function Hrdash() {
-  const applicants = [
-    {
-      id: 1,
-      name: "Juan Dela Cruz",
-      position: "Teacher I",
-      office: "DepEd CSJDM",
-      dateSubmitted: "2026-04-30",
-      status: "for_interview",
-    },
-    {
-      id: 2,
-      name: "Maria Santos",
-      position: "Administrative Assistant",
-      office: "DepEd CSJDM",
-      dateSubmitted: "2026-04-25",
-      status: "denied",
-    },
-    {
-      id: 3,
-      name: "Carlo Reyes",
-      position: "Teacher II",
-      office: "DepEd CSJDM",
-      dateSubmitted: "2026-04-22",
-      status: "pending",
-    },
-  ];
+  const applicants = [];
 
-  const statusLabels = {
-    for_interview: "For Interview",
-    denied: "Denied",
-    pending: "Pending Review",
+  const [showJobModal, setShowJobModal] = useState(false);
+
+  const [jobData, setJobData] = useState({
+    title: "",
+    location: "",
+    vacancy: "",
+    deadline: "",
+  });
+
+  const handleJobChange = (e) => {
+    const { name, value } = e.target;
+
+    setJobData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
-  const statusStyles = {
-    for_interview: "bg-blue-100 text-blue-700 border-blue-200",
-    denied: "bg-red-100 text-red-700 border-red-200",
-    pending: "bg-yellow-100 text-yellow-700 border-yellow-200",
-  };
+  const handleCreateJob = async (e) => {
+  e.preventDefault();
+
+  try {
+    await fetch("http://localhost:3000/api/jobs", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(jobData),
+    });
+
+    setJobData({
+      title: "",
+      location: "",
+      vacancy: "",
+      deadline: "",
+    });
+
+    setShowJobModal(false);
+
+    alert("Job created successfully");
+  } catch (error) {
+    console.error(error);
+  }
+};
 
   return (
     <div className="min-h-screen bg-slate-50 pt-28 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto space-y-8">
         {/* HEADER */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          {/* LEFT */}
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-blue-900">
-              HR Admin Dashboard
-            </h1>
-            <p className="text-slate-600 mt-1">
-              Manage applicants, review submissions, and monitor hiring status.
-            </p>
-          </div>
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-blue-900">
+            HR Admin Dashboard
+          </h1>
 
-          {/* RIGHT */}
-          <div className="flex items-center gap-3">
-            <Link
-              to="/hr/applicants"
-              className="px-4 py-2 rounded-full border border-slate-300 text-slate-700 text-sm hover:bg-slate-100 transition"
-            >
-              Applicants
-            </Link>
-
-            <Link
-              to="/hr/add-job"
-              className="px-5 py-2 rounded-full bg-[#0056b3] text-white text-sm font-medium hover:bg-[#003a78] transition"
-            >
-              Add Job
-            </Link>
-          </div>
+          <p className="text-slate-600 mt-1">
+            Manage applicants, review submissions, and monitor hiring status.
+          </p>
         </div>
 
         {/* CARDS */}
@@ -91,6 +79,7 @@ export default function Hrdash() {
               <div className="bg-blue-100 text-blue-700 p-3 rounded-xl">
                 <Users size={22} />
               </div>
+
               <div>
                 <p className="text-sm text-slate-500">Applicants</p>
                 <h2 className="text-2xl font-bold text-slate-800">
@@ -105,15 +94,10 @@ export default function Hrdash() {
               <div className="bg-yellow-100 text-yellow-700 p-3 rounded-xl">
                 <FileText size={22} />
               </div>
+
               <div>
                 <p className="text-sm text-slate-500">Pending</p>
-                <h2 className="text-2xl font-bold text-slate-800">
-                  {
-                    applicants.filter(
-                      (applicant) => applicant.status === "pending"
-                    ).length
-                  }
-                </h2>
+                <h2 className="text-2xl font-bold text-slate-800">0</h2>
               </div>
             </div>
           </div>
@@ -123,15 +107,10 @@ export default function Hrdash() {
               <div className="bg-blue-100 text-blue-700 p-3 rounded-xl">
                 <Calendar size={22} />
               </div>
+
               <div>
                 <p className="text-sm text-slate-500">For Interview</p>
-                <h2 className="text-2xl font-bold text-slate-800">
-                  {
-                    applicants.filter(
-                      (applicant) => applicant.status === "for_interview"
-                    ).length
-                  }
-                </h2>
+                <h2 className="text-2xl font-bold text-slate-800">0</h2>
               </div>
             </div>
           </div>
@@ -141,15 +120,10 @@ export default function Hrdash() {
               <div className="bg-red-100 text-red-700 p-3 rounded-xl">
                 <XCircle size={22} />
               </div>
+
               <div>
                 <p className="text-sm text-slate-500">Denied</p>
-                <h2 className="text-2xl font-bold text-slate-800">
-                  {
-                    applicants.filter(
-                      (applicant) => applicant.status === "denied"
-                    ).length
-                  }
-                </h2>
+                <h2 className="text-2xl font-bold text-slate-800">0</h2>
               </div>
             </div>
           </div>
@@ -165,27 +139,38 @@ export default function Hrdash() {
               <div className="bg-blue-100 text-blue-700 p-3 rounded-xl">
                 <Briefcase size={22} />
               </div>
+
               <div>
-                <h2 className="font-semibold text-slate-800">Review Applicants</h2>
-                <p className="text-sm text-slate-500">Check submitted applications.</p>
+                <h2 className="font-semibold text-slate-800">
+                  Review Applicants
+                </h2>
+
+                <p className="text-sm text-slate-500">
+                  Check submitted applications.
+                </p>
               </div>
             </div>
           </Link>
 
-          <Link
-            to="/hr/add-job"
-            className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 hover:bg-slate-50 transition"
+          <button
+            type="button"
+            onClick={() => setShowJobModal(true)}
+            className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 hover:bg-slate-50 transition text-left"
           >
             <div className="flex items-center gap-3">
               <div className="bg-green-100 text-green-700 p-3 rounded-xl">
                 <UserPlus size={22} />
               </div>
+
               <div>
                 <h2 className="font-semibold text-slate-800">Post Job</h2>
-                <p className="text-sm text-slate-500">Create a new vacancy.</p>
+
+                <p className="text-sm text-slate-500">
+                  Create a new vacancy.
+                </p>
               </div>
             </div>
-          </Link>
+          </button>
 
           <Link
             to="/hr/interviews"
@@ -195,9 +180,13 @@ export default function Hrdash() {
               <div className="bg-emerald-100 text-emerald-700 p-3 rounded-xl">
                 <CheckCircle size={22} />
               </div>
+
               <div>
                 <h2 className="font-semibold text-slate-800">Interviews</h2>
-                <p className="text-sm text-slate-500">View interview schedule.</p>
+
+                <p className="text-sm text-slate-500">
+                  View interview schedule.
+                </p>
               </div>
             </div>
           </Link>
@@ -211,73 +200,111 @@ export default function Hrdash() {
             </h2>
           </div>
 
-          {applicants.length === 0 ? (
-            <div className="p-6 text-center text-slate-500">
-              No applications found.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="bg-slate-100 text-slate-600 uppercase text-xs">
-                  <tr>
-                    <th className="px-5 py-3">Applicant</th>
-                    <th className="px-5 py-3">Position</th>
-                    <th className="px-5 py-3">Office / School</th>
-                    <th className="px-5 py-3">Date Submitted</th>
-                    <th className="px-5 py-3">Status</th>
-                    <th className="px-5 py-3 text-right">Action</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {applicants.map((applicant) => (
-                    <tr
-                      key={applicant.id}
-                      className="border-t border-slate-100 hover:bg-slate-50"
-                    >
-                      <td className="px-5 py-4 font-medium text-slate-800">
-                        {applicant.name}
-                      </td>
-
-                      <td className="px-5 py-4 text-slate-600">
-                        {applicant.position}
-                      </td>
-
-                      <td className="px-5 py-4 text-slate-600">
-                        {applicant.office}
-                      </td>
-
-                      <td className="px-5 py-4 text-slate-600">
-                        {applicant.dateSubmitted}
-                      </td>
-
-                      <td className="px-5 py-4">
-                        <span
-                          className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold border ${
-                            statusStyles[applicant.status]
-                          }`}
-                        >
-                          {statusLabels[applicant.status]}
-                        </span>
-                      </td>
-
-                      <td className="px-5 py-4 text-right">
-                        <Link
-                          to={`/hr/applicants/${applicant.id}`}
-                          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#0056b3] text-white hover:bg-[#003a78] transition"
-                        >
-                          <Eye size={16} />
-                          View
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <div className="p-6 text-center text-slate-500">
+            No applications found.
+          </div>
         </div>
       </div>
+
+      {/* POST JOB MODAL */}
+      {showJobModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-lg">
+            <div className="border-b border-slate-200 px-6 py-4">
+              <h2 className="text-xl font-bold text-blue-900">
+                Create Job Vacancy
+              </h2>
+
+              <p className="text-sm text-slate-500">
+                Add job information for the applicant job openings page.
+              </p>
+            </div>
+
+            <form onSubmit={handleCreateJob} className="space-y-4 px-6 py-5">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Job Title
+                </label>
+
+                <input
+                  type="text"
+                  name="title"
+                  value={jobData.title}
+                  onChange={handleJobChange}
+                  required
+                  placeholder="Example: Teacher I"
+                  className="w-full rounded-xl border border-slate-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Location
+                </label>
+
+                <input
+                  type="text"
+                  name="location"
+                  value={jobData.location}
+                  onChange={handleJobChange}
+                  required
+                  placeholder="Example: DepEd CSJDM"
+                  className="w-full rounded-xl border border-slate-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Number ofVacancies
+                </label>
+
+                <input
+                  type="number"
+                  name="vacancy"
+                  value={jobData.vacancy}
+                  onChange={handleJobChange}
+                  required
+                  min="1"
+                  placeholder="Example: 12"
+                  className="w-full rounded-xl border border-slate-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Deadline of Application
+                </label>
+
+                <input
+                  type="date"
+                  name="deadline"
+                  value={jobData.deadline}
+                  onChange={handleJobChange}
+                  required
+                  className="w-full rounded-xl border border-slate-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowJobModal(false)}
+                  className="rounded-xl border border-slate-300 px-5 py-2 font-medium text-slate-700 hover:bg-slate-100"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  className="rounded-xl bg-[#0056b3] px-5 py-2 font-medium text-white hover:bg-[#003a78]"
+                >
+                  Save Job
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
