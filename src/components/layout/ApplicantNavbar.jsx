@@ -13,10 +13,13 @@ export default function NavbarApplicant() {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+
   const user = getStoredUser();
   const isLoggedIn = Boolean(user);
   const homePath = getRoleHomePath(user?.role);
-  const initial = (user?.firstName || user?.email || "U").charAt(0).toUpperCase();
+  const initial = (user?.firstName || user?.email || "U")
+    .charAt(0)
+    .toUpperCase();
 
   const handleLogout = () => {
     clearStoredUser();
@@ -29,7 +32,6 @@ export default function NavbarApplicant() {
     <nav className="fixed w-full bg-[#0056b3] z-50 shadow-md">
       <div className="w-full px-2 sm:px-4 lg:px-6">
         <div className="flex justify-between h-20 items-center">
-          {/* Left Side: Branding Text */}
           <div className="flex flex-col justify-center leading-tight min-w-0 flex-1 px-4">
             <p className="text-[12px] sm:text-[13px] md:text-xs uppercase tracking-wider text-white/80 font-medium leading-relaxed whitespace-nowrap overflow-hidden text-ellipsis">
               DEPARTMENT OF EDUCATION
@@ -44,7 +46,6 @@ export default function NavbarApplicant() {
             </p>
           </div>
 
-          {/* Desktop Menu */}
           <div className="hidden md:flex items-center gap-8">
             <Link
               to="/"
@@ -75,11 +76,7 @@ export default function NavbarApplicant() {
                   onClick={() => setIsProfileOpen(!isProfileOpen)}
                   className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow hover:scale-105 transition"
                 >
-<<<<<<<< HEAD:src/components/layout/ApplicantNavbar.jsx
-                    <span className="text-slate-700 font-bold">{initial}</span>
-========
-                  <span className="text-slate-700 font-bold">P</span>
->>>>>>>> e6e0fa7540dbbe077eb45b3b588e9e4d4fa52754:src/component/Applicant/Navbar-applicant.jsx
+                  <span className="text-slate-700 font-bold">{initial}</span>
                 </button>
 
                 {isProfileOpen && (
@@ -137,7 +134,6 @@ export default function NavbarApplicant() {
             )}
           </div>
 
-          {/* Mobile Button */}
           <div className="md:hidden flex items-center">
             <button onClick={() => setIsOpen(!isOpen)} className="text-white">
               {isOpen ? <X size={28} /> : <Menu size={28} />}
@@ -146,7 +142,6 @@ export default function NavbarApplicant() {
         </div>
       </div>
 
-      {/* Mobile Menu */}
       {isOpen && (
         <div className="md:hidden bg-white border-b border-slate-100 px-4 pt-2 pb-6 space-y-2">
           <Link
@@ -183,10 +178,25 @@ export default function NavbarApplicant() {
             About
           </Link>
 
-<<<<<<<< HEAD:src/components/layout/ApplicantNavbar.jsx
           <div className="flex flex-col gap-3 mt-4">
             {isLoggedIn ? (
               <>
+                <Link
+                  to="/apply"
+                  onClick={() => setIsOpen(false)}
+                  className="w-full bg-[#0056b3] text-white py-3 rounded-xl font-semibold text-center"
+                >
+                  Apply New
+                </Link>
+
+                <Link
+                  to="/application-history"
+                  onClick={() => setIsOpen(false)}
+                  className="w-full bg-slate-100 text-slate-900 py-3 rounded-xl font-semibold text-center"
+                >
+                  History
+                </Link>
+
                 <Link
                   to={homePath}
                   onClick={() => setIsOpen(false)}
@@ -213,43 +223,6 @@ export default function NavbarApplicant() {
                 </button>
               </>
             ) : (
-========
-          {isLoggedIn ? (
-            <div className="flex flex-col gap-3 mt-4">
-              <Link
-                to="/apply"
-                onClick={() => setIsOpen(false)}
-                className="w-full bg-[#0056b3] text-white py-3 rounded-xl font-semibold text-center"
-              >
-                Apply New
-              </Link>
-
-              <Link
-                to="/application-history"
-                onClick={() => setIsOpen(false)}
-                className="w-full bg-slate-100 text-slate-900 py-3 rounded-xl font-semibold text-center"
-              >
-                History
-              </Link>
-
-              <Link
-                to="/profile"
-                onClick={() => setIsOpen(false)}
-                className="w-full bg-slate-100 text-slate-900 py-3 rounded-xl font-semibold text-center"
-              >
-                My Profile
-              </Link>
-
-              <button
-                onClick={handleLogout}
-                className="w-full bg-red-500 text-white py-3 rounded-xl font-semibold"
-              >
-                Logout
-              </button>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-3 mt-4">
->>>>>>>> e6e0fa7540dbbe077eb45b3b588e9e4d4fa52754:src/component/Applicant/Navbar-applicant.jsx
               <Link
                 to="/login"
                 onClick={() => setIsOpen(false)}
@@ -257,8 +230,8 @@ export default function NavbarApplicant() {
               >
                 Log in
               </Link>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
     </nav>
