@@ -1,0 +1,14 @@
+BEGIN;
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS last_activation_sent_at TIMESTAMP WITH TIME ZONE;
+
+CREATE TABLE IF NOT EXISTS activation_tokens (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  token VARCHAR(128) NOT NULL UNIQUE,
+  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  used BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS activation_tokens_user_idx ON activation_tokens(user_id);
+COMMIT;
