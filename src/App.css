@@ -182,3 +182,29 @@
     border-right-color: var(--border);
   }
 }
+
+/* Mobile helper utilities */
+.mobile-only {
+  display: none;
+}
+.desktop-only {
+  display: block;
+}
+
+@media (max-width: 640px) {
+  .mobile-only {
+    display: block;
+  }
+  .desktop-only {
+    display: none;
+  }
+
+  /* Tighter default font sizing for very small screens */
+  body {
+    font-size: 14px;
+  }
+
+  .text-5xl {
+    font-size: 1.75rem;
+  }
+}

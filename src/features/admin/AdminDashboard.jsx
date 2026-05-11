@@ -1,0 +1,346 @@
+import { useEffect, useState } from "react";
+import {
+  Briefcase,
+  CheckCircle2,
+  ClipboardList,
+  Loader2,
+  Plus,
+  Save,
+} from "lucide-react";
+import { apiRequest } from "../../lib/api";
+
+const emptyJob = {
+  title: "",
+  location: "",
+  vacancy: 1,
+  deadline: "",
+  status: "open",
+  description: "",
+};
+
+const statusLabels = {
+  submitted: "Submitted",
+  under_review: "Under Review",
+  for_interview: "For Interview",
+  qualified: "Qualified",
+  rejected: "Rejected",
+};
+
+export default function AdminDashboard() {
+  const [jobs, setJobs] = useState([]);
+  const [applications, setApplications] = useState([]);
+  const [form, setForm] = useState(emptyJob);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    let isMounted = true;
+
+    Promise.all([
+      apiRequest("/api/admin/job-openings"),
+      apiRequest("/api/admin/applications"),
+    ])
+      .then(([jobResult, applicationResult]) => {
+        if (!isMounted) return;
+        setJobs(jobResult.jobs || []);
+        setApplications(applicationResult.applications || []);
+      })
+      .catch((err) => {
+        if (isMounted) setMessage(err.message);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleFormChange = (field, value) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const createJob = async (event) => {
+    event.preventDefault();
+    setIsSaving(true);
+    setMessage("");
+
+    try {
+      const result = await apiRequest("/api/admin/job-openings", {
+        method: "POST",
+        body: JSON.stringify(form),
+      });
+
+      setJobs((prev) => [result.job, ...prev]);
+      setForm(emptyJob);
+      setMessage("Job opening posted.");
+    } catch (err) {
+      setMessage(err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const updateJobStatus = async (job, status) => {
+    const result = await apiRequest(`/api/admin/job-openings/${job.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    });
+
+    setJobs((prev) =>
+      prev.map((item) => (item.id === job.id ? result.job : item))
+    );
+  };
+
+  const updateApplicationStatus = async (application, status) => {
+    const result = await apiRequest(
+      `/api/admin/applications/${application.id}/status`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      }
+    );
+
+    setApplications((prev) =>
+      prev.map((item) =>
+        item.id === application.id ? result.application : item
+      )
+    );
+  };
+
+  const openJobs = jobs.filter((job) => job.status === "open").length;
+  const pendingApplications = applications.filter((application) =>
+    ["submitted", "under_review"].includes(application.status)
+  ).length;
+
+  return (
+    <main className="min-h-screen bg-slate-50 px-4 pb-12 pt-28 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-3xl font-bold text-blue-950">
+            Admin Dashboard
+          </h1>
+          <p className="text-sm text-slate-600">
+            Post job openings and manage applicant status from one workspace.
+          </p>
+        </div>
+
+        {message && (
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm font-medium text-blue-800">
+            {message}
+          </div>
+        )}
+
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <Briefcase className="h-6 w-6 text-blue-700" />
+            <p className="mt-3 text-sm text-slate-500">Open Jobs</p>
+            <p className="text-2xl font-bold text-slate-900">{openJobs}</p>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <ClipboardList className="h-6 w-6 text-blue-700" />
+            <p className="mt-3 text-sm text-slate-500">Applications</p>
+            <p className="text-2xl font-bold text-slate-900">
+              {applications.length}
+            </p>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <CheckCircle2 className="h-6 w-6 text-green-700" />
+            <p className="mt-3 text-sm text-slate-500">Needs Review</p>
+            <p className="text-2xl font-bold text-slate-900">
+              {pendingApplications}
+            </p>
+          </div>
+        </div>
+
+        <section className="grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
+          <form
+            onSubmit={createJob}
+            className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
+          >
+            <div className="mb-5 flex items-center gap-2">
+              <Plus className="h-5 w-5 text-blue-700" />
+              <h2 className="text-lg font-bold text-slate-900">
+                Post Job Opening
+              </h2>
+            </div>
+
+            <div className="grid gap-4">
+              <input
+                value={form.title}
+                onChange={(event) => handleFormChange("title", event.target.value)}
+                placeholder="Job title"
+                className="h-11 rounded-lg border border-slate-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+              <input
+                value={form.location}
+                onChange={(event) =>
+                  handleFormChange("location", event.target.value)
+                }
+                placeholder="Office / school"
+                className="h-11 rounded-lg border border-slate-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <input
+                  type="number"
+                  min="1"
+                  value={form.vacancy}
+                  onChange={(event) =>
+                    handleFormChange("vacancy", event.target.value)
+                  }
+                  className="h-11 rounded-lg border border-slate-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+                <input
+                  type="date"
+                  value={form.deadline}
+                  onChange={(event) =>
+                    handleFormChange("deadline", event.target.value)
+                  }
+                  className="h-11 rounded-lg border border-slate-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <textarea
+                value={form.description}
+                onChange={(event) =>
+                  handleFormChange("description", event.target.value)
+                }
+                placeholder="Description or notes"
+                rows="4"
+                className="rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-700 px-5 py-2.5 font-bold text-white hover:bg-blue-800 disabled:opacity-60"
+              >
+                {isSaving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                Post Job
+              </button>
+            </div>
+          </form>
+
+          <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 px-5 py-4">
+              <h2 className="text-lg font-bold text-slate-900">
+                Job Postings
+              </h2>
+            </div>
+
+            {isLoading ? (
+              <div className="flex items-center justify-center gap-2 p-8 text-slate-500">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                Loading...
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {jobs.map((job) => (
+                  <div
+                    key={job.id}
+                    className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div>
+                      <p className="font-semibold text-slate-900">
+                        {job.title}
+                      </p>
+                      <p className="text-sm text-slate-500">
+                        {job.location} - {job.vacancy} vacancy
+                      </p>
+                    </div>
+                    <select
+                      value={job.status}
+                      onChange={(event) =>
+                        updateJobStatus(job, event.target.value).catch((err) =>
+                          setMessage(err.message)
+                        )
+                      }
+                      className="h-10 rounded-lg border border-slate-300 px-3 text-sm"
+                    >
+                      <option value="open">Open</option>
+                      <option value="closed">Closed</option>
+                      <option value="draft">Draft</option>
+                    </select>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 px-5 py-4">
+            <h2 className="text-lg font-bold text-slate-900">
+              Application Status
+            </h2>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-100 text-xs uppercase text-slate-600">
+                <tr>
+                  <th className="px-5 py-3">UAN</th>
+                  <th className="px-5 py-3">Applicant</th>
+                  <th className="px-5 py-3">Position</th>
+                  <th className="px-5 py-3">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {applications.map((application) => (
+                  <tr key={application.id} className="border-t border-slate-100">
+                    <td className="px-5 py-4 font-semibold text-slate-900">
+                      {application.uan}
+                    </td>
+                    <td className="px-5 py-4">
+                      <p className="font-medium text-slate-800">
+                        {application.applicantName}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {application.email}
+                      </p>
+                    </td>
+                    <td className="px-5 py-4 text-slate-700">
+                      {application.position}
+                    </td>
+                    <td className="px-5 py-4">
+                      <select
+                        value={application.status}
+                        onChange={(event) =>
+                          updateApplicationStatus(
+                            application,
+                            event.target.value
+                          ).catch((err) => setMessage(err.message))
+                        }
+                        className="h-10 rounded-lg border border-slate-300 px-3 text-sm"
+                      >
+                        {Object.entries(statusLabels).map(([value, label]) => (
+                          <option key={value} value={value}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {!isLoading && applications.length === 0 && (
+              <div className="p-8 text-center text-slate-500">
+                No applications yet.
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}
