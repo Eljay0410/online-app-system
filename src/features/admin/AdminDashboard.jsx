@@ -4,8 +4,10 @@ import {
   CheckCircle2,
   ClipboardList,
   Loader2,
+  Minus,
   Plus,
   Save,
+  Trash2,
 } from "lucide-react";
 import { apiRequest } from "../../lib/api";
 
@@ -15,7 +17,6 @@ const emptyJob = {
   vacancy: 1,
   deadline: "",
   status: "open",
-  description: "",
 };
 
 const statusLabels = {
@@ -33,6 +34,7 @@ export default function AdminDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [jobToDelete, setJobToDelete] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -43,6 +45,7 @@ export default function AdminDashboard() {
     ])
       .then(([jobResult, applicationResult]) => {
         if (!isMounted) return;
+
         setJobs(jobResult.jobs || []);
         setApplications(applicationResult.applications || []);
       })
@@ -64,16 +67,21 @@ export default function AdminDashboard() {
 
   const createJob = async (event) => {
     event.preventDefault();
+
     setIsSaving(true);
     setMessage("");
 
     try {
       const result = await apiRequest("/api/admin/job-openings", {
         method: "POST",
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          vacancy: Number(form.vacancy),
+        }),
       });
 
       setJobs((prev) => [result.job, ...prev]);
+
       setForm(emptyJob);
       setMessage("Job opening posted.");
     } catch (err) {
@@ -83,15 +91,48 @@ export default function AdminDashboard() {
     }
   };
 
-  const updateJobStatus = async (job, status) => {
+  const updateJob = async (job, updates) => {
     const result = await apiRequest(`/api/admin/job-openings/${job.id}`, {
       method: "PATCH",
-      body: JSON.stringify({ status }),
+      body: JSON.stringify(updates),
     });
 
     setJobs((prev) =>
       prev.map((item) => (item.id === job.id ? result.job : item))
     );
+  };
+
+  const decreaseVacancy = async (job) => {
+    if (Number(job.vacancy) <= 0) return;
+
+    try {
+      await updateJob(job, {
+        vacancy: Number(job.vacancy) - 1,
+      });
+
+      setMessage("Vacancy updated.");
+    } catch (err) {
+      setMessage(err.message);
+    }
+  };
+
+  const deleteJob = async () => {
+    if (!jobToDelete) return;
+
+    try {
+      await apiRequest(`/api/admin/job-openings/${jobToDelete.id}`, {
+        method: "DELETE",
+      });
+
+      setJobs((prev) =>
+        prev.filter((item) => item.id !== jobToDelete.id)
+      );
+
+      setMessage("Job posting deleted.");
+      setJobToDelete(null);
+    } catch (err) {
+      setMessage(err.message);
+    }
   };
 
   const updateApplicationStatus = async (application, status) => {
@@ -111,6 +152,7 @@ export default function AdminDashboard() {
   };
 
   const openJobs = jobs.filter((job) => job.status === "open").length;
+
   const pendingApplications = applications.filter((application) =>
     ["submitted", "under_review"].includes(application.status)
   ).length;
@@ -122,6 +164,7 @@ export default function AdminDashboard() {
           <h1 className="text-3xl font-bold text-blue-950">
             Admin Dashboard
           </h1>
+
           <p className="text-sm text-slate-600">
             Post job openings and manage applicant status from one workspace.
           </p>
@@ -136,19 +179,35 @@ export default function AdminDashboard() {
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
             <Briefcase className="h-6 w-6 text-blue-700" />
-            <p className="mt-3 text-sm text-slate-500">Open Jobs</p>
-            <p className="text-2xl font-bold text-slate-900">{openJobs}</p>
+
+            <p className="mt-3 text-sm text-slate-500">
+              Open Jobs
+            </p>
+
+            <p className="text-2xl font-bold text-slate-900">
+              {openJobs}
+            </p>
           </div>
+
           <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
             <ClipboardList className="h-6 w-6 text-blue-700" />
-            <p className="mt-3 text-sm text-slate-500">Applications</p>
+
+            <p className="mt-3 text-sm text-slate-500">
+              Applications
+            </p>
+
             <p className="text-2xl font-bold text-slate-900">
               {applications.length}
             </p>
           </div>
+
           <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
             <CheckCircle2 className="h-6 w-6 text-green-700" />
-            <p className="mt-3 text-sm text-slate-500">Needs Review</p>
+
+            <p className="mt-3 text-sm text-slate-500">
+              Needs Review
+            </p>
+
             <p className="text-2xl font-bold text-slate-900">
               {pendingApplications}
             </p>
@@ -162,6 +221,7 @@ export default function AdminDashboard() {
           >
             <div className="mb-5 flex items-center gap-2">
               <Plus className="h-5 w-5 text-blue-700" />
+
               <h2 className="text-lg font-bold text-slate-900">
                 Post Job Opening
               </h2>
@@ -170,11 +230,14 @@ export default function AdminDashboard() {
             <div className="grid gap-4">
               <input
                 value={form.title}
-                onChange={(event) => handleFormChange("title", event.target.value)}
+                onChange={(event) =>
+                  handleFormChange("title", event.target.value)
+                }
                 placeholder="Job title"
                 className="h-11 rounded-lg border border-slate-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
+
               <input
                 value={form.location}
                 onChange={(event) =>
@@ -184,6 +247,7 @@ export default function AdminDashboard() {
                 className="h-11 rounded-lg border border-slate-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <input
                   type="number"
@@ -195,6 +259,7 @@ export default function AdminDashboard() {
                   className="h-11 rounded-lg border border-slate-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   required
                 />
+
                 <input
                   type="date"
                   value={form.deadline}
@@ -205,15 +270,7 @@ export default function AdminDashboard() {
                   required
                 />
               </div>
-              <textarea
-                value={form.description}
-                onChange={(event) =>
-                  handleFormChange("description", event.target.value)
-                }
-                placeholder="Description or notes"
-                rows="4"
-                className="rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+
               <button
                 type="submit"
                 disabled={isSaving}
@@ -224,6 +281,7 @@ export default function AdminDashboard() {
                 ) : (
                   <Save className="h-4 w-4" />
                 )}
+
                 Post Job
               </button>
             </div>
@@ -246,31 +304,62 @@ export default function AdminDashboard() {
                 {jobs.map((job) => (
                   <div
                     key={job.id}
-                    className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+                    className="flex flex-col gap-4 px-5 py-4 xl:flex-row xl:items-center xl:justify-between"
                   >
                     <div>
                       <p className="font-semibold text-slate-900">
                         {job.title}
                       </p>
+
                       <p className="text-sm text-slate-500">
                         {job.location} - {job.vacancy} vacancy
                       </p>
                     </div>
-                    <select
-                      value={job.status}
-                      onChange={(event) =>
-                        updateJobStatus(job, event.target.value).catch((err) =>
-                          setMessage(err.message)
-                        )
-                      }
-                      className="h-10 rounded-lg border border-slate-300 px-3 text-sm"
-                    >
-                      <option value="open">Open</option>
-                      <option value="closed">Closed</option>
-                      <option value="draft">Draft</option>
-                    </select>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => decreaseVacancy(job)}
+                        disabled={Number(job.vacancy) <= 0}
+                        className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Minus className="h-4 w-4" />
+                        Reduce Vacancy
+                      </button>
+
+                      <select
+                        value={job.status}
+                        onChange={(event) =>
+                          updateJob(job, {
+                            status: event.target.value,
+                          }).catch((err) =>
+                            setMessage(err.message)
+                          )
+                        }
+                        className="h-10 rounded-lg border border-slate-300 px-3 text-sm"
+                      >
+                        <option value="open">Open</option>
+                        <option value="closed">Closed</option>
+                        <option value="draft">Draft</option>
+                      </select>
+
+                      <button
+                        type="button"
+                        onClick={() => setJobToDelete(job)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 ))}
+
+                {!isLoading && jobs.length === 0 && (
+                  <div className="p-8 text-center text-slate-500">
+                    No job postings yet.
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -293,23 +382,31 @@ export default function AdminDashboard() {
                   <th className="px-5 py-3">Status</th>
                 </tr>
               </thead>
+
               <tbody>
                 {applications.map((application) => (
-                  <tr key={application.id} className="border-t border-slate-100">
+                  <tr
+                    key={application.id}
+                    className="border-t border-slate-100"
+                  >
                     <td className="px-5 py-4 font-semibold text-slate-900">
                       {application.uan}
                     </td>
+
                     <td className="px-5 py-4">
                       <p className="font-medium text-slate-800">
                         {application.applicantName}
                       </p>
+
                       <p className="text-xs text-slate-500">
                         {application.email}
                       </p>
                     </td>
+
                     <td className="px-5 py-4 text-slate-700">
                       {application.position}
                     </td>
+
                     <td className="px-5 py-4">
                       <select
                         value={application.status}
@@ -317,15 +414,19 @@ export default function AdminDashboard() {
                           updateApplicationStatus(
                             application,
                             event.target.value
-                          ).catch((err) => setMessage(err.message))
+                          ).catch((err) =>
+                            setMessage(err.message)
+                          )
                         }
                         className="h-10 rounded-lg border border-slate-300 px-3 text-sm"
                       >
-                        {Object.entries(statusLabels).map(([value, label]) => (
-                          <option key={value} value={value}>
-                            {label}
-                          </option>
-                        ))}
+                        {Object.entries(statusLabels).map(
+                          ([value, label]) => (
+                            <option key={value} value={value}>
+                              {label}
+                            </option>
+                          )
+                        )}
                       </select>
                     </td>
                   </tr>
@@ -341,6 +442,42 @@ export default function AdminDashboard() {
           </div>
         </section>
       </div>
+
+      {jobToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="text-xl font-bold text-slate-900">
+              Delete Job Posting
+            </h3>
+
+            <p className="mt-3 text-sm text-slate-600">
+              Are you sure you want to delete{" "}
+              <span className="font-semibold text-slate-900">
+                "{jobToDelete.title}"
+              </span>
+              ?
+            </p>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setJobToDelete(null)}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={deleteJob}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

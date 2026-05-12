@@ -78,10 +78,10 @@ export default function ApplyJobs() {
     loadData();
   }, []);
 
-  const availableJobs = jobs.filter((job) => {
+  const hasApplied = (job) => {
     const jobTitle = normalize(job.title);
 
-    return !applications.some((application) => {
+    return applications.some((application) => {
       const appliedPosition =
         application.position ||
         application.raw?.jobPosition?.positionType ||
@@ -90,7 +90,7 @@ export default function ApplyJobs() {
 
       return normalize(appliedPosition) === jobTitle;
     });
-  });
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 pt-28 pb-12 sm:px-6 lg:px-8">
@@ -117,9 +117,9 @@ export default function ApplyJobs() {
               <Loader2 className="h-5 w-5 animate-spin" />
               Loading job openings...
             </div>
-          ) : availableJobs.length === 0 ? (
+          ) : jobs.length === 0 ? (
             <div className="p-10 text-center text-slate-500">
-              No available job openings to apply for.
+              No job openings found.
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -135,52 +135,69 @@ export default function ApplyJobs() {
                 </thead>
 
                 <tbody>
-                  {availableJobs.map((job, index) => (
-                    <tr
-                      key={job.id}
-                      className={`border-b border-slate-100 ${
-                        index % 2 === 1 ? "bg-slate-50" : "bg-white"
-                      }`}
-                    >
-                      <td className="px-8 py-6">
-                        <p className="font-bold text-slate-950">{job.title}</p>
-                        {job.description && (
-                          <p className="mt-1 text-sm text-slate-500">
-                            {job.description}
+                  {jobs.map((job, index) => {
+                    const applied = hasApplied(job);
+
+                    return (
+                      <tr
+                        key={job.id}
+                        className={`border-b border-slate-100 ${
+                          index % 2 === 1 ? "bg-slate-50" : "bg-white"
+                        }`}
+                      >
+                        <td className="px-8 py-6">
+                          <p className="font-bold text-slate-950">
+                            {job.title}
                           </p>
-                        )}
-                      </td>
 
-                      <td className="px-8 py-6 text-slate-700">
-                        <div className="flex items-center gap-3">
-                          <MapPin className="h-5 w-5 text-slate-400" />
-                          <span>{job.location || "N/A"}</span>
-                        </div>
-                      </td>
+                          {job.description && (
+                            <p className="mt-1 text-sm text-slate-500">
+                              {job.description}
+                            </p>
+                          )}
+                        </td>
 
-                      <td className="px-8 py-6 text-slate-700">
-                        {job.vacancy}
-                      </td>
+                        <td className="px-8 py-6 text-slate-700">
+                          <div className="flex items-center gap-3">
+                            <MapPin className="h-5 w-5 text-slate-400" />
+                            <span>{job.location || "N/A"}</span>
+                          </div>
+                        </td>
 
-                      <td className="px-8 py-6 text-slate-700">
-                        <div className="flex items-center gap-3">
-                          <Calendar className="h-5 w-5 text-slate-400" />
-                          <span>{formatDate(job.deadline)}</span>
-                        </div>
-                      </td>
+                        <td className="px-8 py-6 text-slate-700">
+                          {job.vacancy}
+                        </td>
 
-                      <td className="px-8 py-6 text-center">
-                        <Link
-                          to={`/apply?jobId=${job.id}&position=${encodeURIComponent(
-                            job.title
-                          )}`}
-                          className="inline-flex rounded-lg bg-[#0056b3] px-6 py-2.5 text-sm font-bold text-white transition hover:bg-[#003a78]"
-                        >
-                          Apply
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
+                        <td className="px-8 py-6 text-slate-700">
+                          <div className="flex items-center gap-3">
+                            <Calendar className="h-5 w-5 text-slate-400" />
+                            <span>{formatDate(job.deadline)}</span>
+                          </div>
+                        </td>
+
+                        <td className="px-8 py-6 text-center">
+                          {applied ? (
+                            <button
+                              type="button"
+                              disabled
+                              className="inline-flex cursor-not-allowed rounded-lg bg-slate-300 px-6 py-2.5 text-sm font-bold text-slate-600"
+                            >
+                              Applied
+                            </button>
+                          ) : (
+                            <Link
+                              to={`/apply?jobId=${job.id}&position=${encodeURIComponent(
+                                job.title
+                              )}`}
+                              className="inline-flex rounded-lg bg-[#0056b3] px-6 py-2.5 text-sm font-bold text-white transition hover:bg-[#003a78]"
+                            >
+                              Apply
+                            </Link>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

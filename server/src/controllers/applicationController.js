@@ -23,6 +23,7 @@ export async function listAdminApplications(_req, res) {
     });
   } catch (error) {
     console.error("Error fetching applications:", error);
+
     res.status(500).json({
       success: false,
       message: "Failed to fetch applications",
@@ -32,6 +33,7 @@ export async function listAdminApplications(_req, res) {
 
 export async function updateApplicationStatus(req, res) {
   const { status } = req.body || {};
+
   const allowedStatuses = [
     "submitted",
     "under_review",
@@ -63,9 +65,13 @@ export async function updateApplicationStatus(req, res) {
       });
     }
 
-    res.json({ success: true, application: mapApplication(result.rows[0]) });
+    res.json({
+      success: true,
+      application: mapApplication(result.rows[0]),
+    });
   } catch (error) {
     console.error("Error updating application status:", error);
+
     res.status(500).json({
       success: false,
       message: "Failed to update application status",
@@ -100,6 +106,7 @@ export async function listApplicantApplications(req, res) {
     });
   } catch (error) {
     console.error("Error fetching applicant applications:", error);
+
     res.status(500).json({
       success: false,
       message: "Failed to fetch applications",
@@ -125,7 +132,10 @@ export async function submitApplication(req, res) {
     await client.query("BEGIN");
 
     const existing = await client.query(
-      "SELECT id, uan, last_activation_sent_at FROM users WHERE LOWER(email) = LOWER($1) FOR UPDATE",
+      `SELECT id, uan, last_activation_sent_at
+       FROM users
+       WHERE LOWER(email) = LOWER($1)
+       FOR UPDATE`,
       [email]
     );
 
@@ -133,30 +143,62 @@ export async function submitApplication(req, res) {
 
     if (existing.rowCount === 0) {
       const inserted = await client.query(
-        `INSERT INTO users (email, first_name, last_name, role, created_at, updated_at)
-         VALUES ($1, $2, $3, 'applicant', NOW(), NOW())
-         RETURNING id, uan, last_activation_sent_at`,
-        [email, personalInfo.firstName || null, personalInfo.lastName || null]
+        `INSERT INTO users (
+          email,
+          first_name,
+          last_name,
+          role,
+          created_at,
+          updated_at
+        )
+        VALUES ($1, $2, $3, 'applicant', NOW(), NOW())
+        RETURNING id, uan, last_activation_sent_at`,
+        [
+          email,
+          personalInfo.firstName || null,
+          personalInfo.lastName || null,
+        ]
       );
+
       user = inserted.rows[0];
     } else {
       user = existing.rows[0];
+
       await client.query(
         `UPDATE users
          SET first_name = COALESCE($2, first_name),
              last_name = COALESCE($3, last_name),
              updated_at = NOW()
          WHERE id = $1`,
-        [user.id, personalInfo.firstName || null, personalInfo.lastName || null]
+        [
+          user.id,
+          personalInfo.firstName || null,
+          personalInfo.lastName || null,
+        ]
       );
     }
 
-    const assignedUan = await assignUan(client, user.id, user.uan);
-    user = { ...user, uan: assignedUan };
+    const assignedUan = await assignUan(
+      client,
+      user.id,
+      user.uan
+    );
+
+    user = {
+      ...user,
+      uan: assignedUan,
+    };
 
     await client.query(
-      `INSERT INTO job_applications (user_id, uan, data, status, created_at, updated_at)
-       VALUES ($1, $2, $3, 'submitted', NOW(), NOW())`,
+      `INSERT INTO job_applications (
+        user_id,
+        uan,
+        data,
+        status,
+        created_at,
+        updated_at
+      )
+      VALUES ($1, $2, $3, 'submitted', NOW(), NOW())`,
       [
         user.id,
         assignedUan,
@@ -184,9 +226,14 @@ export async function submitApplication(req, res) {
 
     if (activation.token && transporter) {
       try {
-        emailSent = await sendActivationEmail(email, assignedUan, activation.token);
+        emailSent = await sendActivationEmail(
+          email,
+          assignedUan,
+          activation.token
+        );
       } catch (err) {
         console.error("Failed to send activation email:", err);
+
         emailMessage =
           "Application saved, but the activation email could not be sent.";
       }
@@ -204,13 +251,42 @@ export async function submitApplication(req, res) {
     });
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
-    console.error("/api/submit-application error:", err, emailPayload || "");
+
+    console.error(
+      "/api/submit-application error:",
+      err,
+      emailPayload || ""
+    );
+
     return res.status(500).json({
       success: false,
       message: err?.message || "Server error",
     });
   } finally {
     client.release();
+  }
+}
+
+export async function deleteJobOpening(req, res) {
+  const { id } = req.params;
+
+  try {
+    await pool.query(
+      "DELETE FROM job_openings WHERE id = $1",
+      [id]
+    );
+
+    return res.json({
+      success: true,
+      message: "Job opening deleted",
+    });
+  } catch (error) {
+    console.error("deleteJobOpening error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete job opening",
+    });
   }
 }
 
