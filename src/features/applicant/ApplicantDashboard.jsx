@@ -42,7 +42,9 @@ export default function ApplicantDash() {
   const [applications, setApplications] = useState([]);
   const [isLoading, setIsLoading] = useState(() => Boolean(getApplicantEmail()));
   const [message, setMessage] = useState(() =>
-    getApplicantEmail() ? "" : "Enter your applicant email to view your submissions."
+    getApplicantEmail()
+      ? ""
+      : "Enter your applicant email to view your submissions."
   );
 
   const loadApplications = async (targetEmail = email) => {
@@ -59,6 +61,7 @@ export default function ApplicantDash() {
       const result = await apiRequest(
         `/api/applicant/applications?email=${encodeURIComponent(targetEmail)}`
       );
+
       setApplications(result.applications || []);
     } catch (err) {
       setMessage(err.message);
@@ -98,6 +101,7 @@ export default function ApplicantDash() {
   const forInterview = applications.filter(
     (application) => application.status === "for_interview"
   ).length;
+
   const denied = applications.filter(
     (application) => application.status === "rejected"
   ).length;
@@ -116,7 +120,7 @@ export default function ApplicantDash() {
           </div>
 
           <Link
-            to="/apply"
+            to="/apply/jobs"
             className="rounded-lg bg-[#0056b3] px-5 py-2.5 text-center text-sm font-bold text-white transition hover:bg-[#003a78]"
           >
             Apply New
@@ -132,6 +136,7 @@ export default function ApplicantDash() {
               placeholder="Applicant email"
               className="h-11 flex-1 rounded-lg border border-slate-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+
             <button
               type="button"
               onClick={() => loadApplications()}
@@ -140,6 +145,7 @@ export default function ApplicantDash() {
               Refresh Status
             </button>
           </div>
+
           {message && <p className="mt-3 text-sm text-slate-600">{message}</p>}
         </div>
 
@@ -149,6 +155,7 @@ export default function ApplicantDash() {
               <div className="rounded-lg bg-blue-100 p-3 text-blue-700">
                 <FileText size={22} />
               </div>
+
               <div>
                 <p className="text-sm text-slate-500">Applications</p>
                 <h2 className="text-2xl font-bold text-slate-800">
@@ -163,6 +170,7 @@ export default function ApplicantDash() {
               <div className="rounded-lg bg-blue-100 p-3 text-blue-700">
                 <Briefcase size={22} />
               </div>
+
               <div>
                 <p className="text-sm text-slate-500">For Interview</p>
                 <h2 className="text-2xl font-bold text-slate-800">
@@ -177,6 +185,7 @@ export default function ApplicantDash() {
               <div className="rounded-lg bg-red-100 p-3 text-red-700">
                 <Calendar size={22} />
               </div>
+
               <div>
                 <p className="text-sm text-slate-500">Denied</p>
                 <h2 className="text-2xl font-bold text-slate-800">{denied}</h2>
@@ -213,6 +222,7 @@ export default function ApplicantDash() {
                     <th className="px-5 py-3 text-right">Action</th>
                   </tr>
                 </thead>
+
                 <tbody>
                   {applications.map((application) => (
                     <tr
@@ -222,12 +232,15 @@ export default function ApplicantDash() {
                       <td className="px-5 py-4 font-semibold text-slate-800">
                         {application.uan}
                       </td>
+
                       <td className="px-5 py-4 text-slate-600">
                         {application.position}
                       </td>
+
                       <td className="px-5 py-4 text-slate-600">
                         {formatDate(application.createdAt)}
                       </td>
+
                       <td className="px-5 py-4">
                         <span
                           className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${
@@ -239,6 +252,7 @@ export default function ApplicantDash() {
                             application.status}
                         </span>
                       </td>
+
                       <td className="px-5 py-4 text-right">
                         <button
                           type="button"

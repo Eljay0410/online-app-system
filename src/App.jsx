@@ -19,6 +19,7 @@ import ApplicantProfile from "./features/applicant/ApplicantProfile";
 
 import AdminDashboard from "./features/admin/AdminDashboard";
 import SuperAdminDashboard from "./features/admin/SuperAdminDashboard";
+import ApplyJobs from "./features/applicant/ApplyJobs";
 
 function App() {
   const location = useLocation();
@@ -39,6 +40,14 @@ function App() {
         <Route path="/" element={<Home />} />
 
         <Route path="/apply" element={<ApplicationForm />} />
+                <Route
+        path="/apply/jobs"
+          element={
+            <ProtectedRoute allowedRoles={["applicant"]}>
+              <ApplyJobs />
+            </ProtectedRoute>
+          }
+        />
 
         <Route path="/activate" element={<ActivateAccount />} />
 
