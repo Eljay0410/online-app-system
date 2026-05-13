@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Loader2, LockKeyhole, Mail } from "lucide-react";
 import imageSample from "../../assets/imagesample.svg";
 import { apiRequest } from "../../lib/api";
@@ -9,6 +9,7 @@ const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
 const Login = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -84,8 +85,17 @@ const Login = () => {
         }),
       });
       const user = storeUser(result.user);
+      const nextPath = searchParams.get("next");
 
-      navigate(getRoleHomePath(user.role), { replace: true });
+      if (user.role === "applicant" && !user.profileComplete) {
+        navigate("/apply", { replace: true });
+        return;
+      }
+
+      navigate(
+        nextPath?.startsWith("/") ? nextPath : getRoleHomePath(user.role),
+        { replace: true }
+      );
     } catch (err) {
       setErrors({
         form: err.message || "Login failed. Please try again.",
@@ -233,7 +243,7 @@ const Login = () => {
         </div>
 
         <p className="text-xs text-slate-500 mt-6 text-center">
-          New applicant? Submit your application{" "}
+          New applicant? Complete the first-time application form{" "}
           <Link
             to="/apply"
             className="text-blue-600 font-medium cursor-pointer hover:underline"

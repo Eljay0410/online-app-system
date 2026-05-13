@@ -1,19 +1,86 @@
 import pool from "../config/db.js";
-import { transporter } from "../config/mailer.js";
 import {
   createActivationToken,
   sendActivationEmail,
 } from "../services/activationService.js";
-import { assignUan } from "../services/uanService.js";
-import { mapApplication, normalizeEmail } from "../utils/formatters.js";
+import {
+  createJobApplicationFromProfile,
+  getApplicantEmail,
+  getApplicantProfileRecord,
+  upsertApplicantProfile,
+} from "../services/applicantService.js";
+import {
+  mapApplicantProfile,
+  mapApplication,
+  normalizeEmail,
+} from "../utils/formatters.js";
+
+function sendControllerError(res, error, fallbackMessage) {
+  return res.status(error.statusCode || 500).json({
+    success: false,
+    message: error.message || fallbackMessage,
+  });
+}
+
+function getJobOpeningId(payload = {}) {
+  return (
+    payload.jobOpeningId ||
+    payload.job_opening_id ||
+    payload.jobPosition?.jobOpeningId ||
+    payload.job?.id ||
+    null
+  );
+}
+
+function mapProfileResponse(user, profile) {
+  return mapApplicantProfile({
+    ...profile,
+    user_id: user.id,
+    email: user.email,
+    first_name: user.first_name,
+    last_name: user.last_name,
+    user_uan: user.uan,
+  });
+}
+
+async function createProfileActivationEmail(client, user) {
+  if (user.password_hash) {
+    return {
+      emailSent: false,
+      emailMessage: "",
+    };
+  }
+
+  const activation = await createActivationToken(client, user);
+
+  return {
+    token: activation.token,
+    skippedReason: activation.skippedReason,
+  };
+}
 
 export async function listAdminApplications(_req, res) {
   try {
     const result = await pool.query(`
-      SELECT ja.id, ja.uan, ja.data, ja.status, ja.created_at, ja.updated_at,
-             u.email, u.first_name, u.last_name
+      SELECT
+        ja.id,
+        ja.user_id,
+        ja.applicant_profile_id,
+        ja.job_opening_id,
+        ja.uan,
+        ja.data,
+        ja.status,
+        ja.created_at,
+        ja.updated_at,
+        u.email,
+        u.first_name,
+        u.last_name,
+        jo.title AS job_title,
+        jo.location AS job_location,
+        jo.deadline AS job_deadline
       FROM job_applications ja
       JOIN users u ON u.id = ja.user_id
+      LEFT JOIN job_openings jo ON jo.id = ja.job_opening_id
       ORDER BY ja.created_at DESC
     `);
 
@@ -51,10 +118,31 @@ export async function updateApplicationStatus(req, res) {
 
   try {
     const result = await pool.query(
-      `UPDATE job_applications
-       SET status = $2, updated_at = NOW()
-       WHERE id = $1
-       RETURNING id, uan, data, status, created_at, updated_at`,
+      `WITH updated AS (
+         UPDATE job_applications
+         SET status = $2, updated_at = NOW()
+         WHERE id = $1
+         RETURNING *
+       )
+       SELECT
+         ja.id,
+         ja.user_id,
+         ja.applicant_profile_id,
+         ja.job_opening_id,
+         ja.uan,
+         ja.data,
+         ja.status,
+         ja.created_at,
+         ja.updated_at,
+         u.email,
+         u.first_name,
+         u.last_name,
+         jo.title AS job_title,
+         jo.location AS job_location,
+         jo.deadline AS job_deadline
+       FROM updated ja
+       JOIN users u ON u.id = ja.user_id
+       LEFT JOIN job_openings jo ON jo.id = ja.job_opening_id`,
       [req.params.id, status]
     );
 
@@ -91,10 +179,25 @@ export async function listApplicantApplications(req, res) {
 
   try {
     const result = await pool.query(
-      `SELECT ja.id, ja.uan, ja.data, ja.status, ja.created_at, ja.updated_at,
-              u.email, u.first_name, u.last_name
+      `SELECT
+         ja.id,
+         ja.user_id,
+         ja.applicant_profile_id,
+         ja.job_opening_id,
+         ja.uan,
+         ja.data,
+         ja.status,
+         ja.created_at,
+         ja.updated_at,
+         u.email,
+         u.first_name,
+         u.last_name,
+         jo.title AS job_title,
+         jo.location AS job_location,
+         jo.deadline AS job_deadline
        FROM job_applications ja
        JOIN users u ON u.id = ja.user_id
+       LEFT JOIN job_openings jo ON jo.id = ja.job_opening_id
        WHERE LOWER(u.email) = LOWER($1)
        ORDER BY ja.created_at DESC`,
       [email]
@@ -114,9 +217,148 @@ export async function listApplicantApplications(req, res) {
   }
 }
 
+export async function getApplicantProfile(req, res) {
+  const email = normalizeEmail(req.query.email);
+
+  if (!email) {
+    return res.status(400).json({
+      success: false,
+      message: "Email is required.",
+    });
+  }
+
+  try {
+    const record = await getApplicantProfileRecord(pool, email);
+
+    if (!record) {
+      return res.status(404).json({
+        success: false,
+        message: "Applicant account not found.",
+      });
+    }
+
+    return res.json({
+      success: true,
+      profileComplete: Boolean(record.id),
+      profile: mapApplicantProfile(record),
+      user: {
+        id: record.user_id,
+        email: record.email,
+        firstName: record.first_name || "",
+        lastName: record.last_name || "",
+        role: record.role,
+        uan: String(record.uan || record.user_uan || "").toUpperCase(),
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching applicant profile:", error);
+    return sendControllerError(
+      res,
+      error,
+      "Failed to fetch applicant profile"
+    );
+  }
+}
+
+export async function saveApplicantProfile(req, res) {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const { user, profile } = await upsertApplicantProfile(client, req.body);
+
+    await client.query("COMMIT");
+
+    return res.json({
+      success: true,
+      profileComplete: true,
+      uan: String(profile.uan).toUpperCase(),
+      userId: user.id,
+      profile: mapProfileResponse(user, profile),
+    });
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    console.error("saveApplicantProfile error:", error);
+    return sendControllerError(res, error, "Failed to save applicant profile");
+  } finally {
+    client.release();
+  }
+}
+
+export async function applyToJob(req, res) {
+  const email = normalizeEmail(req.body?.email);
+  const jobOpeningId = getJobOpeningId(req.body);
+
+  if (!email) {
+    return res.status(400).json({
+      success: false,
+      message: "Email is required.",
+    });
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const record = await getApplicantProfileRecord(client, email);
+
+    if (!record?.id) {
+      const error = new Error(
+        "Complete your applicant profile before applying to a job."
+      );
+      error.statusCode = 409;
+      throw error;
+    }
+
+    const user = {
+      id: record.user_id,
+      email: record.email,
+      first_name: record.first_name,
+      last_name: record.last_name,
+      uan: record.uan || record.user_uan,
+    };
+
+    const profile = {
+      id: record.id,
+      uan: record.uan || record.user_uan,
+      data: record.data || {},
+    };
+
+    const { application, job } = await createJobApplicationFromProfile(client, {
+      user,
+      profile,
+      jobOpeningId,
+      applicationData: req.body?.applicationData || {},
+    });
+
+    await client.query("COMMIT");
+
+    return res.status(201).json({
+      success: true,
+      application: mapApplication({
+        ...application,
+        email: user.email,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        job_title: job.title,
+        job_location: job.location,
+        job_deadline: job.deadline,
+      }),
+    });
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    console.error("applyToJob error:", error);
+    return sendControllerError(res, error, "Failed to submit application");
+  } finally {
+    client.release();
+  }
+}
+
 export async function submitApplication(req, res) {
-  const personalInfo = req.body?.personalInfo || {};
-  const email = normalizeEmail(personalInfo.emailAddress);
+  const profileData = req.body?.profileData || req.body || {};
+  const email = getApplicantEmail(profileData);
 
   if (!email) {
     return res.status(400).json({
@@ -126,174 +368,76 @@ export async function submitApplication(req, res) {
   }
 
   const client = await pool.connect();
-  let emailPayload = null;
+  let activationPayload = null;
+  let createdApplication = null;
 
   try {
     await client.query("BEGIN");
 
-    const existing = await client.query(
-      `SELECT id, uan, last_activation_sent_at
-       FROM users
-       WHERE LOWER(email) = LOWER($1)
-       FOR UPDATE`,
-      [email]
-    );
+    const { user, profile } = await upsertApplicantProfile(client, profileData);
+    const jobOpeningId = getJobOpeningId(profileData);
 
-    let user;
-
-    if (existing.rowCount === 0) {
-      const inserted = await client.query(
-        `INSERT INTO users (
-          email,
-          first_name,
-          last_name,
-          role,
-          created_at,
-          updated_at
-        )
-        VALUES ($1, $2, $3, 'applicant', NOW(), NOW())
-        RETURNING id, uan, last_activation_sent_at`,
-        [
-          email,
-          personalInfo.firstName || null,
-          personalInfo.lastName || null,
-        ]
+    if (jobOpeningId) {
+      const { application, job } = await createJobApplicationFromProfile(
+        client,
+        {
+          user,
+          profile,
+          jobOpeningId,
+          applicationData: profileData,
+        }
       );
 
-      user = inserted.rows[0];
-    } else {
-      user = existing.rows[0];
-
-      await client.query(
-        `UPDATE users
-         SET first_name = COALESCE($2, first_name),
-             last_name = COALESCE($3, last_name),
-             updated_at = NOW()
-         WHERE id = $1`,
-        [
-          user.id,
-          personalInfo.firstName || null,
-          personalInfo.lastName || null,
-        ]
-      );
+      createdApplication = mapApplication({
+        ...application,
+        email: user.email,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        job_title: job.title,
+        job_location: job.location,
+        job_deadline: job.deadline,
+      });
     }
 
-    const assignedUan = await assignUan(
-      client,
-      user.id,
-      user.uan
-    );
-
-    user = {
-      ...user,
-      uan: assignedUan,
-    };
-
-    await client.query(
-      `INSERT INTO job_applications (
-        user_id,
-        uan,
-        data,
-        status,
-        created_at,
-        updated_at
-      )
-      VALUES ($1, $2, $3, 'submitted', NOW(), NOW())`,
-      [
-        user.id,
-        assignedUan,
-        {
-          ...req.body,
-          uan: assignedUan,
-          submittedAt: new Date().toISOString(),
-        },
-      ]
-    );
-
-    const activation = await createActivationToken(client, user);
+    activationPayload = await createProfileActivationEmail(client, user);
 
     await client.query("COMMIT");
 
-    emailPayload = {
-      token: activation.token,
-      skippedReason: activation.skippedReason,
-      email,
-      uan: assignedUan,
-    };
-
     let emailSent = false;
-    let emailMessage = activation.skippedReason;
+    let emailMessage = activationPayload?.skippedReason || "";
 
-    if (activation.token && transporter) {
+    if (activationPayload?.token) {
       try {
         emailSent = await sendActivationEmail(
           email,
-          assignedUan,
-          activation.token
+          profile.uan,
+          activationPayload.token
         );
-      } catch (err) {
-        console.error("Failed to send activation email:", err);
-
+      } catch (error) {
+        console.error("Failed to send activation email:", error);
         emailMessage =
-          "Application saved, but the activation email could not be sent.";
+          "Profile saved, but the activation email could not be sent.";
       }
-    } else if (!transporter) {
-      emailMessage =
-        "Application saved, but email is not configured on the server.";
     }
 
     return res.json({
       success: true,
-      uan: String(assignedUan).toUpperCase(),
+      profileComplete: true,
+      uan: String(profile.uan).toUpperCase(),
       userId: user.id,
+      profile: mapProfileResponse(user, profile),
+      application: createdApplication,
+      applicationCreated: Boolean(createdApplication),
       emailSent,
       emailMessage,
     });
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
 
-    console.error(
-      "/api/submit-application error:",
-      err,
-      emailPayload || ""
-    );
+    console.error("/api/submit-application error:", err);
 
-    return res.status(500).json({
-      success: false,
-      message: err?.message || "Server error",
-    });
+    return sendControllerError(res, err, "Server error");
   } finally {
     client.release();
   }
-}
-
-export async function deleteJobOpening(req, res) {
-  const { id } = req.params;
-
-  try {
-    await pool.query(
-      "DELETE FROM job_openings WHERE id = $1",
-      [id]
-    );
-
-    return res.json({
-      success: true,
-      message: "Job opening deleted",
-    });
-  } catch (error) {
-    console.error("deleteJobOpening error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to delete job opening",
-    });
-  }
-}
-
-export function saveApplicationRemoved(_req, res) {
-  res.status(410).json({
-    success: false,
-    message:
-      "This endpoint has been replaced. Submit applications through /api/submit-application.",
-  });
 }

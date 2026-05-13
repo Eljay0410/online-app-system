@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { MapPin } from "lucide-react";
+import { apiRequest } from "../../lib/api.js";
 
 const Jobopening = () => {
   const [jobs, setJobs] = useState([]);
 
   useEffect(() => {
-    fetch("http://localhost:3000/api/jobs")
-      .then((res) => res.json())
-      .then((data) => setJobs(data))
+    apiRequest("/api/job-openings")
+      .then((data) => setJobs(data.jobs || []))
       .catch((error) => console.error(error));
   }, []);
 

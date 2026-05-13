@@ -20,6 +20,38 @@ export async function listOpenJobOpenings(_req, res) {
   }
 }
 
+export async function getJobOpening(req, res) {
+  try {
+    const result = await pool.query(
+      `SELECT id, title, location, vacancy, deadline, status, description, created_at, updated_at
+       FROM job_openings
+       WHERE id = $1
+       LIMIT 1`,
+      [req.params.id]
+    );
+
+    const job = result.rows[0];
+
+    if (!job || job.status !== "open") {
+      return res.status(404).json({
+        success: false,
+        message: "Job opening not found.",
+      });
+    }
+
+    return res.json({
+      success: true,
+      job: mapJobOpening(job),
+    });
+  } catch (error) {
+    console.error("Error fetching job opening:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch job opening",
+    });
+  }
+}
+
 export async function listAdminJobOpenings(_req, res) {
   try {
     const result = await pool.query(`
@@ -34,6 +66,34 @@ export async function listAdminJobOpenings(_req, res) {
     res.status(500).json({
       success: false,
       message: "Failed to fetch job openings",
+    });
+  }
+}
+
+export async function deleteJobOpening(req, res) {
+  try {
+    const result = await pool.query(
+      "DELETE FROM job_openings WHERE id = $1 RETURNING id",
+      [req.params.id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Job opening not found.",
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Job opening deleted.",
+    });
+  } catch (error) {
+    console.error("deleteJobOpening error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete job opening",
     });
   }
 }

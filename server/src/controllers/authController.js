@@ -30,9 +30,21 @@ export async function login(req, res) {
 
   try {
     const result = await pool.query(
-      `SELECT id, email, password_hash, first_name, last_name, role, is_active, uan
-       FROM users
-       WHERE LOWER(email) = LOWER($1)
+      `SELECT
+         u.id,
+         u.email,
+         u.password_hash,
+         u.first_name,
+         u.last_name,
+         u.role,
+         u.is_active,
+         u.uan,
+         p.id AS profile_id,
+         p.uan AS profile_uan,
+         p.updated_at AS profile_updated_at
+       FROM users u
+       LEFT JOIN applicant_profiles p ON p.user_id = u.id
+       WHERE LOWER(u.email) = LOWER($1)
        LIMIT 1`,
       [email]
     );
@@ -82,7 +94,10 @@ export async function login(req, res) {
         firstName: user.first_name || "",
         lastName: user.last_name || "",
         role: normalizeRole(user.role),
-        uan: String(user.uan || "").toUpperCase(),
+        uan: String(user.profile_uan || user.uan || "").toUpperCase(),
+        profileId: user.profile_id || null,
+        profileComplete: Boolean(user.profile_id),
+        profileUpdatedAt: user.profile_updated_at || null,
       },
     });
   } catch (error) {

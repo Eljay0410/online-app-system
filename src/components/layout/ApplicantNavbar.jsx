@@ -5,7 +5,6 @@ import { Menu, X } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   clearStoredUser,
-  getRoleHomePath,
   getStoredUser,
 } from "../../features/auth/auth";
 
@@ -16,7 +15,6 @@ export default function NavbarApplicant() {
 
   const user = getStoredUser();
   const isLoggedIn = Boolean(user);
-  const homePath = getRoleHomePath(user?.role);
   const initial = (user?.firstName || user?.email || "U")
     .charAt(0)
     .toUpperCase();
@@ -29,7 +27,7 @@ export default function NavbarApplicant() {
   };
 
   return (
-    <nav className="fixed w-full bg-[#0056b3] z-50 shadow-md">
+    <nav className="fixed z-50 w-full border-b border-blue-900/10 bg-[#0056b3] shadow-sm">
       <div className="w-full px-2 sm:px-4 lg:px-6">
         <div className="flex justify-between h-20 items-center">
           <div className="flex flex-col justify-center leading-tight min-w-0 flex-1 px-4">
@@ -49,75 +47,68 @@ export default function NavbarApplicant() {
           <div className="hidden md:flex items-center gap-8">
             <Link
               to="/"
-              className="text-white hover:text-black font-medium transition-colors"
+              className="text-white/90 font-medium transition-colors hover:text-white"
             >
-              Home
+              Job Listings
             </Link>
 
             <a
               href="https://depedcsjdm.weebly.com/"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-white hover:text-black font-medium transition-colors"
+              className="text-white/90 font-medium transition-colors hover:text-white"
             >
               DepEd
             </a>
-
-            <Link
-              to="/about"
-              className="text-white hover:text-black font-medium transition-colors"
-            >
-              About
-            </Link>
 
             {isLoggedIn ? (
               <div className="relative">
                 <button
                   onClick={() => setIsProfileOpen(!isProfileOpen)}
-                  className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow hover:scale-105 transition"
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-white/25 bg-white/10 text-white shadow-sm transition hover:bg-white/15"
                 >
-                  <span className="text-slate-700 font-bold">{initial}</span>
+                  <span className="font-bold">{initial}</span>
                 </button>
 
                 {isProfileOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-md border border-slate-200 overflow-hidden">
+                  <div className="absolute right-0 mt-2 w-52 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-md">
                     <Link
-                      to="/apply"
+                      to="/applications"
                       onClick={() => setIsProfileOpen(false)}
-                      className="block px-4 py-3 text-slate-700 hover:bg-slate-100"
+                      className="block px-4 py-3 text-slate-700 transition hover:bg-blue-50 hover:text-[#0056b3]"
                     >
-                      Apply New
+                      My Applications
                     </Link>
 
                     <Link
-                      to="/application-history"
+                      to="/profile"
                       onClick={() => setIsProfileOpen(false)}
-                      className="block px-4 py-3 text-slate-700 hover:bg-slate-100"
+                      className="block px-4 py-3 text-slate-700 transition hover:bg-blue-50 hover:text-[#0056b3]"
                     >
-                      History
+                      Profile Settings
                     </Link>
 
                     <Link
-                      to={homePath}
+                      to="/"
                       onClick={() => setIsProfileOpen(false)}
-                      className="block px-4 py-3 text-slate-700 hover:bg-slate-100"
+                      className="block px-4 py-3 text-slate-700 transition hover:bg-blue-50 hover:text-[#0056b3]"
                     >
-                      Dashboard
+                      Job Listings
                     </Link>
 
-                    {user?.role === "applicant" && (
+                    {!user?.profileComplete && (
                       <Link
-                        to="/profile"
+                        to="/apply"
                         onClick={() => setIsProfileOpen(false)}
-                        className="block px-4 py-3 text-slate-700 hover:bg-slate-100"
+                        className="block px-4 py-3 text-slate-700 transition hover:bg-blue-50 hover:text-[#0056b3]"
                       >
-                        My Profile
+                        Complete Profile
                       </Link>
                     )}
 
                     <button
                       onClick={handleLogout}
-                      className="w-full text-left px-4 py-3 text-red-600 hover:bg-slate-100"
+                      className="w-full px-4 py-3 text-left text-[#0056b3] transition hover:bg-blue-50"
                     >
                       Logout
                     </button>
@@ -127,7 +118,7 @@ export default function NavbarApplicant() {
             ) : (
               <Link
                 to="/login"
-                className="bg-slate-100 text-slate-900 px-6 py-2.5 rounded-full font-semibold hover:bg-slate-200 transition-all"
+                className="rounded-full border border-white/25 bg-white/10 px-6 py-2.5 font-semibold text-white transition hover:bg-white/15"
               >
                 Log in
               </Link>
@@ -147,17 +138,9 @@ export default function NavbarApplicant() {
           <Link
             to="/"
             onClick={() => setIsOpen(false)}
-            className="block px-3 py-4 text-base font-medium text-slate-700 border-b border-slate-50"
+            className="block rounded-lg px-3 py-3 text-base font-medium text-slate-700 hover:bg-blue-50 hover:text-[#0056b3]"
           >
-            Home
-          </Link>
-
-          <Link
-            to="/jobopenings"
-            onClick={() => setIsOpen(false)}
-            className="block px-3 py-4 text-base font-medium text-slate-700 border-b border-slate-50"
-          >
-            Find Jobs
+            Job Listings
           </Link>
 
           <a
@@ -165,59 +148,43 @@ export default function NavbarApplicant() {
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => setIsOpen(false)}
-            className="block px-3 py-4 text-base font-medium text-slate-700 border-b border-slate-50"
+            className="block rounded-lg px-3 py-3 text-base font-medium text-slate-700 hover:bg-blue-50 hover:text-[#0056b3]"
           >
             DepEd
           </a>
-
-          <Link
-            to="/about"
-            onClick={() => setIsOpen(false)}
-            className="block px-3 py-4 text-base font-medium text-slate-700 border-b border-slate-50"
-          >
-            About
-          </Link>
 
           <div className="flex flex-col gap-3 mt-4">
             {isLoggedIn ? (
               <>
                 <Link
-                  to="/apply"
+                  to="/applications"
                   onClick={() => setIsOpen(false)}
-                  className="w-full bg-[#0056b3] text-white py-3 rounded-xl font-semibold text-center"
+                  className="w-full rounded-xl border border-blue-200 bg-blue-50 py-3 text-center font-semibold text-[#0056b3]"
                 >
-                  Apply New
+                  My Applications
                 </Link>
 
                 <Link
-                  to="/application-history"
+                  to="/profile"
                   onClick={() => setIsOpen(false)}
-                  className="w-full bg-slate-100 text-slate-900 py-3 rounded-xl font-semibold text-center"
+                  className="w-full rounded-xl border border-blue-200 bg-blue-50 py-3 text-center font-semibold text-[#0056b3]"
                 >
-                  History
+                  Profile Settings
                 </Link>
 
-                <Link
-                  to={homePath}
-                  onClick={() => setIsOpen(false)}
-                  className="w-full bg-slate-100 text-slate-900 py-3 rounded-xl font-semibold text-center"
-                >
-                  Dashboard
-                </Link>
-
-                {user?.role === "applicant" && (
+                {!user?.profileComplete && (
                   <Link
-                    to="/profile"
+                    to="/apply"
                     onClick={() => setIsOpen(false)}
-                    className="w-full bg-slate-100 text-slate-900 py-3 rounded-xl font-semibold text-center"
+                    className="w-full rounded-xl bg-[#0056b3] py-3 text-center font-semibold text-white"
                   >
-                    My Profile
+                    Complete Profile
                   </Link>
                 )}
 
                 <button
                   onClick={handleLogout}
-                  className="w-full bg-red-500 text-white py-3 rounded-xl font-semibold"
+                  className="w-full rounded-xl border border-blue-200 bg-white py-3 font-semibold text-[#0056b3]"
                 >
                   Logout
                 </button>
@@ -226,7 +193,7 @@ export default function NavbarApplicant() {
               <Link
                 to="/login"
                 onClick={() => setIsOpen(false)}
-                className="w-full bg-slate-100 text-slate-900 py-3 rounded-xl font-semibold text-center"
+                className="w-full rounded-xl border border-blue-200 bg-blue-50 py-3 text-center font-semibold text-[#0056b3]"
               >
                 Log in
               </Link>

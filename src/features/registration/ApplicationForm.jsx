@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -2885,7 +2885,7 @@ const Review = ({ data, onBack, onSubmit }) => {
   );
 };
 
-import { getStoredUser } from "../auth/auth";
+import { getStoredUser, storeUser } from "../auth/auth";
 
 const ApplicationForm = () => {
   const [currentStep, setCurrentStep] = useState(1);
@@ -2924,14 +2924,42 @@ const ApplicationForm = () => {
     jobPosition: {
       positionCategory: "",
       positionType: "",
+      jobOpeningId: "",
       files: {},
     },
   });
 
   const storedUser = getStoredUser();
   const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
+    const selectedJob = location?.state?.job;
+    const params = new URLSearchParams(location.search);
+    const routeJobId = selectedJob?.id || params.get("jobId") || "";
+    const routePosition =
+      selectedJob?.title || params.get("position") || "";
+
+    if (storedUser?.role === "applicant" && storedUser.profileComplete) {
+      navigate(
+        routeJobId ? `/jobs/${routeJobId}` : "/applications",
+        { replace: true }
+      );
+      return;
+    }
+
+    if (routeJobId || routePosition) {
+      setFormData((prev) => ({
+        ...prev,
+        jobPosition: {
+          ...prev.jobPosition,
+          jobOpeningId: routeJobId || prev.jobPosition.jobOpeningId || "",
+          positionType:
+            routePosition || prev.jobPosition.positionType || "",
+        },
+      }));
+    }
+
     if (!storedUser) return;
 
     // Prefill basic account details
@@ -2967,45 +2995,6 @@ const ApplicationForm = () => {
     } catch (e) {
       // ignore parsing errors
     }
-
-    // If this page was opened from a job listing (Apply), prefill job position
-    try {
-      const job = location?.state?.job;
-      if (job) {
-        setFormData((prev) => ({
-          ...prev,
-          jobPosition: {
-            ...prev.jobPosition,
-            positionType: job.title || prev.jobPosition.positionType || "",
-          },
-        }));
-      }
-    } catch (e) {
-      // ignore
-    }
-
-    // Attempt to fetch existing applications for this email and auto-open review
-    (async () => {
-      try {
-        const result = await apiRequest(
-          `/api/applicant/applications?email=${encodeURIComponent(
-            storedUser.email
-          )}`
-        );
-
-        if (result.applications && result.applications.length > 0) {
-          const latest = result.applications[0];
-          // If we have saved application data, use it and jump to review
-          if (latest && latest.raw) {
-            setFormData((prev) => ({ ...prev, ...latest.raw, uan: latest.uan }));
-            setCurrentStep(6);
-          }
-        }
-      } catch (err) {
-        // ignore - not critical
-        // console.warn("Could not fetch applicant applications:", err.message);
-      }
-    })();
   }, []);
 
   const updateFormData = (section, data) => {

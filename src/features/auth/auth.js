@@ -1,7 +1,7 @@
 const AUTH_STORAGE_KEY = "oas_user";
 
 export const roleHomePaths = {
-  applicant: "/applicantdashboard",
+  applicant: "/applications",
   admin: "/admin",
   superadmin: "/superadmin",
 };

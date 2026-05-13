@@ -1,11 +1,12 @@
 import { Router } from "express";
 import {
+  applyToJob,
+  getApplicantProfile,
   listAdminApplications,
   listApplicantApplications,
-  saveApplicationRemoved,
+  saveApplicantProfile,
   submitApplication,
   updateApplicationStatus,
-  deleteJobOpening,
 } from "../controllers/applicationController.js";
 
 const router = Router();
@@ -25,19 +26,24 @@ router.get(
   listApplicantApplications
 );
 
+router.get(
+  "/applicant/profile",
+  getApplicantProfile
+);
+
+router.put(
+  "/applicant/profile",
+  saveApplicantProfile
+);
+
+router.post(
+  "/applications",
+  applyToJob
+);
+
 router.post(
   "/submit-application",
   submitApplication
-);
-
-router.post(
-  "/save-application",
-  saveApplicationRemoved
-);
-
-router.delete(
-  "/admin/job-openings/:id",
-  deleteJobOpening
 );
 
 export default router;

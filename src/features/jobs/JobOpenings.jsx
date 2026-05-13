@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { BriefcaseBusiness, CalendarDays, Loader2, MapPin } from "lucide-react";
+import {
+  BriefcaseBusiness,
+  CalendarDays,
+  ChevronRight,
+  Loader2,
+  MapPin,
+} from "lucide-react";
 import { apiRequest } from "../../lib/api";
 
 const formatDate = (value) => {
@@ -13,10 +19,10 @@ const formatDate = (value) => {
   }).format(new Date(value));
 };
 
-const JobOpenings = () => {
+export default function JobOpenings() {
   const [jobs, setJobs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isUnavailable, setIsUnavailable] = useState(false);
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -25,11 +31,12 @@ const JobOpenings = () => {
       try {
         const result = await apiRequest("/api/job-openings");
         if (isMounted) setJobs(result.jobs || []);
-      } catch (err) {
-        console.error("Unable to load job openings:", err);
+      } catch (error) {
         if (isMounted) {
           setJobs([]);
-          setIsUnavailable(true);
+          setMessage(
+            error.message || "Unable to load available job openings."
+          );
         }
       } finally {
         if (isMounted) setIsLoading(false);
@@ -44,93 +51,85 @@ const JobOpenings = () => {
   }, []);
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 pb-10 pt-28 md:px-8">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-8 flex flex-col gap-2">
-          <h1 className="text-3xl font-bold text-slate-900">Job Openings</h1>
+    <main className="min-h-screen bg-slate-50 px-4 pb-12 pt-28 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <div className="flex flex-col gap-2">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-700">
+            Public Job Portal
+          </p>
+          <h1 className="text-3xl font-bold text-slate-900">
+            Job Openings
+          </h1>
           <p className="max-w-2xl text-sm leading-6 text-slate-600">
-            Available positions are posted by the admin office. Select a job and
-            continue to the application form.
+            Browse available positions, read the details, and start an
+            application when you are ready.
           </p>
         </div>
 
-        <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
-          <div className="hidden grid-cols-[2fr_1.5fr_1fr_1.5fr_1fr] border-b border-slate-200 px-6 py-3 text-sm font-semibold text-slate-500 md:grid">
-            <span>Job Title</span>
-            <span>Location</span>
-            <span>Vacancy</span>
-            <span>Deadline</span>
-            <span>Action</span>
+        {message && (
+          <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+            {message}
           </div>
+        )}
 
-          {isLoading && (
-            <div className="flex items-center justify-center gap-2 p-10 text-slate-500">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              Loading job openings...
-            </div>
-          )}
-
-          {!isLoading && jobs.length === 0 && (
-            <div className="flex flex-col items-center justify-center gap-3 p-10 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-700">
-                <BriefcaseBusiness className="h-6 w-6" />
-              </div>
-              <div>
-                <p className="font-semibold text-slate-800">
-                  No job postings available right now.
-                </p>
-                <p className="mt-1 text-sm text-slate-500">
-                  {isUnavailable
-                    ? "Please check back later while the postings are being updated."
-                    : "Please check back soon for new openings."}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {!isLoading && jobs.length > 0 && (
-            <div className="divide-y divide-slate-100">
-              {jobs.map((job) => (
-                <div
-                  key={job.id}
-                  className="grid grid-cols-1 gap-3 px-6 py-5 transition hover:bg-slate-50 md:grid-cols-[2fr_1.5fr_1fr_1.5fr_1fr] md:items-center md:gap-0"
-                >
-                  <div>
-                    <p className="font-semibold text-slate-900">{job.title}</p>
-                    {job.description && (
-                      <p className="mt-1 line-clamp-2 text-xs text-slate-500">
-                        {job.description}
-                      </p>
-                    )}
+        {isLoading ? (
+          <div className="flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white p-10 text-slate-500 shadow-sm">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            Loading job openings...
+          </div>
+        ) : jobs.length === 0 ? (
+          <div className="rounded-lg border border-slate-200 bg-white p-10 text-center text-slate-500 shadow-sm">
+            No job openings are posted right now.
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {jobs.map((job) => (
+              <Link
+                key={job.id}
+                to={`/jobs/${job.id}`}
+                className="group rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/50 hover:shadow-md"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <h2 className="text-lg font-semibold text-slate-900 transition group-hover:text-[#0056b3]">
+                      {job.title}
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      View details and application requirements.
+                    </p>
                   </div>
 
-                  <p className="flex items-center gap-2 text-slate-700">
-                    <MapPin size={16} className="text-slate-400" />
-                    {job.location}
-                  </p>
-
-                  <p className="text-slate-700">{job.vacancy}</p>
-
-                  <p className="flex items-center gap-2 text-slate-700">
-                    <CalendarDays size={16} className="text-slate-400" />
-                    {formatDate(job.deadline)}
-                  </p>
-
-                  <Link
-                    to="/apply"
-                    state={{ job }}
-                    className="w-fit rounded-lg bg-[#0056b3] px-5 py-2 text-sm font-semibold text-white transition hover:bg-[#003a78]"
-                  >
-                    Apply
-                  </Link>
+                  <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-[#0056b3]">
+                    Open
+                  </span>
                 </div>
-              ))}
-            </div>
-          )}
-        </section>
+
+                <div className="mt-5 space-y-3 text-sm text-slate-700">
+                  <div className="flex items-center gap-2">
+                    <MapPin size={16} className="text-slate-400" />
+                    <span>{job.location}</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <BriefcaseBusiness size={16} className="text-slate-400" />
+                    <span>{job.vacancy} vacancy(ies)</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <CalendarDays size={16} className="text-slate-400" />
+                    <span>Deadline {formatDate(job.deadline)}</span>
+                  </div>
+                </div>
+
+                <div className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-[#0056b3] transition group-hover:translate-x-0.5">
+                  View details
+                  <ChevronRight size={16} />
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
     </main>
   );
-};
-
-export default JobOpenings;
+}

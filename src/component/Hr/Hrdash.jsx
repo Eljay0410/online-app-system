@@ -9,6 +9,7 @@ import {
   Users,
   XCircle,
 } from "lucide-react";
+import { apiRequest } from "../../lib/api.js";
 
 export default function Hrdash() {
   const applicants = [];
@@ -32,31 +33,31 @@ export default function Hrdash() {
   };
 
   const handleCreateJob = async (e) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  try {
-    await fetch("http://localhost:3000/api/jobs", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(jobData),
-    });
+    try {
+      await apiRequest("/api/admin/job-openings", {
+        method: "POST",
+        body: JSON.stringify({
+          ...jobData,
+          status: "open",
+        }),
+      });
 
-    setJobData({
-      title: "",
-      location: "",
-      vacancy: "",
-      deadline: "",
-    });
+      setJobData({
+        title: "",
+        location: "",
+        vacancy: "",
+        deadline: "",
+      });
 
-    setShowJobModal(false);
+      setShowJobModal(false);
 
-    alert("Job created successfully");
-  } catch (error) {
-    console.error(error);
-  }
-};
+      alert("Job created successfully");
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 pt-28 px-4 sm:px-6 lg:px-8">

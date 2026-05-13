@@ -1,5 +1,9 @@
 import React from "react";
-import { Routes, Route, useLocation } from "react-router-dom";
+import {
+  Navigate,
+  Route,
+  Routes,
+} from "react-router-dom";
 
 import Navbar from "./components/layout/PublicNavbar";
 import NavbarApplicant from "./components/layout/ApplicantNavbar";
@@ -8,71 +12,58 @@ import ApplicationForm from "./features/registration/ApplicationForm";
 import ActivateAccount from "./features/auth/ActivateAccount";
 import Login from "./features/auth/Login";
 import ProtectedRoute from "./features/auth/ProtectedRoute";
-
-import Home from "./pages/Home";
-import About from "./pages/About";
+import { getStoredUser } from "./features/auth/auth";
 
 import JobOpenings from "./features/jobs/JobOpenings";
+import JobDetails from "./features/jobs/JobDetails";
 
 import ApplicantDashboard from "./features/applicant/ApplicantDashboard";
 import ApplicantProfile from "./features/applicant/ApplicantProfile";
 
 import AdminDashboard from "./features/admin/AdminDashboard";
 import SuperAdminDashboard from "./features/admin/SuperAdminDashboard";
-import ApplyJobs from "./features/applicant/ApplyJobs";
+
+function RedirectToHome() {
+  return <Navigate to="/" replace />;
+}
 
 function App() {
-  const location = useLocation();
-
-  const everyroute =
-    location.pathname === "/profile" ||
-    location.pathname.toLowerCase() === "/applicantdashboard" ||
-    location.pathname === "/admin" ||
-    location.pathname === "/superadmin" ||
-    location.pathname === "/hr" ||
-    location.pathname === "/applicantview";
+  const user = getStoredUser();
+  const showApplicantNav = Boolean(user);
 
   return (
     <div className="min-h-screen bg-white font-['Poppins']">
-      {everyroute ? <NavbarApplicant /> : <Navbar />}
+      {showApplicantNav ? <NavbarApplicant /> : <Navbar />}
 
       <Routes>
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={<JobOpenings />} />
+        <Route path="/jobs/:jobId" element={<JobDetails />} />
+        <Route path="/jobopenings" element={<RedirectToHome />} />
+        <Route path="/jobs" element={<RedirectToHome />} />
+        <Route path="/apply/jobs" element={<RedirectToHome />} />
+        <Route path="/about" element={<RedirectToHome />} />
+        <Route path="/hr" element={<Navigate to="/admin" replace />} />
 
         <Route path="/apply" element={<ApplicationForm />} />
-                <Route
-        path="/apply/jobs"
-          element={
-            <ProtectedRoute allowedRoles={["applicant"]}>
-              <ApplyJobs />
-            </ProtectedRoute>
-          }
-        />
-
+        <Route path="/register" element={<Navigate to="/apply" replace />} />
         <Route path="/activate" element={<ActivateAccount />} />
-
         <Route path="/login" element={<Login />} />
 
-        <Route path="/jobopenings" element={<JobOpenings />} />
-
-        <Route path="/about" element={<About />} />
-
         <Route
-          path="/applicantdashboard"
+          path="/applications"
           element={
             <ProtectedRoute allowedRoles={["applicant"]}>
               <ApplicantDashboard />
             </ProtectedRoute>
           }
         />
-
+        <Route
+          path="/applicantdashboard"
+          element={<Navigate to="/applications" replace />}
+        />
         <Route
           path="/Applicantdashboard"
-          element={
-            <ProtectedRoute allowedRoles={["applicant"]}>
-              <ApplicantDashboard />
-            </ProtectedRoute>
-          }
+          element={<Navigate to="/applications" replace />}
         />
 
         <Route
@@ -101,6 +92,8 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        <Route path="*" element={<RedirectToHome />} />
       </Routes>
     </div>
   );
