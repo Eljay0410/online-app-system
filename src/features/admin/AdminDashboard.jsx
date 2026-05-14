@@ -17,6 +17,7 @@ const emptyJob = {
   vacancy: 1,
   deadline: "",
   status: "open",
+  description: "",
 };
 
 const statusLabels = {
@@ -35,6 +36,7 @@ export default function AdminDashboard() {
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [jobToDelete, setJobToDelete] = useState(null);
+  const [reviewNotes, setReviewNotes] = useState({});
 
   useEffect(() => {
     let isMounted = true;
@@ -48,6 +50,14 @@ export default function AdminDashboard() {
 
         setJobs(jobResult.jobs || []);
         setApplications(applicationResult.applications || []);
+        setReviewNotes(
+          Object.fromEntries(
+            (applicationResult.applications || []).map((application) => [
+              application.id,
+              application.reviewNotes || "",
+            ])
+          )
+        );
       })
       .catch((err) => {
         if (isMounted) setMessage(err.message);
@@ -140,7 +150,11 @@ export default function AdminDashboard() {
       `/api/admin/applications/${application.id}/status`,
       {
         method: "PATCH",
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({
+          status,
+          reviewNotes:
+            reviewNotes[application.id] ?? application.reviewNotes ?? "",
+        }),
       }
     );
 
@@ -166,7 +180,7 @@ export default function AdminDashboard() {
           </h1>
 
           <p className="text-sm text-slate-600">
-            Post job openings and manage applicant status from one workspace.
+            Post job openings, set expiration dates, and manage applicant status.
           </p>
         </div>
 
@@ -243,7 +257,7 @@ export default function AdminDashboard() {
                 onChange={(event) =>
                   handleFormChange("location", event.target.value)
                 }
-                placeholder="Office / school"
+                placeholder="School / location"
                 className="h-11 rounded-lg border border-slate-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
@@ -270,6 +284,15 @@ export default function AdminDashboard() {
                   required
                 />
               </div>
+
+              <textarea
+                value={form.description}
+                onChange={(event) =>
+                  handleFormChange("description", event.target.value)
+                }
+                placeholder="Job details and requirements"
+                className="min-h-24 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
 
               <button
                 type="submit"
@@ -313,6 +336,13 @@ export default function AdminDashboard() {
 
                       <p className="text-sm text-slate-500">
                         {job.location} - {job.vacancy} vacancy
+                      </p>
+                      <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        {job.status === "open" &&
+                        job.deadline &&
+                        new Date(job.deadline) < new Date()
+                          ? "Expired"
+                          : job.status}
                       </p>
                     </div>
 
@@ -428,6 +458,21 @@ export default function AdminDashboard() {
                           )
                         )}
                       </select>
+                      <textarea
+                        value={
+                          reviewNotes[application.id] ??
+                          application.reviewNotes ??
+                          ""
+                        }
+                        onChange={(event) =>
+                          setReviewNotes((current) => ({
+                            ...current,
+                            [application.id]: event.target.value,
+                          }))
+                        }
+                        placeholder="Review notes"
+                        className="mt-2 min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                      />
                     </td>
                   </tr>
                 ))}

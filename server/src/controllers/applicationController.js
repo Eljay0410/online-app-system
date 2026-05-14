@@ -1,9 +1,5 @@
 import pool from "../config/db.js";
 import {
-  createActivationToken,
-  sendActivationEmail,
-} from "../services/activationService.js";
-import {
   createJobApplicationFromProfile,
   getApplicantEmail,
   getApplicantProfileRecord,
@@ -12,7 +8,6 @@ import {
 import {
   mapApplicantProfile,
   mapApplication,
-  normalizeEmail,
 } from "../utils/formatters.js";
 
 function sendControllerError(res, error, fallbackMessage) {
@@ -38,25 +33,12 @@ function mapProfileResponse(user, profile) {
     user_id: user.id,
     email: user.email,
     first_name: user.first_name,
+    middle_name: user.middle_name,
+    no_middle_name: user.no_middle_name,
     last_name: user.last_name,
+    contact_number: user.contact_number,
     user_uan: user.uan,
   });
-}
-
-async function createProfileActivationEmail(client, user) {
-  if (user.password_hash) {
-    return {
-      emailSent: false,
-      emailMessage: "",
-    };
-  }
-
-  const activation = await createActivationToken(client, user);
-
-  return {
-    token: activation.token,
-    skippedReason: activation.skippedReason,
-  };
 }
 
 export async function listAdminApplications(_req, res) {
@@ -70,6 +52,7 @@ export async function listAdminApplications(_req, res) {
         ja.uan,
         ja.data,
         ja.status,
+        ja.review_notes,
         ja.created_at,
         ja.updated_at,
         u.email,
@@ -100,6 +83,10 @@ export async function listAdminApplications(_req, res) {
 
 export async function updateApplicationStatus(req, res) {
   const { status } = req.body || {};
+  const reviewNotes =
+    req.body?.reviewNotes === undefined
+      ? null
+      : String(req.body.reviewNotes || "").trim();
 
   const allowedStatuses = [
     "submitted",
@@ -120,7 +107,9 @@ export async function updateApplicationStatus(req, res) {
     const result = await pool.query(
       `WITH updated AS (
          UPDATE job_applications
-         SET status = $2, updated_at = NOW()
+         SET status = $2,
+             review_notes = COALESCE($3, review_notes),
+             updated_at = NOW()
          WHERE id = $1
          RETURNING *
        )
@@ -132,6 +121,7 @@ export async function updateApplicationStatus(req, res) {
          ja.uan,
          ja.data,
          ja.status,
+         ja.review_notes,
          ja.created_at,
          ja.updated_at,
          u.email,
@@ -143,7 +133,7 @@ export async function updateApplicationStatus(req, res) {
        FROM updated ja
        JOIN users u ON u.id = ja.user_id
        LEFT JOIN job_openings jo ON jo.id = ja.job_opening_id`,
-      [req.params.id, status]
+      [req.params.id, status, reviewNotes]
     );
 
     if (result.rowCount === 0) {
@@ -168,7 +158,7 @@ export async function updateApplicationStatus(req, res) {
 }
 
 export async function listApplicantApplications(req, res) {
-  const email = normalizeEmail(req.query.email);
+  const email = req.user?.email || getApplicantEmail(req.query);
 
   if (!email) {
     return res.status(400).json({
@@ -187,6 +177,7 @@ export async function listApplicantApplications(req, res) {
          ja.uan,
          ja.data,
          ja.status,
+         ja.review_notes,
          ja.created_at,
          ja.updated_at,
          u.email,
@@ -218,7 +209,7 @@ export async function listApplicantApplications(req, res) {
 }
 
 export async function getApplicantProfile(req, res) {
-  const email = normalizeEmail(req.query.email);
+  const email = req.user?.email || getApplicantEmail(req.query);
 
   if (!email) {
     return res.status(400).json({
@@ -239,13 +230,16 @@ export async function getApplicantProfile(req, res) {
 
     return res.json({
       success: true,
-      profileComplete: Boolean(record.id),
+      profileComplete: Boolean(mapApplicantProfile(record)?.profileComplete),
       profile: mapApplicantProfile(record),
       user: {
         id: record.user_id,
         email: record.email,
         firstName: record.first_name || "",
+        middleName: record.middle_name || "",
+        noMiddleName: Boolean(record.no_middle_name),
         lastName: record.last_name || "",
+        contactNumber: record.contact_number || "",
         role: record.role,
         uan: String(record.uan || record.user_uan || "").toUpperCase(),
       },
@@ -266,16 +260,25 @@ export async function saveApplicantProfile(req, res) {
   try {
     await client.query("BEGIN");
 
-    const { user, profile } = await upsertApplicantProfile(client, req.body);
+    const payload = {
+      ...(req.body || {}),
+      email: req.user.email,
+      personalInfo: {
+        ...(req.body?.personalInfo || req.body?.profileData?.personalInfo || {}),
+        emailAddress: req.user.email,
+      },
+    };
+    const { user, profile } = await upsertApplicantProfile(client, payload);
+    const mappedProfile = mapProfileResponse(user, profile);
 
     await client.query("COMMIT");
 
     return res.json({
       success: true,
-      profileComplete: true,
+      profileComplete: Boolean(mappedProfile?.profileComplete),
       uan: String(profile.uan).toUpperCase(),
       userId: user.id,
-      profile: mapProfileResponse(user, profile),
+      profile: mappedProfile,
     });
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
@@ -287,7 +290,7 @@ export async function saveApplicantProfile(req, res) {
 }
 
 export async function applyToJob(req, res) {
-  const email = normalizeEmail(req.body?.email);
+  const email = req.user?.email;
   const jobOpeningId = getJobOpeningId(req.body);
 
   if (!email) {
@@ -307,6 +310,14 @@ export async function applyToJob(req, res) {
     if (!record?.id) {
       const error = new Error(
         "Complete your applicant profile before applying to a job."
+      );
+      error.statusCode = 409;
+      throw error;
+    }
+
+    if (!record.data?.applicationDetails?.completedAt) {
+      const error = new Error(
+        "Complete your application profile and uploads before applying to a job."
       );
       error.statusCode = 409;
       throw error;
@@ -357,7 +368,15 @@ export async function applyToJob(req, res) {
 }
 
 export async function submitApplication(req, res) {
-  const profileData = req.body?.profileData || req.body || {};
+  const incomingProfileData = req.body?.profileData || req.body || {};
+  const profileData = {
+    ...incomingProfileData,
+    email: req.user?.email || getApplicantEmail(incomingProfileData),
+    personalInfo: {
+      ...(incomingProfileData.personalInfo || {}),
+      emailAddress: req.user?.email || getApplicantEmail(incomingProfileData),
+    },
+  };
   const email = getApplicantEmail(profileData);
 
   if (!email) {
@@ -368,7 +387,6 @@ export async function submitApplication(req, res) {
   }
 
   const client = await pool.connect();
-  let activationPayload = null;
   let createdApplication = null;
 
   try {
@@ -399,37 +417,17 @@ export async function submitApplication(req, res) {
       });
     }
 
-    activationPayload = await createProfileActivationEmail(client, user);
-
     await client.query("COMMIT");
-
-    let emailSent = false;
-    let emailMessage = activationPayload?.skippedReason || "";
-
-    if (activationPayload?.token) {
-      try {
-        emailSent = await sendActivationEmail(
-          email,
-          profile.uan,
-          activationPayload.token
-        );
-      } catch (error) {
-        console.error("Failed to send activation email:", error);
-        emailMessage =
-          "Profile saved, but the activation email could not be sent.";
-      }
-    }
+    const mappedProfile = mapProfileResponse(user, profile);
 
     return res.json({
       success: true,
-      profileComplete: true,
+      profileComplete: Boolean(mappedProfile?.profileComplete),
       uan: String(profile.uan).toUpperCase(),
       userId: user.id,
-      profile: mapProfileResponse(user, profile),
+      profile: mappedProfile,
       application: createdApplication,
       applicationCreated: Boolean(createdApplication),
-      emailSent,
-      emailMessage,
     });
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});

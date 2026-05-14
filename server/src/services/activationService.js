@@ -6,9 +6,15 @@ import {
   transporter,
 } from "../config/mailer.js";
 
-function buildActivationEmail({ activationLink, intro, isReset, ttlHours, uan }) {
-  const title = isReset ? "Set your password" : "Activate your account";
-  const actionLabel = isReset ? "Set Password" : "Activate Account";
+export const TOKEN_PURPOSES = {
+  EMAIL_VERIFICATION: "email_verification",
+  PASSWORD_RESET: "password_reset",
+};
+
+function buildActivationEmail({ actionLink, intro, purpose, ttlHours, uan }) {
+  const isReset = purpose === TOKEN_PURPOSES.PASSWORD_RESET;
+  const title = isReset ? "Reset your password" : "Verify your email";
+  const actionLabel = isReset ? "Reset Password" : "Verify Email";
   const uanValue = String(uan || "N/A").toUpperCase();
 
   const text = [
@@ -19,7 +25,7 @@ function buildActivationEmail({ activationLink, intro, isReset, ttlHours, uan })
     `Unique Application Number (UAN): ${uanValue}`,
     intro,
     "",
-    `${actionLabel}: ${activationLink}`,
+    `${actionLabel}: ${actionLink}`,
     "",
     `This secure link expires in ${ttlHours} hours.`,
     "If you did not request this email, you can safely ignore it.",
@@ -64,14 +70,14 @@ function buildActivationEmail({ activationLink, intro, isReset, ttlHours, uan })
             </tr>
             <tr>
               <td align="center" style="padding:18px 28px 12px;">
-                <a href="${activationLink}" style="display:inline-block;background:#0056b3;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:14px 24px;border-radius:10px;">${actionLabel}</a>
+                <a href="${actionLink}" style="display:inline-block;background:#0056b3;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:14px 24px;border-radius:10px;">${actionLabel}</a>
               </td>
             </tr>
             <tr>
               <td style="padding:8px 28px 30px;">
                 <p style="margin:0;font-size:13px;line-height:1.6;color:#64748b;text-align:center;">This secure link expires in <strong>${ttlHours} hours</strong>.</p>
                 <p style="margin:18px 0 0;font-size:12px;line-height:1.6;color:#64748b;">If the button does not work, copy and paste this link into your browser:</p>
-                <p style="margin:6px 0 0;font-size:12px;line-height:1.6;word-break:break-all;color:#2563eb;">${activationLink}</p>
+                <p style="margin:6px 0 0;font-size:12px;line-height:1.6;word-break:break-all;color:#2563eb;">${actionLink}</p>
               </td>
             </tr>
             <tr>
@@ -89,15 +95,20 @@ function buildActivationEmail({ activationLink, intro, isReset, ttlHours, uan })
   return { html, text };
 }
 
-function parseCooldownSchedule() {
-  return (process.env.ACTIVATION_COOLDOWN_MINUTES || "0,2,5,15,30,60")
+function parseCooldownSchedule(purpose) {
+  const envKey =
+    purpose === TOKEN_PURPOSES.PASSWORD_RESET
+      ? "PASSWORD_RESET_COOLDOWN_MINUTES"
+      : "ACTIVATION_COOLDOWN_MINUTES";
+
+  return (process.env[envKey] || "0,2,5,15,30,60")
     .split(",")
     .map((value) => Number.parseInt(value.trim(), 10))
     .filter((value) => Number.isFinite(value) && value >= 0);
 }
 
-function getCooldownMinutes(sentCount) {
-  const schedule = parseCooldownSchedule();
+function getCooldownMinutes(purpose, sentCount) {
+  const schedule = parseCooldownSchedule(purpose);
   const fallbackSchedule = [0, 2, 5, 15, 30, 60];
   const activeSchedule = schedule.length ? schedule : fallbackSchedule;
   const index = Math.min(sentCount, activeSchedule.length - 1);
@@ -105,7 +116,61 @@ function getCooldownMinutes(sentCount) {
   return activeSchedule[index];
 }
 
-export async function createActivationToken(client, user) {
+function getTokenTtlHours(purpose) {
+  const key =
+    purpose === TOKEN_PURPOSES.PASSWORD_RESET
+      ? "PASSWORD_RESET_TOKEN_HOURS"
+      : "ACTIVATION_TOKEN_HOURS";
+
+  return Number.parseInt(
+    process.env[key] ||
+      (purpose === TOKEN_PURPOSES.PASSWORD_RESET ? "2" : "24"),
+    10
+  );
+}
+
+function getLastSentAt(user, purpose) {
+  return purpose === TOKEN_PURPOSES.PASSWORD_RESET
+    ? user.last_password_reset_sent_at
+    : user.last_activation_sent_at;
+}
+
+function getLastSentColumn(purpose) {
+  return purpose === TOKEN_PURPOSES.PASSWORD_RESET
+    ? "last_password_reset_sent_at"
+    : "last_activation_sent_at";
+}
+
+export async function revokeExpiredTokens(client, userId = null) {
+  const params = [];
+  const userWhere = userId ? "AND user_id = $1" : "";
+
+  if (userId) params.push(userId);
+
+  await client.query(
+    `UPDATE activation_tokens
+     SET used = TRUE,
+         used_at = COALESCE(used_at, NOW()),
+         revoked_at = COALESCE(revoked_at, NOW())
+     WHERE used = FALSE
+       AND revoked_at IS NULL
+       AND expires_at <= NOW()
+       ${userWhere}`,
+    params
+  );
+}
+
+export async function createActivationToken(
+  client,
+  user,
+  purpose = TOKEN_PURPOSES.EMAIL_VERIFICATION
+) {
+  const safePurpose = Object.values(TOKEN_PURPOSES).includes(purpose)
+    ? purpose
+    : TOKEN_PURPOSES.EMAIL_VERIFICATION;
+
+  await revokeExpiredTokens(client, user.id);
+
   const attemptWindowHours = Number.parseInt(
     process.env.ACTIVATION_ATTEMPT_WINDOW_HOURS || "24",
     10
@@ -114,20 +179,22 @@ export async function createActivationToken(client, user) {
     `SELECT COUNT(*)::int AS sent_count
      FROM activation_tokens
      WHERE user_id = $1
-       AND created_at >= NOW() - ($2::int * INTERVAL '1 hour')`,
-    [user.id, attemptWindowHours]
+       AND purpose = $2
+       AND created_at >= NOW() - ($3::int * INTERVAL '1 hour')`,
+    [user.id, safePurpose, attemptWindowHours]
   );
   const sentCount = recentTokens.rows[0]?.sent_count || 0;
-  const cooldownMinutes = getCooldownMinutes(sentCount);
+  const cooldownMinutes = getCooldownMinutes(safePurpose, sentCount);
+  const lastSentAt = getLastSentAt(user, safePurpose);
 
-  if (cooldownMinutes > 0 && user.last_activation_sent_at) {
-    const lastSentAt = new Date(user.last_activation_sent_at).getTime();
-    const elapsedMinutes = (Date.now() - lastSentAt) / 1000 / 60;
+  if (cooldownMinutes > 0 && lastSentAt) {
+    const elapsedMinutes =
+      (Date.now() - new Date(lastSentAt).getTime()) / 1000 / 60;
 
     if (elapsedMinutes < cooldownMinutes) {
       return {
         token: null,
-        skippedReason: `Activation email was recently sent. Try again in ${Math.ceil(
+        skippedReason: `A secure email was recently sent. Try again in ${Math.ceil(
           cooldownMinutes - elapsedMinutes
         )} minute(s).`,
         attempts: sentCount,
@@ -136,17 +203,30 @@ export async function createActivationToken(client, user) {
     }
   }
 
+  await client.query(
+    `UPDATE activation_tokens
+     SET used = TRUE,
+         used_at = COALESCE(used_at, NOW()),
+         revoked_at = COALESCE(revoked_at, NOW())
+     WHERE user_id = $1
+       AND purpose = $2
+       AND used = FALSE
+       AND revoked_at IS NULL`,
+    [user.id, safePurpose]
+  );
+
   const token = randomBytes(32).toString("hex");
-  const ttlHours = Number.parseInt(process.env.ACTIVATION_TOKEN_HOURS || "24", 10);
+  const ttlHours = getTokenTtlHours(safePurpose);
   const expiresAt = new Date(Date.now() + ttlHours * 3600 * 1000);
 
   await client.query(
-    `INSERT INTO activation_tokens (user_id, token, expires_at, used, created_at)
-     VALUES ($1, $2, $3, false, NOW())`,
-    [user.id, token, expiresAt.toISOString()]
+    `INSERT INTO activation_tokens
+       (user_id, token, purpose, expires_at, used, created_at)
+     VALUES ($1, $2, $3, $4, FALSE, NOW())`,
+    [user.id, token, safePurpose, expiresAt.toISOString()]
   );
   await client.query(
-    "UPDATE users SET last_activation_sent_at = NOW() WHERE id = $1",
+    `UPDATE users SET ${getLastSentColumn(safePurpose)} = NOW() WHERE id = $1`,
     [user.id]
   );
 
@@ -154,29 +234,38 @@ export async function createActivationToken(client, user) {
     token,
     skippedReason: "",
     attempts: sentCount + 1,
-    cooldownMinutes: getCooldownMinutes(sentCount + 1),
+    cooldownMinutes: getCooldownMinutes(safePurpose, sentCount + 1),
+    expiresAt: expiresAt.toISOString(),
   };
 }
 
-export async function sendActivationEmail(to, uan, token, purpose = "activate") {
+export async function sendActivationEmail(
+  to,
+  uan,
+  token,
+  purpose = TOKEN_PURPOSES.EMAIL_VERIFICATION
+) {
   if (!transporter || !token) return false;
 
-  const ttlHours = Number.parseInt(process.env.ACTIVATION_TOKEN_HOURS || "24", 10);
-  const activationLink = `${clientUrl}/activate?token=${token}`;
+  const safePurpose = Object.values(TOKEN_PURPOSES).includes(purpose)
+    ? purpose
+    : TOKEN_PURPOSES.EMAIL_VERIFICATION;
+  const ttlHours = getTokenTtlHours(safePurpose);
+  const actionLink = `${clientUrl}/activate?token=${token}`;
   const from = MAIL_FROM_NAME
     ? `${MAIL_FROM_NAME} <${MAIL_FROM_ADDRESS}>`
     : MAIL_FROM_ADDRESS;
-  const isReset = purpose === "reset-password";
+  const isReset = safePurpose === TOKEN_PURPOSES.PASSWORD_RESET;
   const subject = isReset
-    ? "Set your Online Application System password"
-    : "Activate your Online Application System account";
+    ? "Reset your Online Application System password"
+    : "Verify your Online Application System email";
   const intro = isReset
     ? "Use the link below to set a new password for your account."
-    : "Use the link below to activate your account and set your password.";
+    : "Use the link below to verify your email. Your password will not activate the account until this verification is completed.";
   const emailContent = buildActivationEmail({
-    activationLink,
+    actionLink,
     intro,
-    isReset,
+    purpose: safePurpose,
     ttlHours,
     uan,
   });

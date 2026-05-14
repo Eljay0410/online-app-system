@@ -32,7 +32,8 @@ export async function getOverview(_req, res) {
 export async function listManagementUsers(_req, res) {
   try {
     const result = await pool.query(
-      `SELECT id, email, first_name, last_name, role, is_active, created_at, last_login
+      `SELECT id, email, first_name, middle_name, no_middle_name, last_name,
+         contact_number, role, is_active, email_verified_at, created_at, last_login
        FROM users
        WHERE role IN ('admin', 'superadmin')
        ORDER BY role DESC, created_at DESC`
@@ -44,9 +45,13 @@ export async function listManagementUsers(_req, res) {
         id: user.id,
         email: user.email,
         firstName: user.first_name || "",
+        middleName: user.middle_name || "",
+        noMiddleName: Boolean(user.no_middle_name),
         lastName: user.last_name || "",
+        contactNumber: user.contact_number || "",
         role: user.role,
         isActive: user.is_active,
+        emailVerifiedAt: user.email_verified_at,
         createdAt: user.created_at,
         lastLogin: user.last_login,
       })),
@@ -84,9 +89,9 @@ export async function createAdminAccount(req, res) {
     const passwordHash = await bcrypt.hash(password, 10);
     const result = await pool.query(
       `INSERT INTO users
-        (email, password_hash, first_name, last_name, role, is_active, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, 'admin', true, NOW(), NOW())
-       RETURNING id, email, first_name, last_name, role, is_active, created_at, last_login`,
+        (email, password_hash, first_name, last_name, role, is_active, email_verified_at, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, 'admin', true, NOW(), NOW(), NOW())
+       RETURNING id, email, first_name, last_name, role, is_active, email_verified_at, created_at, last_login`,
       [email, passwordHash, firstName, lastName]
     );
 
@@ -101,6 +106,7 @@ export async function createAdminAccount(req, res) {
         lastName: user.last_name || "",
         role: user.role,
         isActive: user.is_active,
+        emailVerifiedAt: user.email_verified_at,
         createdAt: user.created_at,
         lastLogin: user.last_login,
       },

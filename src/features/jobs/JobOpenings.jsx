@@ -1,42 +1,68 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import {
   BriefcaseBusiness,
   CalendarDays,
-  ChevronRight,
+  Filter,
   Loader2,
   MapPin,
+  Search,
 } from "lucide-react";
 import { apiRequest } from "../../lib/api";
+import { getAuthenticatedHomePath, normalizeRole, useAuth } from "../auth/auth";
 
-const formatDate = (value) => {
-  if (!value) return "No deadline";
-
-  return new Intl.DateTimeFormat("en-PH", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  }).format(new Date(value));
-};
+const formatDate = (value) =>
+  value
+    ? new Intl.DateTimeFormat("en-PH", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      }).format(new Date(value))
+    : "No deadline";
 
 export default function JobOpenings() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [jobs, setJobs] = useState([]);
+  const [filters, setFilters] = useState({
+    search: "",
+    location: "",
+  });
+  const [debouncedFilters, setDebouncedFilters] = useState(filters);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [promptJob, setPromptJob] = useState(null);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setDebouncedFilters(filters);
+    }, 300);
+
+    return () => window.clearTimeout(timeout);
+  }, [filters]);
 
   useEffect(() => {
     let isMounted = true;
 
     async function loadJobs() {
+      setIsLoading(true);
+      setMessage("");
+
       try {
-        const result = await apiRequest("/api/job-openings");
-        if (isMounted) setJobs(result.jobs || []);
+        const params = new URLSearchParams();
+        if (debouncedFilters.search) params.set("q", debouncedFilters.search);
+        if (debouncedFilters.location) {
+          params.set("location", debouncedFilters.location);
+        }
+
+        const result = await apiRequest(`/api/job-openings?${params.toString()}`);
+        if (isMounted) {
+          setJobs(result.jobs || []);
+        }
       } catch (error) {
         if (isMounted) {
           setJobs([]);
-          setMessage(
-            error.message || "Unable to load available job openings."
-          );
+          setMessage(error.message || "Unable to load available job openings.");
         }
       } finally {
         if (isMounted) setIsLoading(false);
@@ -48,88 +74,210 @@ export default function JobOpenings() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [debouncedFilters]);
+
+  const locationHints = useMemo(() => {
+    const unique = new Set();
+    for (const job of jobs) {
+      if (job.location) unique.add(job.location);
+    }
+    return Array.from(unique).slice(0, 6);
+  }, [jobs]);
+
+  const handleApply = (job) => {
+    if (!user) {
+      setPromptJob(job);
+      return;
+    }
+
+    if (normalizeRole(user.role) !== "applicant") {
+      navigate(getAuthenticatedHomePath(user));
+      return;
+    }
+
+    navigate(`/profile?jobId=${job.id}`);
+  };
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 pb-12 pt-28 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <div className="flex flex-col gap-2">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-700">
-            Public Job Portal
+    <main className="min-h-screen bg-slate-50 px-4 pb-10 pt-24 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-7xl space-y-6">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#0056b3]">
+            Job Listings
           </p>
-          <h1 className="text-3xl font-bold text-slate-900">
-            Job Openings
+          <h1 className="mt-2 text-2xl font-bold text-slate-900 sm:text-3xl">
+            Available vacancies
           </h1>
-          <p className="max-w-2xl text-sm leading-6 text-slate-600">
-            Browse available positions, read the details, and start an
-            application when you are ready.
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+            Search by title or school/location, then open a posting or start
+            your application flow.
           </p>
-        </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-[1.2fr_1fr_auto]">
+            <div className="flex h-11 items-center gap-2 rounded-xl border border-slate-300 bg-slate-50 px-3">
+              <Search className="h-4 w-4 text-slate-400" />
+              <input
+                value={filters.search}
+                onChange={(e) =>
+                  setFilters((current) => ({ ...current, search: e.target.value }))
+                }
+                placeholder="Search by title or keyword"
+                className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+              />
+            </div>
+
+            <div className="flex h-11 items-center gap-2 rounded-xl border border-slate-300 bg-slate-50 px-3">
+              <MapPin className="h-4 w-4 text-slate-400" />
+              <input
+                value={filters.location}
+                onChange={(e) =>
+                  setFilters((current) => ({
+                    ...current,
+                    location: e.target.value,
+                  }))
+                }
+                placeholder="Filter by school / location"
+                className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setFilters({ search: "", location: "" })}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              <Filter className="h-4 w-4" />
+              Clear
+            </button>
+          </div>
+
+          {locationHints.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {locationHints.map((hint) => (
+                <button
+                  key={hint}
+                  type="button"
+                  onClick={() =>
+                    setFilters((current) => ({ ...current, location: hint }))
+                  }
+                  className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700"
+                >
+                  {hint}
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
 
         {message && (
-          <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
             {message}
           </div>
         )}
 
         {isLoading ? (
-          <div className="flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white p-10 text-slate-500 shadow-sm">
+          <div className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-10 text-slate-500 shadow-sm">
             <Loader2 className="h-5 w-5 animate-spin" />
             Loading job openings...
           </div>
         ) : jobs.length === 0 ? (
-          <div className="rounded-lg border border-slate-200 bg-white p-10 text-center text-slate-500 shadow-sm">
-            No job openings are posted right now.
+          <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-slate-500 shadow-sm">
+            No job openings match your filters.
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {jobs.map((job) => (
-              <Link
+              <article
                 key={job.id}
-                to={`/jobs/${job.id}`}
-                className="group rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/50 hover:shadow-md"
+                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-200 hover:shadow-md"
               >
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h2 className="text-lg font-semibold text-slate-900 transition group-hover:text-[#0056b3]">
+                    <h2 className="text-lg font-semibold text-slate-900">
                       {job.title}
                     </h2>
                     <p className="mt-1 text-sm text-slate-500">
-                      View details and application requirements.
+                      {job.description || "School vacancy posting"}
                     </p>
                   </div>
-
-                  <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-[#0056b3]">
+                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
                     Open
                   </span>
                 </div>
 
-                <div className="mt-5 space-y-3 text-sm text-slate-700">
+                <div className="mt-4 space-y-3 text-sm text-slate-700">
                   <div className="flex items-center gap-2">
-                    <MapPin size={16} className="text-slate-400" />
+                    <MapPin className="h-4 w-4 text-slate-400" />
                     <span>{job.location}</span>
                   </div>
-
                   <div className="flex items-center gap-2">
-                    <BriefcaseBusiness size={16} className="text-slate-400" />
+                    <BriefcaseBusiness className="h-4 w-4 text-slate-400" />
                     <span>{job.vacancy} vacancy(ies)</span>
                   </div>
-
                   <div className="flex items-center gap-2">
-                    <CalendarDays size={16} className="text-slate-400" />
+                    <CalendarDays className="h-4 w-4 text-slate-400" />
                     <span>Deadline {formatDate(job.deadline)}</span>
                   </div>
                 </div>
 
-                <div className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-[#0056b3] transition group-hover:translate-x-0.5">
-                  View details
-                  <ChevronRight size={16} />
+                <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+                  <Link
+                    to={`/jobs/${job.id}`}
+                    className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-slate-300 px-4 font-semibold text-slate-700 transition hover:bg-slate-50"
+                  >
+                    View details
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => handleApply(job)}
+                    className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-[#0056b3] px-4 font-semibold text-white transition hover:bg-[#003a78]"
+                  >
+                    Apply
+                  </button>
                 </div>
-              </Link>
+              </article>
             ))}
           </div>
         )}
       </div>
+
+      {promptJob && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-4 sm:items-center">
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
+            <h3 className="text-lg font-semibold text-slate-900">
+              Continue your application
+            </h3>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Register or log in first, then complete your profile before
+              applying to {promptJob.title}.
+            </p>
+
+            <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+              <Link
+                to="/register"
+                className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-[#0056b3] px-4 font-semibold text-white transition hover:bg-[#003a78]"
+                onClick={() => setPromptJob(null)}
+              >
+                Register
+              </Link>
+              <Link
+                to={`/login?next=${encodeURIComponent(`/profile?jobId=${promptJob.id}`)}`}
+                className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-slate-300 px-4 font-semibold text-slate-700 transition hover:bg-slate-50"
+                onClick={() => setPromptJob(null)}
+              >
+                Login
+              </Link>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPromptJob(null)}
+              className="mt-3 h-10 w-full rounded-xl text-sm font-medium text-slate-500"
+            >
+              Not now
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

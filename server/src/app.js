@@ -4,7 +4,6 @@ import { allowedOrigins } from "./config/env.js";
 import activationRoutes from "./routes/activationRoutes.js";
 import applicationRoutes from "./routes/applicationRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
-import emailRoutes from "./routes/emailRoutes.js";
 import healthRoutes from "./routes/healthRoutes.js";
 import jobOpeningRoutes from "./routes/jobOpeningRoutes.js";
 import superAdminRoutes from "./routes/superAdminRoutes.js";
@@ -27,7 +26,6 @@ app.use("/api", authRoutes);
 app.use("/api", jobOpeningRoutes);
 app.use("/api", applicationRoutes);
 app.use("/api", superAdminRoutes);
-app.use("/api", emailRoutes);
 app.use("/api", activationRoutes);
 
 export default app;

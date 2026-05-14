@@ -13,6 +13,33 @@ export async function ensureDatabaseSchema() {
   `);
 
   await pool.query(`
+    ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS middle_name VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS no_middle_name BOOLEAN NOT NULL DEFAULT FALSE,
+      ADD COLUMN IF NOT EXISTS contact_number VARCHAR(30),
+      ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMP WITH TIME ZONE,
+      ADD COLUMN IF NOT EXISTS last_password_reset_sent_at TIMESTAMP WITH TIME ZONE,
+      ADD COLUMN IF NOT EXISTS last_activation_sent_at TIMESTAMP WITH TIME ZONE;
+  `);
+
+  await pool.query(`
+    ALTER TABLE activation_tokens
+      ADD COLUMN IF NOT EXISTS purpose VARCHAR(40) NOT NULL DEFAULT 'email_verification',
+      ADD COLUMN IF NOT EXISTS used_at TIMESTAMP WITH TIME ZONE,
+      ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMP WITH TIME ZONE;
+  `);
+
+  await pool.query(`
+    ALTER TABLE refresh_tokens
+      ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMP WITH TIME ZONE;
+  `);
+
+  await pool.query(`
+    ALTER TABLE job_applications
+      ADD COLUMN IF NOT EXISTS review_notes TEXT;
+  `);
+
+  await pool.query(`
     ALTER TABLE job_applications
       ADD COLUMN IF NOT EXISTS job_opening_id INTEGER REFERENCES job_openings(id) ON DELETE CASCADE,
       ADD COLUMN IF NOT EXISTS applicant_profile_id INTEGER REFERENCES applicant_profiles(id) ON DELETE CASCADE,
@@ -43,5 +70,10 @@ export async function ensureDatabaseSchema() {
     CREATE UNIQUE INDEX IF NOT EXISTS job_applications_user_job_unique_idx
       ON job_applications(user_id, job_opening_id)
       WHERE job_opening_id IS NOT NULL;
+  `);
+
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS refresh_tokens_token_unique_idx
+      ON refresh_tokens(token);
   `);
 }

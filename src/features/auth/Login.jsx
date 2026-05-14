@@ -1,42 +1,58 @@
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Loader2, LockKeyhole, Mail } from "lucide-react";
-import imageSample from "../../assets/imagesample.svg";
+import {
+  ArrowLeft,
+  Eye,
+  EyeOff,
+  Loader2,
+  RefreshCw,
+} from "lucide-react";
 import { apiRequest } from "../../lib/api";
-import { getRoleHomePath, storeUser } from "./auth";
+import { getAuthenticatedHomePath, normalizeRole, useAuth } from "./auth";
 
 const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+const guestRoutes = ["/login", "/register", "/activate"];
 
-const Login = () => {
+function getSafeNextPath(nextPath) {
+  if (!nextPath) return "";
+
+  try {
+    const nextUrl = new URL(nextPath, window.location.origin);
+
+    if (nextUrl.origin !== window.location.origin) {
+      return "";
+    }
+
+    return `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`;
+  } catch {
+    return "";
+  }
+}
+
+export default function Login() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [searchParams] = useSearchParams();
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const clearFieldError = (fieldName) => {
-    if (errors[fieldName]) {
-      setErrors((current) => ({ ...current, [fieldName]: "" }));
+  const validateEmailOnly = () => {
+    const nextErrors = {};
+
+    if (!email.trim()) {
+      nextErrors.email = "Email address is required";
+    } else if (!isValidEmail(email)) {
+      nextErrors.email = "Please enter a valid email address";
     }
+
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
   };
-
-  const fieldClass = (fieldName) =>
-    `mt-1 flex h-11 items-center rounded-xl border bg-slate-100 px-3 focus-within:ring-2 focus-within:ring-blue-500 ${
-      errors[fieldName] ? "border-red-500" : "border-slate-300"
-    }`;
-
-  const errorText = (fieldName) =>
-    errors[fieldName] ? (
-      <div className="mt-1 flex items-center gap-2 text-xs text-red-500">
-        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold leading-none text-white">
-          !
-        </span>
-        <span>{errors[fieldName]}</span>
-      </div>
-    ) : null;
 
   const validateLogin = () => {
     const nextErrors = {};
@@ -55,17 +71,15 @@ const Login = () => {
     return Object.keys(nextErrors).length === 0;
   };
 
-  const validateForgotPassword = () => {
-    const nextErrors = {};
+  const resetFeedback = () => {
+    setErrors({});
+    setMessage("");
+  };
 
-    if (!email.trim()) {
-      nextErrors.email = "Email address is required";
-    } else if (!isValidEmail(email)) {
-      nextErrors.email = "Please enter a valid email address";
-    }
-
-    setErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
+  const switchMode = (nextMode) => {
+    setMode(nextMode);
+    setShowPassword(false);
+    resetFeedback();
   };
 
   const handleLogin = async (event) => {
@@ -79,24 +93,32 @@ const Login = () => {
     try {
       const result = await apiRequest("/api/auth/login", {
         method: "POST",
-        body: JSON.stringify({
-          email,
-          password,
-        }),
+        body: JSON.stringify({ email, password }),
       });
-      const user = storeUser(result.user);
-      const nextPath = searchParams.get("next");
 
-      if (user.role === "applicant" && !user.profileComplete) {
-        navigate("/apply", { replace: true });
+      login(result.user, result.token);
+      const user = result.user;
+      const safeNextPath = getSafeNextPath(searchParams.get("next"));
+      const nextRoute = safeNextPath.split("?")[0];
+      const isGuestRoute = guestRoutes.includes(nextRoute);
+
+      if (normalizeRole(user.role) === "applicant" && !user.profileComplete) {
+        navigate("/profile", { replace: true });
         return;
       }
 
       navigate(
-        nextPath?.startsWith("/") ? nextPath : getRoleHomePath(user.role),
+        safeNextPath && !isGuestRoute
+          ? safeNextPath
+          : getAuthenticatedHomePath(user),
         { replace: true }
       );
     } catch (err) {
+      if (String(err?.message || "").toLowerCase().includes("verify")) {
+        setMode("resend");
+        setShowPassword(false);
+      }
+
       setErrors({
         form: err.message || "Login failed. Please try again.",
       });
@@ -109,7 +131,7 @@ const Login = () => {
     event.preventDefault();
     setMessage("");
 
-    if (!validateForgotPassword()) return;
+    if (!validateEmailOnly()) return;
 
     setIsSubmitting(true);
 
@@ -119,150 +141,235 @@ const Login = () => {
         body: JSON.stringify({ email }),
       });
 
-      setMessage(result.message || "Password setup instructions were sent.");
-      setPassword("");
+      setMessage(result.message || "Password reset instructions were sent.");
     } catch (err) {
       setErrors({
-        form:
-          err.message ||
-          "Could not process password reset. Please try again later.",
+        form: err.message || "Could not process password reset.",
       });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const switchMode = (nextMode) => {
-    setMode(nextMode);
-    setErrors({});
+  const handleResendActivation = async (event) => {
+    event.preventDefault();
     setMessage("");
-    setPassword("");
+
+    if (!validateEmailOnly()) return;
+
+    setIsSubmitting(true);
+
+    try {
+      const result = await apiRequest("/api/auth/resend-activation", {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      });
+
+      setMessage(result.message || "Verification email was sent.");
+    } catch (err) {
+      setErrors({
+        form: err.message || "Could not resend verification email.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const submitHandler =
+    mode === "login"
+      ? handleLogin
+      : mode === "forgot"
+      ? handleForgotPassword
+      : handleResendActivation;
+
+  const heading =
+    mode === "login"
+      ? "Enter your email to continue"
+      : mode === "forgot"
+      ? "Forgot your password?"
+      : "Resend verification email";
+
+  const handleBack = () => {
+    if (mode === "login") {
+      navigate("/");
+      return;
+    }
+
+    switchMode("login");
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 flex pt-10">
-      <div className="w-full max-w-md bg-white flex flex-col justify-center px-10 py-12 shadow-md">
-        <div className="mb-8 text-center">
-          <h2 className="text-3xl font-semibold text-slate-900">
-            {mode === "login" ? "Welcome" : "Reset Password"}
-          </h2>
-          <p className="mt-2 text-sm text-slate-500">
-            {mode === "login"
-              ? "Log in with your account credentials."
-              : "Enter your email to receive a password setup link."}
+    <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4 pt-24 pb-8 sm:px-6 sm:pt-24 sm:pb-10">
+      <section className="w-full max-w-[520px] rounded-[20px] border border-slate-200 bg-white px-6 py-6 shadow-[0_12px_30px_rgba(15,23,42,0.08)] sm:px-8 sm:py-8">
+        <button
+          type="button"
+          onClick={handleBack}
+          className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#0056b3] text-white transition hover:bg-[#003a78]"
+          aria-label="Go back"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+
+        <div className="mt-6">
+          <h1 className="text-[26px] font-semibold tracking-tight text-slate-900 sm:text-[28px]">
+            {heading}
+          </h1>
+          <p className="mt-3 max-w-[52ch] text-[15px] leading-7 text-slate-600">
+            {mode === "login" ? (
+              <>
+                Log in to the Online Application System using your email. If
+                you don&apos;t have an account yet,{" "}
+                <Link
+                  to="/register"
+                  className="font-semibold text-[#0056b3] hover:underline"
+                >
+                  create one here
+                </Link>
+                .
+              </>
+            ) : mode === "forgot" ? (
+              "Enter the email address associated with your account and we'll send you a reset link."
+            ) : (
+              "Enter the email address tied to your account and we'll send a new verification link."
+            )}
           </p>
         </div>
 
-        <form
-          onSubmit={mode === "login" ? handleLogin : handleForgotPassword}
-          className="space-y-5"
-          noValidate
-        >
-          <div>
-            <label className="text-sm font-medium text-slate-600">
-              Email <span className="text-red-500">*</span>
-            </label>
-            <div className={fieldClass("email")}>
-              <Mail className="h-4 w-4 text-slate-400" />
-              <input
-                type="email"
-                value={email}
-                onChange={(event) => {
-                  setEmail(event.target.value);
-                  clearFieldError("email");
-                }}
-                className="h-full min-w-0 flex-1 bg-transparent px-3 text-sm outline-none"
-                autoComplete="email"
-              />
-            </div>
-            {errorText("email")}
+        {message && (
+          <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            {message}
           </div>
+        )}
+
+        <form onSubmit={submitHandler} className="mt-6 space-y-5 text-left" noValidate>
+          <TextField
+            label={mode === "login" ? "Email" : "Email address"}
+            value={email}
+            onChange={setEmail}
+            error={errors.email}
+            type="email"
+            placeholder={
+              mode === "login"
+                ? "Enter your email address"
+                : "ex: myname@example.com"
+            }
+            autoComplete="email"
+          />
 
           {mode === "login" && (
-            <div>
-              <label className="text-sm font-medium text-slate-600">
-                Password <span className="text-red-500">*</span>
-              </label>
-              <div className={fieldClass("password")}>
-                <LockKeyhole className="h-4 w-4 text-slate-400" />
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(event) => {
-                    setPassword(event.target.value);
-                    clearFieldError("password");
-                  }}
-                  className="h-full min-w-0 flex-1 bg-transparent px-3 text-sm outline-none"
-                  autoComplete="current-password"
-                />
-              </div>
-              {errorText("password")}
-            </div>
+            <TextField
+              label="Password"
+              value={password}
+              onChange={setPassword}
+              type={showPassword ? "text" : "password"}
+              error={errors.password}
+              placeholder="Enter your password"
+              autoComplete="current-password"
+              rightElement={
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((current) => !current)}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-5 w-5" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
+                </button>
+              }
+            />
           )}
 
           {errors.form && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {errors.form}
             </div>
           )}
 
-          {message && (
-            <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
-              {message}
+          {mode === "login" && (
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  switchMode("forgot");
+                }}
+                className="text-sm font-medium text-slate-500 transition hover:text-[#0056b3]"
+              >
+                Forgot password?
+              </button>
             </div>
           )}
 
           <button
             type="submit"
             disabled={isSubmitting}
-            className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#0056b3] font-semibold text-white transition hover:bg-[#003a78] disabled:cursor-not-allowed disabled:opacity-70"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#0056b3] px-4 text-[15px] font-semibold text-white transition hover:bg-[#003a78] disabled:cursor-not-allowed disabled:opacity-70"
           >
-            {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            {mode === "login" ? "Login" : "Send Password Link"}
+            {isSubmitting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : mode === "resend" ? (
+              <RefreshCw className="h-4 w-4" />
+            ) : null}
+            {mode === "login"
+              ? "Login"
+              : mode === "forgot"
+              ? "Send Reset Link"
+              : "Resend Verification"}
           </button>
         </form>
 
-        <div className="mt-4 text-center">
-          {mode === "login" ? (
-            <button
-              type="button"
-              onClick={() => switchMode("forgot")}
-              className="text-sm font-semibold text-blue-700 hover:underline"
-            >
-              Forgot password?
-            </button>
-          ) : (
+        <div className="mt-6 flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+          {mode !== "login" && (
             <button
               type="button"
               onClick={() => switchMode("login")}
-              className="text-sm font-semibold text-blue-700 hover:underline"
+              className="font-medium text-slate-600 transition hover:text-[#0056b3]"
             >
               Back to login
             </button>
           )}
         </div>
-
-        <p className="text-xs text-slate-500 mt-6 text-center">
-          New applicant? Complete the first-time application form{" "}
-          <Link
-            to="/apply"
-            className="text-blue-600 font-medium cursor-pointer hover:underline"
-          >
-            here
-          </Link>
-          .
-        </p>
-      </div>
-
-      <div className="hidden md:flex flex-1 items-center justify-center bg-blue-600">
-        <img
-          src={imageSample}
-          alt="Login Illustration"
-          className="w-full h-full object-cover"
-        />
-      </div>
-    </div>
+      </section>
+    </main>
   );
-};
+}
 
-export default Login;
+function TextField({
+  label,
+  value,
+  onChange,
+  error,
+  type = "text",
+  placeholder,
+  autoComplete,
+  rightElement,
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-sm font-semibold text-slate-900">
+        {label}
+      </span>
+      <div
+        className={`flex h-11 items-center rounded-xl border bg-white px-3.5 transition focus-within:ring-2 ${
+          error
+            ? "border-red-500 ring-1 ring-red-100"
+            : "border-slate-300 focus-within:border-[#0056b3] focus-within:ring-blue-100"
+        }`}
+      >
+        <input
+          type={type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          autoComplete={autoComplete}
+          className="min-w-0 flex-1 bg-transparent text-[14px] text-slate-900 outline-none placeholder:text-slate-400"
+        />
+        {rightElement}
+      </div>
+      {error && <p className="mt-2 text-xs font-medium text-red-600">{error}</p>}
+    </label>
+  );
+}

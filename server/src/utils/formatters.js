@@ -3,14 +3,25 @@ export function normalizeEmail(email) {
 }
 
 export function mapJobOpening(row) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const deadline = row.deadline ? new Date(row.deadline) : null;
+  const storedStatus = row.status || "open";
+  const status =
+    storedStatus === "open" && deadline && deadline < today
+      ? "expired"
+      : storedStatus;
+
   return {
     id: row.id,
     title: row.title,
     location: row.location,
     vacancy: row.vacancy,
     deadline: row.deadline,
-    status: row.status,
+    expirationDate: row.deadline,
+    status,
     description: row.description || "",
+    postedAt: row.created_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -23,6 +34,9 @@ export function mapApplicantProfile(row) {
 
   const data = row.data || {};
   const personalInfo = data.personalInfo || {};
+  const applicationDetails = data.applicationDetails || {};
+  const uploads = data.uploads || data.requirements || {};
+  const profileComplete = Boolean(applicationDetails.completedAt);
 
   return {
     id: row.id,
@@ -30,16 +44,23 @@ export function mapApplicantProfile(row) {
     uan: String(row.uan || row.user_uan || "").toUpperCase(),
     email: row.email || personalInfo.emailAddress || "",
     firstName: personalInfo.firstName || row.first_name || "",
-    middleName: personalInfo.middleName || "",
+    middleName: personalInfo.middleName || row.middle_name || "",
+    noMiddleName: Boolean(personalInfo.noMiddleName || row.no_middle_name),
     lastName: personalInfo.lastName || row.last_name || "",
-    phone: personalInfo.contactNumber || personalInfo.phone || "",
+    contactNumber:
+      personalInfo.contactNumber || personalInfo.phone || row.contact_number || "",
+    phone: personalInfo.contactNumber || personalInfo.phone || row.contact_number || "",
     address: personalInfo.address || "",
     birthDate: personalInfo.dob || personalInfo.birthDate || "",
-    sex: personalInfo.sex || "",
-    civilStatus: personalInfo.civilStatus || "",
-    nationality: personalInfo.nationality || "",
-    religion: personalInfo.religion || "",
-    profileComplete: true,
+    highestEducation: applicationDetails.highestEducation || "",
+    schoolGraduated: applicationDetails.schoolGraduated || "",
+    course: applicationDetails.course || "",
+    eligibility: applicationDetails.eligibility || "",
+    workExperience: applicationDetails.workExperience || "",
+    preferredPosition: applicationDetails.preferredPosition || "",
+    uploads,
+    profileComplete,
+    applicationReady: profileComplete,
     data,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -79,6 +100,7 @@ export function mapApplication(row) {
     jobTitle: position,
     jobLocation: row.job_location || job.location || "",
     jobDeadline: row.job_deadline || job.deadline || null,
+    reviewNotes: row.review_notes || data.reviewNotes || "",
     raw: data,
   };
 }

@@ -20,13 +20,14 @@ try {
 
   await pool.query(
     `INSERT INTO users
-      (email, password_hash, role, is_active, created_at, updated_at)
-     VALUES ($1, $2, $3, true, NOW(), NOW())
+      (email, password_hash, role, is_active, email_verified_at, created_at, updated_at)
+     VALUES ($1, $2, $3, true, NOW(), NOW(), NOW())
      ON CONFLICT (email)
      DO UPDATE SET
        password_hash = EXCLUDED.password_hash,
        role = EXCLUDED.role,
        is_active = true,
+       email_verified_at = NOW(),
        updated_at = NOW()`,
     [email, passwordHash, role]
   );

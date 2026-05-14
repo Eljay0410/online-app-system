@@ -3,9 +3,12 @@ import { normalizeEmail } from "../utils/formatters.js";
 
 const profileSections = [
   "personalInfo",
+  "applicationDetails",
   "educationalBackground",
   "eligibility",
   "learningDevelopment",
+  "uploads",
+  "requirements",
   "jobPosition",
 ];
 
@@ -51,7 +54,10 @@ export async function getApplicantProfileRecord(queryable, email) {
        u.id AS user_id,
        u.email,
        u.first_name,
+       u.middle_name,
+       u.no_middle_name,
        u.last_name,
+       u.contact_number,
        u.role,
        u.is_active,
        u.uan AS user_uan,
@@ -82,7 +88,8 @@ export async function upsertApplicantProfile(client, incomingData = {}) {
   }
 
   const existingUser = await client.query(
-    `SELECT id, email, first_name, last_name, role, uan, password_hash, last_activation_sent_at
+    `SELECT id, email, first_name, middle_name, no_middle_name, last_name,
+       contact_number, role, uan, password_hash, last_activation_sent_at
      FROM users
      WHERE LOWER(email) = LOWER($1)
      FOR UPDATE`,
@@ -96,17 +103,25 @@ export async function upsertApplicantProfile(client, incomingData = {}) {
       `INSERT INTO users (
          email,
          first_name,
+         middle_name,
+         no_middle_name,
          last_name,
+         contact_number,
          role,
+         is_active,
          created_at,
          updated_at
        )
-       VALUES ($1, $2, $3, 'applicant', NOW(), NOW())
-       RETURNING id, email, first_name, last_name, role, uan, password_hash, last_activation_sent_at`,
+       VALUES ($1, $2, $3, $4, $5, $6, 'applicant', FALSE, NOW(), NOW())
+       RETURNING id, email, first_name, middle_name, no_middle_name, last_name,
+         contact_number, role, uan, password_hash, last_activation_sent_at`,
       [
         email,
         personalInfo.firstName || null,
+        personalInfo.noMiddleName ? null : personalInfo.middleName || null,
+        Boolean(personalInfo.noMiddleName),
         personalInfo.lastName || null,
+        personalInfo.contactNumber || personalInfo.phone || null,
       ]
     );
 
@@ -115,14 +130,21 @@ export async function upsertApplicantProfile(client, incomingData = {}) {
     const updated = await client.query(
       `UPDATE users
        SET first_name = COALESCE($2, first_name),
-           last_name = COALESCE($3, last_name),
+           middle_name = $3,
+           no_middle_name = $4,
+           last_name = COALESCE($5, last_name),
+           contact_number = COALESCE($6, contact_number),
            updated_at = NOW()
        WHERE id = $1
-       RETURNING id, email, first_name, last_name, role, uan, password_hash, last_activation_sent_at`,
+       RETURNING id, email, first_name, middle_name, no_middle_name, last_name,
+         contact_number, role, uan, password_hash, last_activation_sent_at`,
       [
         user.id,
         personalInfo.firstName || null,
+        personalInfo.noMiddleName ? null : personalInfo.middleName || null,
+        Boolean(personalInfo.noMiddleName),
         personalInfo.lastName || null,
+        personalInfo.contactNumber || personalInfo.phone || null,
       ]
     );
 
@@ -142,6 +164,8 @@ export async function upsertApplicantProfile(client, incomingData = {}) {
     personalInfo: {
       ...personalInfo,
       emailAddress: email,
+      middleName: personalInfo.noMiddleName ? "" : personalInfo.middleName || "",
+      contactNumber: personalInfo.contactNumber || personalInfo.phone || "",
     },
     uan: assignedUan,
   });
@@ -208,7 +232,11 @@ export async function createJobApplicationFromProfile(
     throw error;
   }
 
-  if (job.status !== "open") {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const deadline = job.deadline ? new Date(job.deadline) : null;
+
+  if (job.status !== "open" || (deadline && deadline < today)) {
     const error = new Error("This job opening is no longer accepting applications.");
     error.statusCode = 409;
     throw error;

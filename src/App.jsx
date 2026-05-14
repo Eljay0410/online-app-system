@@ -5,14 +5,14 @@ import {
   Routes,
 } from "react-router-dom";
 
-import Navbar from "./components/layout/PublicNavbar";
-import NavbarApplicant from "./components/layout/ApplicantNavbar";
+import Navbar from "./components/layout/Navbar";
 
 import ApplicationForm from "./features/registration/ApplicationForm";
+import Register from "./features/auth/Register";
 import ActivateAccount from "./features/auth/ActivateAccount";
 import Login from "./features/auth/Login";
 import ProtectedRoute from "./features/auth/ProtectedRoute";
-import { getStoredUser } from "./features/auth/auth";
+import { getAuthenticatedHomePath, useAuth } from "./features/auth/auth";
 
 import JobOpenings from "./features/jobs/JobOpenings";
 import JobDetails from "./features/jobs/JobDetails";
@@ -24,31 +24,46 @@ import AdminDashboard from "./features/admin/AdminDashboard";
 import SuperAdminDashboard from "./features/admin/SuperAdminDashboard";
 
 function RedirectToHome() {
-  return <Navigate to="/" replace />;
+  const { user } = useAuth();
+  return <Navigate to={user ? getAuthenticatedHomePath(user) : "/"} replace />;
+}
+
+function GuestRoute({ children }) {
+  const { user, loading } = useAuth();
+
+  if (loading) return null;
+
+  if (user) {
+    return <Navigate to={getAuthenticatedHomePath(user)} replace />;
+  }
+
+  return children;
 }
 
 function App() {
-  const user = getStoredUser();
-  const showApplicantNav = Boolean(user);
-
   return (
     <div className="min-h-screen bg-white font-['Poppins']">
-      {showApplicantNav ? <NavbarApplicant /> : <Navbar />}
+      <Navbar />
 
       <Routes>
+        {/* Public Routes */}
         <Route path="/" element={<JobOpenings />} />
         <Route path="/jobs/:jobId" element={<JobDetails />} />
+        <Route path="/register" element={<GuestRoute><Register /></GuestRoute>} />
+        <Route path="/activate" element={<ActivateAccount />} />
+        <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
+        <Route path="/apply" element={<ApplicationForm />} />
+
+        {/* Redirects */}
         <Route path="/jobopenings" element={<RedirectToHome />} />
         <Route path="/jobs" element={<RedirectToHome />} />
         <Route path="/apply/jobs" element={<RedirectToHome />} />
         <Route path="/about" element={<RedirectToHome />} />
         <Route path="/hr" element={<Navigate to="/admin" replace />} />
+        <Route path="/applicantdashboard" element={<Navigate to="/applications" replace />} />
+        <Route path="/Applicantdashboard" element={<Navigate to="/applications" replace />} />
 
-        <Route path="/apply" element={<ApplicationForm />} />
-        <Route path="/register" element={<Navigate to="/apply" replace />} />
-        <Route path="/activate" element={<ActivateAccount />} />
-        <Route path="/login" element={<Login />} />
-
+        {/* Applicant Protected Routes */}
         <Route
           path="/applications"
           element={
@@ -58,15 +73,6 @@ function App() {
           }
         />
         <Route
-          path="/applicantdashboard"
-          element={<Navigate to="/applications" replace />}
-        />
-        <Route
-          path="/Applicantdashboard"
-          element={<Navigate to="/applications" replace />}
-        />
-
-        <Route
           path="/profile"
           element={
             <ProtectedRoute allowedRoles={["applicant"]}>
@@ -75,6 +81,7 @@ function App() {
           }
         />
 
+        {/* Admin Protected Routes */}
         <Route
           path="/admin"
           element={
@@ -84,6 +91,7 @@ function App() {
           }
         />
 
+        {/* SuperAdmin Protected Routes */}
         <Route
           path="/superadmin"
           element={
@@ -93,6 +101,7 @@ function App() {
           }
         />
 
+        {/* Catch-all */}
         <Route path="*" element={<RedirectToHome />} />
       </Routes>
     </div>

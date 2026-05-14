@@ -1,14 +1,16 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { BrowserRouter } from 'react-router-dom' // Import mo ito
+import { BrowserRouter } from 'react-router-dom'
 import App from './App.jsx'
 import './index.css'
+import { AuthProvider } from './features/auth/auth'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    {/* Dapat balot ng BrowserRouter para gumana ang navigate at routes */}
     <BrowserRouter>
-      <App />
+      <AuthProvider>
+        <App />
+      </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>,
 )
