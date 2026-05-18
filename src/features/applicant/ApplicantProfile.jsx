@@ -1,27 +1,20 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
+  AlertTriangle,
   ArrowLeft,
-  Briefcase,
-  CalendarDays,
   CheckCircle2,
+  ChevronDown,
+  Copy,
   Edit3,
-  Eye,
-  FileText,
-  GraduationCap,
-  IdCard,
-  Mail,
-  MapPin,
-  Phone,
-  Plus,
+  Loader2,
+  MailCheck,
   Printer,
   Save,
+  Send,
   ShieldCheck,
-  Trash2,
-  UploadCloud,
-  User,
   X,
 } from "lucide-react";
 import { getStoredUser, storeUser } from "../auth/auth";
@@ -46,7 +39,7 @@ const defaultFiles = {
   otherDocuments: null,
 };
 
-const defaultApplicationProfile = {
+const defaultProfile = {
   personalInfo: {
     firstName: "",
     noMiddleName: false,
@@ -68,13 +61,15 @@ const defaultApplicationProfile = {
     ethnicGroup: "",
     hasDisability: false,
     disability: "",
+    isSoloParent: false,
+    soloParentIdNumber: "",
+    isPwd: false,
+    pwdIdNumber: "",
   },
-
   educationalBackground: {
     bachelors: [{ school: "", course: "", year: "", award: "" }],
     postGraduate: [{ school: "", course: "", year: "", award: "" }],
   },
-
   eligibility: {
     eligibilities: [
       {
@@ -91,11 +86,11 @@ const defaultApplicationProfile = {
         agency: "",
         status: "",
         from: "",
+        fromYear: "",
         toYear: "",
       },
     ],
   },
-
   learningDevelopment: {
     trainings: [
       {
@@ -107,395 +102,108 @@ const defaultApplicationProfile = {
       },
     ],
   },
-
   jobPosition: {
     positionCategory: "",
     positionType: "",
     jobOpeningId: "",
     files: defaultFiles,
   },
-
   accountDetails: {
-    applicantNumber: "Not yet generated",
+    applicantNumber: "CSJDM-2026-0001",
     accountStatus: "Active",
   },
 };
 
-const suffixOptions = [
-  "Jr.",
-  "Sr.",
-  "II",
-  "III",
-  "IV",
-  "V",
-  "VI",
-  "VII",
-  "VIII",
-  "IX",
-  "X",
-];
-
-const religionOptions = [
-  "Roman Catholic",
-  "Christian",
-  "Islam",
-  "Iglesia ni Cristo",
-  "Protestant",
-  "Born Again Christian",
-  "Seventh-day Adventist",
-  "Jehovah's Witness",
-  "Buddhism",
-  "Hinduism",
-  "Aglipayan",
-  "None",
-  "Others",
-];
-
-const ethnicGroupOptions = [
-  "Aeta",
-  "Agta",
-  "Bajau",
-  "Bicolano",
-  "Bisaya",
-  "Cebuano",
-  "Chavacano",
-  "Hiligaynon",
-  "Ifugao",
-  "Igorot",
-  "Ilocano",
-  "Ivatan",
-  "Kapampangan",
-  "Lumad",
-  "Maguindanaon",
-  "Maranao",
-  "Pangasinense",
-  "Sama",
-  "Tagalog",
-  "Tausug",
-  "Waray",
-  "Yakan",
-];
-
-const teachingPositions = [
-  "Teacher I",
-  "Teacher II",
-  "Teacher III",
-  "Teacher IV",
-  "Teacher V",
-  "Teacher VI",
-  "Teacher VII",
-  "Master Teacher I",
-  "Master Teacher II",
-  "Master Teacher III",
-  "Master Teacher IV",
-  "Master Teacher V",
-];
-
-const nonTeachingPositions = [
-  "Administrative Officer",
-  "Administrative Assistant",
-  "Administrative Aide",
-  "Accounting Clerk",
-  "Bookkeeper",
-  "Disbursing Officer",
-  "Guidance Counselor",
-  "Librarian",
-  "Nurse",
-  "Registrar",
-  "School Clerk",
-  "Security Guard",
-  "Utility Worker",
-];
-
-const teacherPromotionPositions = [
-  "Teacher II",
-  "Teacher III",
-  "Teacher IV",
-  "Teacher V",
-  "Teacher VI",
-  "Teacher VII",
-  "Master Teacher I",
-  "Master Teacher II",
-  "Master Teacher III",
-  "Master Teacher IV",
-  "Master Teacher V",
-];
-
-const teacherUploadRequirements = [
+const initialApplications = [
   {
-    field: "letterOfIntent",
-    label: "Letter of Intent",
-    description:
-      "Addressed to the SDS with purpose and learning area/subject group, if applicable.",
+    id: 1,
+    position: "Teacher I",
+    location: "No location",
+    dateApplied: "May 11, 2026",
+    status: "Application Submitted",
+    isOpen: false,
   },
   {
-    field: "pds",
-    label: "Personal Data Sheet",
-    description:
-      "PDS with Work Experience Sheet and recent picture, digitally/electronically signed.",
-  },
-  {
-    field: "residency",
-    label: "Proof of Residency",
-    description: "Voter's ID or any proof of residency.",
-  },
-  {
-    field: "prcLicense",
-    label: "PRC License / ID",
-    description: "Valid and updated PRC License or ID.",
-  },
-  {
-    field: "boardRating",
-    label: "Certificate of Board Rating",
-    description: "Upload your Certificate of Board Rating.",
-  },
-  {
-    field: "academicRecord",
-    label: "Academic Records",
-    description:
-      "TOR, diploma, graduate or post-graduate units/degrees, if available.",
-  },
-  {
-    field: "serviceRecord",
-    label: "Service Record / COE",
-    description: "Duly signed Service Record or Certificate of Employment.",
-  },
-  {
-    field: "latestAppointment",
-    label: "Latest Appointment",
-    description: "For applicants applying for promotion.",
-  },
-  {
-    field: "trainingCertificates",
-    label: "Training Certificates",
-    description:
-      "Relevant specialized trainings or professional development programs, if any.",
-  },
-  {
-    field: "tesdaCertificate",
-    label: "TESDA NC II / TMC",
-    description:
-      "TESDA National Certificate II or Trainers Methodology Certificate, if applicable.",
-  },
-  {
-    field: "performanceRating",
-    label: "Performance Ratings",
-    description: "Required ratings with at least Very Satisfactory rating.",
-  },
-  {
-    field: "cavDataPrivacy",
-    label: "CAV / Omnibus / Data Privacy Form",
-    description:
-      "Checklist, Omnibus Sworn Statement, CAV, and Data Privacy Consent Form.",
-  },
-  {
-    field: "otherDocuments",
-    label: "Other Supporting Documents",
-    description:
-      "Other HRMPSB requirements, including PPST portfolio, if applicable.",
+    id: 2,
+    position: "Administrative Aide",
+    location: "No location",
+    dateApplied: "May 11, 2026",
+    status: "Application Submitted",
+    isOpen: false,
   },
 ];
 
-const nonTeachingUploadRequirements = [
-  {
-    field: "letterOfIntent",
-    label: "Letter of Intent",
-    description: "Addressed to the SDS with purpose and position applied for.",
-  },
-  {
-    field: "pds",
-    label: "Personal Data Sheet",
-    description: "PDS with Work Experience Sheet and recent picture.",
-  },
-  {
-    field: "residency",
-    label: "Proof of Residency",
-    description: "Voter's ID or any proof of residency.",
-  },
-  {
-    field: "prcLicense",
-    label: "PRC License / ID",
-    description: "Valid and updated PRC License or ID, if applicable.",
-  },
-  {
-    field: "eligibilityRating",
-    label: "Certificate of Eligibility / Rating",
-    description: "Eligibility or rating certificate, if applicable.",
-  },
-  {
-    field: "academicRecord",
-    label: "Academic Records",
-    description:
-      "TOR, diploma, graduate or post-graduate units/degrees, if available.",
-  },
-  {
-    field: "trainingCertificates",
-    label: "Training Certificates",
-    description: "Relevant certificates of training, if applicable.",
-  },
-  {
-    field: "employmentCertificate",
-    label: "Employment / Service Record",
-    description: "COE, contract of service, or signed service record.",
-  },
-  {
-    field: "latestAppointment",
-    label: "Latest Appointment",
-    description: "Photocopy of latest appointment, if applicable.",
-  },
-  {
-    field: "performanceRating",
-    label: "Performance Rating",
-    description: "Rating for the required/latest rating period, if applicable.",
-  },
-  {
-    field: "cavDataPrivacy",
-    label: "CAV / Omnibus / Data Privacy Form",
-    description: "Notarized certification and Data Privacy Consent Form.",
-  },
-  {
-    field: "otherDocuments",
-    label: "Other Supporting Documents",
-    description: "MOVs and other documents required for assessment.",
-  },
+const steps = [
+  { id: 1, title: "PERSONAL INFORMATION", key: "personalInfo" },
+  { id: 2, title: "EDUCATIONAL BACKGROUND", key: "educationalBackground" },
+  { id: 3, title: "ELIGIBILITY", key: "eligibility" },
+  { id: 4, title: "LEARNING DEVELOPMENT", key: "learningDevelopment" },
+  { id: 5, title: "ATTACHMENT", key: "jobPosition" },
+  { id: 6, title: "REVIEW", key: "review" },
 ];
 
 export default function ApplicantProfile() {
-  const [profile, setProfile] = useState(defaultApplicationProfile);
-  const [formData, setFormData] = useState(defaultApplicationProfile);
+  const [profile, setProfile] = useState(defaultProfile);
+  const [formData, setFormData] = useState(defaultProfile);
+  const [activeTab, setActiveTab] = useState("application");
+  const [currentStep, setCurrentStep] = useState(1);
   const [isEditing, setIsEditing] = useState(false);
-  const [activeSection, setActiveSection] = useState("personal");
-
-  const scrollContainerRef = useRef(null);
-  const sectionChangeLockRef = useRef(false);
-
-  const sections = [
-    {
-      id: "personal",
-      label: "Personal Info",
-      description: "Basic applicant details",
-      icon: <User size={18} />,
-    },
-    {
-      id: "education",
-      label: "Education",
-      description: "Degree and school records",
-      icon: <GraduationCap size={18} />,
-    },
-    {
-      id: "eligibility",
-      label: "Eligibility",
-      description: "Licenses and work experience",
-      icon: <IdCard size={18} />,
-    },
-    {
-      id: "learning",
-      label: "Learning Dev.",
-      description: "Trainings and seminars",
-      icon: <CalendarDays size={18} />,
-    },
-    {
-      id: "job",
-      label: "Job Position",
-      description: "Position and attachments",
-      icon: <Briefcase size={18} />,
-    },
-    {
-      id: "review",
-      label: "Review & Print",
-      description: "Preview application form",
-      icon: <Eye size={18} />,
-    },
-  ];
+  const [applications, setApplications] = useState(initialApplications);
 
   useEffect(() => {
-    const storedUser = getStoredUser();
+    const storedUser = getStoredUser?.();
 
     const accountPrefill = {
-      ...defaultApplicationProfile,
+      ...defaultProfile,
       personalInfo: {
-        ...defaultApplicationProfile.personalInfo,
+        ...defaultProfile.personalInfo,
         firstName: storedUser?.firstName || "",
         lastName: storedUser?.lastName || "",
         emailAddress: storedUser?.email || "",
-      },
-      jobPosition: {
-        ...defaultApplicationProfile.jobPosition,
-        files: {
-          ...defaultFiles,
-        },
       },
     };
 
     try {
       const savedFullProfile = localStorage.getItem("applicantFullProfile");
-      const savedOldProfile = localStorage.getItem("applicantProfile");
+      const savedProfile = localStorage.getItem("applicantProfile");
 
       if (savedFullProfile) {
-        const parsedProfile = JSON.parse(savedFullProfile);
-
-        const mergedProfile = {
-          ...accountPrefill,
-          ...parsedProfile,
-          personalInfo: {
-            ...accountPrefill.personalInfo,
-            ...parsedProfile.personalInfo,
-          },
-          educationalBackground: {
-            ...accountPrefill.educationalBackground,
-            ...parsedProfile.educationalBackground,
-          },
-          eligibility: {
-            ...accountPrefill.eligibility,
-            ...parsedProfile.eligibility,
-          },
-          learningDevelopment: {
-            ...accountPrefill.learningDevelopment,
-            ...parsedProfile.learningDevelopment,
-          },
-          jobPosition: {
-            ...accountPrefill.jobPosition,
-            ...parsedProfile.jobPosition,
-            files: {
-              ...defaultFiles,
-              ...(parsedProfile.jobPosition?.files || {}),
-            },
-          },
-          accountDetails: {
-            ...accountPrefill.accountDetails,
-            ...parsedProfile.accountDetails,
-          },
-        };
-
-        setProfile(mergedProfile);
-        setFormData(mergedProfile);
+        const parsed = JSON.parse(savedFullProfile);
+        const merged = mergeProfile(accountPrefill, parsed);
+        setProfile(merged);
+        setFormData(merged);
         return;
       }
 
-      if (savedOldProfile) {
-        const parsedOldProfile = JSON.parse(savedOldProfile);
+      if (savedProfile) {
+        const parsed = JSON.parse(savedProfile);
 
-        const mergedProfile = {
+        const merged = {
           ...accountPrefill,
           personalInfo: {
             ...accountPrefill.personalInfo,
-            ...parsedOldProfile,
-            contactNumber:
-              parsedOldProfile.contactNumber || parsedOldProfile.phone || "",
-            emailAddress:
-              parsedOldProfile.emailAddress || parsedOldProfile.email || "",
-            dob: parsedOldProfile.dob || parsedOldProfile.birthDate || "",
+            ...parsed,
+            contactNumber: parsed.contactNumber || parsed.phone || "",
+            emailAddress: parsed.emailAddress || parsed.email || "",
+            dob: parsed.dob || parsed.birthDate || "",
+            isSoloParent: parsed.isSoloParent || false,
+            soloParentIdNumber: parsed.soloParentIdNumber || "",
+            isPwd: parsed.isPwd || false,
+            pwdIdNumber: parsed.pwdIdNumber || "",
           },
           accountDetails: {
             ...accountPrefill.accountDetails,
             applicantNumber:
-              parsedOldProfile.applicantNumber || "Not yet generated",
-            accountStatus: parsedOldProfile.accountStatus || "Active",
+              parsed.applicantNumber ||
+              accountPrefill.accountDetails.applicantNumber,
+            accountStatus:
+              parsed.accountStatus ||
+              accountPrefill.accountDetails.accountStatus,
           },
         };
 
-        setProfile(mergedProfile);
-        setFormData(mergedProfile);
+        setProfile(merged);
+        setFormData(merged);
         return;
       }
     } catch (error) {
@@ -505,24 +213,6 @@ export default function ApplicantProfile() {
     setProfile(accountPrefill);
     setFormData(accountPrefill);
   }, []);
-
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-
-    if (container) {
-      container.scrollTo({
-        top: 0,
-        behavior: "smooth",
-      });
-    }
-  }, [activeSection]);
-
-  const currentData = isEditing ? formData : profile;
-  const personalInfo = currentData.personalInfo;
-  const accountDetails = currentData.accountDetails;
-
-  const inputClass =
-    "mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400";
 
   const fullName = useMemo(() => {
     return [
@@ -536,280 +226,15 @@ export default function ApplicantProfile() {
   }, [profile]);
 
   const initials = useMemo(() => {
-    const firstInitial = profile.personalInfo.firstName?.charAt(0) || "A";
-    const lastInitial = profile.personalInfo.lastName?.charAt(0) || "P";
-
-    return `${firstInitial}${lastInitial}`.toUpperCase();
+    const first = profile.personalInfo.firstName?.charAt(0) || "R";
+    const last = profile.personalInfo.lastName?.charAt(0) || "B";
+    return `${first}${last}`.toUpperCase();
   }, [profile]);
 
-  const profileCompletion = useMemo(() => {
-    const fields = [
-      profile.personalInfo.firstName,
-      profile.personalInfo.lastName,
-      profile.personalInfo.address,
-      profile.personalInfo.contactNumber,
-      profile.personalInfo.emailAddress,
-      profile.personalInfo.dob,
-      profile.personalInfo.sex,
-      profile.personalInfo.civilStatus,
-      profile.personalInfo.nationality,
-      profile.personalInfo.religion,
-      profile.educationalBackground.bachelors?.[0]?.school,
-      profile.educationalBackground.bachelors?.[0]?.course,
-      profile.eligibility.eligibilities?.[0]?.type,
-      profile.learningDevelopment.trainings?.[0]?.title,
-      profile.jobPosition.positionCategory,
-      profile.jobPosition.positionType,
-    ];
-
-    const filled = fields.filter(Boolean).length;
-
-    return Math.round((filled / fields.length) * 100);
-  }, [profile]);
-
-  const calculateAge = (birthDate) => {
-    if (!birthDate) return "";
-
-    const today = new Date();
-    const birth = new Date(birthDate);
-
-    let computedAge = today.getFullYear() - birth.getFullYear();
-    const monthDiff = today.getMonth() - birth.getMonth();
-
-    if (
-      monthDiff < 0 ||
-      (monthDiff === 0 && today.getDate() < birth.getDate())
-    ) {
-      computedAge--;
-    }
-
-    return computedAge;
-  };
-
-  const changeSection = (sectionId) => {
-    setActiveSection(sectionId);
-  };
-
-  const goToNextSection = () => {
-    const currentIndex = sections.findIndex(
-      (section) => section.id === activeSection
-    );
-
-    if (currentIndex < sections.length - 1) {
-      setActiveSection(sections[currentIndex + 1].id);
-    }
-  };
-
-  const goToPreviousSection = () => {
-    const currentIndex = sections.findIndex(
-      (section) => section.id === activeSection
-    );
-
-    if (currentIndex > 0) {
-      setActiveSection(sections[currentIndex - 1].id);
-    }
-  };
-
-  const handleFormScrollNavigation = (e) => {
-    const container = scrollContainerRef.current;
-
-    if (!container || sectionChangeLockRef.current) return;
-
-    const threshold = 12;
-    const isScrollingDown = e.deltaY > 0;
-    const isScrollingUp = e.deltaY < 0;
-
-    const reachedBottom =
-      container.scrollTop + container.clientHeight >=
-      container.scrollHeight - threshold;
-
-    const reachedTop = container.scrollTop <= threshold;
-
-    const currentIndex = sections.findIndex(
-      (section) => section.id === activeSection
-    );
-
-    if (isScrollingDown && reachedBottom && currentIndex < sections.length - 1) {
-      e.preventDefault();
-      sectionChangeLockRef.current = true;
-      goToNextSection();
-
-      setTimeout(() => {
-        sectionChangeLockRef.current = false;
-      }, 650);
-
-      return;
-    }
-
-    if (isScrollingUp && reachedTop && currentIndex > 0) {
-      e.preventDefault();
-      sectionChangeLockRef.current = true;
-      goToPreviousSection();
-
-      setTimeout(() => {
-        sectionChangeLockRef.current = false;
-      }, 650);
-    }
-  };
-
-  const updatePersonalInfo = (name, value) => {
+  const updateFormData = (section, data) => {
     setFormData((prev) => ({
       ...prev,
-      personalInfo: {
-        ...prev.personalInfo,
-        [name]: value,
-      },
-    }));
-  };
-
-  const handlePersonalChange = (e) => {
-    const { name, value, checked, type } = e.target;
-
-    if (name === "dob") {
-      updatePersonalInfo("dob", value);
-      updatePersonalInfo("age", calculateAge(value));
-      return;
-    }
-
-    if (name === "contactNumber") {
-      updatePersonalInfo(
-        "contactNumber",
-        value.replace(/\D/g, "").slice(0, 11)
-      );
-      return;
-    }
-
-    if (name === "noMiddleName") {
-      setFormData((prev) => ({
-        ...prev,
-        personalInfo: {
-          ...prev.personalInfo,
-          noMiddleName: checked,
-          middleName: checked ? "" : prev.personalInfo.middleName,
-        },
-      }));
-      return;
-    }
-
-    if (name === "hasEthnicGroup") {
-      setFormData((prev) => ({
-        ...prev,
-        personalInfo: {
-          ...prev.personalInfo,
-          hasEthnicGroup: checked,
-          ethnicGroup: checked ? prev.personalInfo.ethnicGroup : "",
-        },
-      }));
-      return;
-    }
-
-    if (name === "hasDisability") {
-      setFormData((prev) => ({
-        ...prev,
-        personalInfo: {
-          ...prev.personalInfo,
-          hasDisability: checked,
-          disability: checked ? prev.personalInfo.disability : "",
-        },
-      }));
-      return;
-    }
-
-    updatePersonalInfo(name, type === "checkbox" ? checked : value);
-  };
-
-  const updateArrayField = (section, listName, index, field, value) => {
-    setFormData((prev) => {
-      const updatedList = [...prev[section][listName]];
-
-      updatedList[index] = {
-        ...updatedList[index],
-        [field]: value,
-      };
-
-      return {
-        ...prev,
-        [section]: {
-          ...prev[section],
-          [listName]: updatedList,
-        },
-      };
-    });
-  };
-
-  const addRow = (section, listName, emptyRow) => {
-    setFormData((prev) => ({
-      ...prev,
-      [section]: {
-        ...prev[section],
-        [listName]: [...prev[section][listName], emptyRow],
-      },
-    }));
-  };
-
-  const removeRow = (section, listName) => {
-    setFormData((prev) => {
-      if (prev[section][listName].length <= 1) return prev;
-
-      return {
-        ...prev,
-        [section]: {
-          ...prev[section],
-          [listName]: prev[section][listName].slice(0, -1),
-        },
-      };
-    });
-  };
-
-  const handleJobPositionChange = (name, value) => {
-    setFormData((prev) => ({
-      ...prev,
-      jobPosition: {
-        ...prev.jobPosition,
-        [name]: value,
-        ...(name === "positionCategory" ? { positionType: "" } : {}),
-        files: {
-          ...defaultFiles,
-          ...(prev.jobPosition.files || {}),
-        },
-      },
-    }));
-  };
-
-  const handleFileChange = (field, file) => {
-    if (!file) return;
-
-    const safeFile = {
-      name: file.name,
-      size: file.size,
-      type: file.type,
-      lastModified: file.lastModified,
-    };
-
-    setFormData((prev) => ({
-      ...prev,
-      jobPosition: {
-        ...prev.jobPosition,
-        files: {
-          ...defaultFiles,
-          ...(prev.jobPosition.files || {}),
-          [field]: safeFile,
-        },
-      },
-    }));
-  };
-
-  const handleRemoveFile = (field) => {
-    setFormData((prev) => ({
-      ...prev,
-      jobPosition: {
-        ...prev.jobPosition,
-        files: {
-          ...defaultFiles,
-          ...(prev.jobPosition.files || {}),
-          [field]: null,
-        },
-      },
+      [section]: data,
     }));
   };
 
@@ -823,31 +248,16 @@ export default function ApplicantProfile() {
     setIsEditing(false);
   };
 
-  const handleSave = (e) => {
-    e.preventDefault();
-
+  const handleSave = () => {
     const finalProfile = {
       ...formData,
       personalInfo: {
         ...formData.personalInfo,
-        age: calculateAge(formData.personalInfo.dob),
-        middleName: formData.personalInfo.noMiddleName
-          ? ""
-          : formData.personalInfo.middleName,
-        nationalityInput:
-          formData.personalInfo.nationality === "Dual Citizen" ||
-          formData.personalInfo.nationality === "Others"
-            ? formData.personalInfo.nationalityInput
-            : "",
-        religionInput:
-          formData.personalInfo.religion === "Others"
-            ? formData.personalInfo.religionInput
-            : "",
-        ethnicGroup: formData.personalInfo.hasEthnicGroup
-          ? formData.personalInfo.ethnicGroup
+        soloParentIdNumber: formData.personalInfo.isSoloParent
+          ? formData.personalInfo.soloParentIdNumber
           : "",
-        disability: formData.personalInfo.hasDisability
-          ? formData.personalInfo.disability
+        pwdIdNumber: formData.personalInfo.isPwd
+          ? formData.personalInfo.pwdIdNumber
           : "",
       },
       jobPosition: {
@@ -874,9 +284,9 @@ export default function ApplicantProfile() {
       })
     );
 
-    const storedUser = getStoredUser();
+    const storedUser = getStoredUser?.();
 
-    if (storedUser) {
+    if (storedUser && storeUser) {
       storeUser({
         ...storedUser,
         firstName: finalProfile.personalInfo.firstName,
@@ -889,32 +299,32 @@ export default function ApplicantProfile() {
     setIsEditing(false);
   };
 
-  const handlePrintApplication = () => {
-    setActiveSection("review");
-
-    setTimeout(() => {
-      window.print();
-    }, 150);
+  const toggleApplicationDropdown = (applicationId) => {
+    setApplications((prev) =>
+      prev.map((application) =>
+        application.id === applicationId
+          ? { ...application, isOpen: !application.isOpen }
+          : { ...application, isOpen: false }
+      )
+    );
   };
 
-  const showAttachments =
-    currentData.jobPosition.positionCategory === "Non-Teaching"
-      ? currentData.jobPosition.positionType !== ""
-      : teacherPromotionPositions.includes(currentData.jobPosition.positionType);
-
-  const currentUploadRequirements =
-    currentData.jobPosition.positionCategory === "Non-Teaching"
-      ? nonTeachingUploadRequirements
-      : teacherUploadRequirements;
-
-  const uploadedCount = Object.values(currentData.jobPosition.files || {}).filter(
-    Boolean
-  ).length;
-
-  const currentSection = sections.find((section) => section.id === activeSection);
+  const withdrawApplication = (applicationId) => {
+    setApplications((prev) =>
+      prev.map((application) =>
+        application.id === applicationId
+          ? {
+              ...application,
+              status: "Withdrawn",
+              isOpen: false,
+            }
+          : application
+      )
+    );
+  };
 
   return (
-    <div className="min-h-screen bg-slate-50 pt-28 px-4 sm:px-6 lg:px-8 pb-10">
+    <div className="min-h-screen bg-slate-50 pt-24 px-4 pb-10 font-['Poppins']">
       <style>
         {`
           @media print {
@@ -922,19 +332,19 @@ export default function ApplicantProfile() {
               visibility: hidden;
             }
 
-            #application-print-section,
-            #application-print-section * {
+            #print-section,
+            #print-section * {
               visibility: visible;
             }
 
-            #application-print-section {
+            #print-section {
               position: absolute;
               left: 0;
               top: 0;
               width: 100%;
               padding: 24px;
-              color: black;
               background: white;
+              color: black;
             }
 
             .no-print {
@@ -944,906 +354,1868 @@ export default function ApplicantProfile() {
         `}
       </style>
 
-      <div className="max-w-7xl mx-auto space-y-6 no-print">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <Link
-            to="/applicantdashboard"
-            className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-900"
-          >
-            <ArrowLeft size={18} />
-            Back to Dashboard
-          </Link>
+      <div className="max-w-6xl mx-auto">
+        <Link
+          to="/applicantdashboard"
+          className="no-print inline-flex items-center text-xs font-semibold text-blue-700 hover:text-blue-900 mb-5"
+        >
+          ← Back to Dashboard
+        </Link>
 
-          <div className="flex items-center gap-2 rounded-full bg-white border border-slate-200 px-4 py-2 text-sm text-slate-600 shadow-sm">
-            <CheckCircle2 size={16} className="text-green-600" />
-            Profile completion:{" "}
-            <span className="font-bold text-slate-900">
-              {profileCompletion}%
-            </span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6 items-start">
-          <aside className="space-y-6 lg:sticky lg:top-28">
-            <div className="overflow-hidden rounded-3xl bg-white border border-slate-200 shadow-sm">
-              <div className="h-28 bg-gradient-to-r from-[#0056b3] to-[#003a78]" />
-
-              <div className="px-6 pb-6 -mt-12 text-center">
-                <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full border-4 border-white bg-white shadow-lg">
-                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-blue-100">
-                    <span className="text-2xl font-bold text-blue-800">
-                      {initials}
-                    </span>
-                  </div>
-                </div>
-
-                <h1 className="mt-4 text-xl font-bold text-slate-900">
-                  {fullName || "Applicant Profile"}
-                </h1>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  Profile and Application Form
-                </p>
-
-                <div className="mt-4 flex flex-col gap-2">
-                  <span className="inline-flex items-center justify-center gap-1 rounded-full bg-green-100 text-green-700 px-3 py-1 text-xs font-semibold">
-                    <ShieldCheck size={14} />
-                    {accountDetails.accountStatus}
-                  </span>
-
-                  <span className="inline-flex items-center justify-center gap-1 rounded-full bg-blue-100 text-blue-700 px-3 py-1 text-xs font-semibold">
-                    <IdCard size={14} />
-                    {accountDetails.applicantNumber}
-                  </span>
-                </div>
-
-                <div className="mt-5">
-                  {!isEditing ? (
-                    <button
-                      type="button"
-                      onClick={handleEdit}
-                      className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-white font-semibold hover:bg-blue-700 transition"
-                    >
-                      <Edit3 size={18} />
-                      Edit Application
-                    </button>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={handleCancel}
-                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-100 px-4 py-3 text-slate-700 font-semibold hover:bg-slate-200 transition"
-                      >
-                        <X size={17} />
-                        Cancel
-                      </button>
-
-                      <button
-                        type="submit"
-                        form="profileForm"
-                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-white font-semibold hover:bg-blue-700 transition"
-                      >
-                        <Save size={17} />
-                        Save
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-3xl bg-white border border-slate-200 p-5 shadow-sm">
-              <h2 className="text-sm font-bold text-blue-900 mb-4">
-                Quick Summary
-              </h2>
-
-              <div className="space-y-4">
-                <InfoItem
-                  icon={<Mail size={18} />}
-                  label="Email Address"
-                  value={personalInfo.emailAddress}
-                />
-
-                <InfoItem
-                  icon={<Phone size={18} />}
-                  label="Contact Number"
-                  value={personalInfo.contactNumber}
-                />
-
-                <InfoItem
-                  icon={<MapPin size={18} />}
-                  label="Address"
-                  value={personalInfo.address}
-                />
-
-                <InfoItem
-                  icon={<Briefcase size={18} />}
-                  label="Position"
-                  value={currentData.jobPosition.positionType}
-                />
-
-                <InfoItem
-                  icon={<FileText size={18} />}
-                  label="Uploaded Attachments"
-                  value={`${uploadedCount} file(s)`}
-                />
-              </div>
-            </div>
-
-            <div className="rounded-3xl bg-white border border-slate-200 p-3 shadow-sm">
-              <div className="space-y-1">
-                {sections.map((section) => (
-                  <button
-                    key={section.id}
-                    type="button"
-                    onClick={() => changeSection(section.id)}
-                    className={`w-full rounded-2xl px-4 py-3 text-left transition ${
-                      activeSection === section.id
-                        ? "bg-blue-600 text-white shadow-sm"
-                        : "text-slate-600 hover:bg-slate-100"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div>{section.icon}</div>
-
-                      <div>
-                        <p className="text-sm font-bold">{section.label}</p>
-                        <p
-                          className={`text-xs ${
-                            activeSection === section.id
-                              ? "text-blue-100"
-                              : "text-slate-400"
-                          }`}
-                        >
-                          {section.description}
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </aside>
-
-          <main className="min-w-0">
-            <form id="profileForm" onSubmit={handleSave}>
-              <div
-                ref={scrollContainerRef}
-                onWheel={handleFormScrollNavigation}
-                className="max-h-[calc(100vh-8rem)] overflow-y-auto pr-1 space-y-6 scroll-smooth"
-              >
-                <div className="rounded-3xl border border-slate-200 bg-white shadow-sm px-6 py-4">
-                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-100 text-blue-700">
-                        {currentSection?.icon}
-                      </div>
-
-                      <div>
-                        <h2 className="text-xl font-bold text-slate-900">
-                          {currentSection?.label}
-                        </h2>
-                        <p className="text-sm text-slate-500">
-                          {currentSection?.description}
-                        </p>
-                      </div>
-                    </div>
-
-                    {isEditing && activeSection !== "review" && (
-                      <div className="rounded-full bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-700">
-                        Editing mode is active
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-sm text-blue-800">
-                  Scroll to the bottom to continue to the next section. Scroll
-                  to the top to go back to the previous section.
-                </div>
-
-                {activeSection === "personal" && (
-                  <SectionCard
-                    icon={<User size={22} />}
-                    title="Personal Information"
-                    description="This information is used to prefill your application form."
-                  >
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
-                      <Field label="First Name">
-                        {isEditing ? (
-                          <input
-                            name="firstName"
-                            value={personalInfo.firstName}
-                            onChange={handlePersonalChange}
-                            className={inputClass}
-                          />
-                        ) : (
-                          <DisplayValue value={personalInfo.firstName} />
-                        )}
-                      </Field>
-
-                      <Field label="Middle Name">
-                        {isEditing ? (
-                          <>
-                            <input
-                              name="middleName"
-                              value={personalInfo.middleName}
-                              onChange={handlePersonalChange}
-                              disabled={personalInfo.noMiddleName}
-                              className={inputClass}
-                            />
-
-                            <label className="mt-2 inline-flex items-center gap-2 text-xs text-slate-600">
-                              <input
-                                type="checkbox"
-                                name="noMiddleName"
-                                checked={personalInfo.noMiddleName}
-                                onChange={handlePersonalChange}
-                              />
-                              I don&apos;t have a middle name
-                            </label>
-                          </>
-                        ) : (
-                          <DisplayValue
-                            value={
-                              personalInfo.noMiddleName
-                                ? "No middle name"
-                                : personalInfo.middleName
-                            }
-                          />
-                        )}
-                      </Field>
-
-                      <Field label="Last Name">
-                        {isEditing ? (
-                          <input
-                            name="lastName"
-                            value={personalInfo.lastName}
-                            onChange={handlePersonalChange}
-                            className={inputClass}
-                          />
-                        ) : (
-                          <DisplayValue value={personalInfo.lastName} />
-                        )}
-                      </Field>
-
-                      <Field label="Suffix">
-                        {isEditing ? (
-                          <select
-                            name="suffix"
-                            value={personalInfo.suffix}
-                            onChange={handlePersonalChange}
-                            className={inputClass}
-                          >
-                            <option value="">Not Applicable</option>
-                            {suffixOptions.map((suffix) => (
-                              <option key={suffix} value={suffix}>
-                                {suffix}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <DisplayValue value={personalInfo.suffix} />
-                        )}
-                      </Field>
-
-                      <Field label="Address" className="md:col-span-4">
-                        {isEditing ? (
-                          <input
-                            name="address"
-                            value={personalInfo.address}
-                            onChange={handlePersonalChange}
-                            className={inputClass}
-                          />
-                        ) : (
-                          <DisplayValue value={personalInfo.address} />
-                        )}
-                      </Field>
-
-                      <Field label="Contact Number">
-                        {isEditing ? (
-                          <input
-                            name="contactNumber"
-                            value={personalInfo.contactNumber}
-                            onChange={handlePersonalChange}
-                            maxLength={11}
-                            placeholder="09XXXXXXXXX"
-                            className={inputClass}
-                          />
-                        ) : (
-                          <DisplayValue value={personalInfo.contactNumber} />
-                        )}
-                      </Field>
-
-                      <Field label="Email Address">
-                        {isEditing ? (
-                          <input
-                            type="email"
-                            name="emailAddress"
-                            value={personalInfo.emailAddress}
-                            onChange={handlePersonalChange}
-                            className={inputClass}
-                          />
-                        ) : (
-                          <DisplayValue value={personalInfo.emailAddress} />
-                        )}
-                      </Field>
-
-                      <Field label="Date of Birth">
-                        {isEditing ? (
-                          <input
-                            type="date"
-                            name="dob"
-                            value={personalInfo.dob}
-                            onChange={handlePersonalChange}
-                            max={new Date().toISOString().split("T")[0]}
-                            className={inputClass}
-                          />
-                        ) : (
-                          <DisplayValue value={personalInfo.dob} />
-                        )}
-                      </Field>
-
-                      <Field label="Age">
-                        <DisplayValue value={personalInfo.age} />
-                      </Field>
-
-                      <Field label="Sex">
-                        {isEditing ? (
-                          <select
-                            name="sex"
-                            value={personalInfo.sex}
-                            onChange={handlePersonalChange}
-                            className={inputClass}
-                          >
-                            <option value="">Select</option>
-                            <option value="male">Male</option>
-                            <option value="female">Female</option>
-                          </select>
-                        ) : (
-                          <DisplayValue value={personalInfo.sex} capitalize />
-                        )}
-                      </Field>
-
-                      <Field label="Civil Status">
-                        {isEditing ? (
-                          <select
-                            name="civilStatus"
-                            value={personalInfo.civilStatus}
-                            onChange={handlePersonalChange}
-                            className={inputClass}
-                          >
-                            <option value="">Select</option>
-                            <option value="single">Single</option>
-                            <option value="married">Married</option>
-                            <option value="widowed">Widowed</option>
-                            <option value="separated">Separated</option>
-                            <option value="divorced">Divorced</option>
-                          </select>
-                        ) : (
-                          <DisplayValue
-                            value={personalInfo.civilStatus}
-                            capitalize
-                          />
-                        )}
-                      </Field>
-
-                      <Field label="Nationality">
-                        {isEditing ? (
-                          <>
-                            <select
-                              name="nationality"
-                              value={personalInfo.nationality}
-                              onChange={handlePersonalChange}
-                              className={inputClass}
-                            >
-                              <option value="">Select</option>
-                              <option value="Filipino">Filipino</option>
-                              <option value="Dual Citizen">Dual Citizen</option>
-                              <option value="Others">Others</option>
-                            </select>
-
-                            {(personalInfo.nationality === "Dual Citizen" ||
-                              personalInfo.nationality === "Others") && (
-                              <input
-                                name="nationalityInput"
-                                value={personalInfo.nationalityInput}
-                                onChange={handlePersonalChange}
-                                placeholder="Specify nationality"
-                                className={inputClass}
-                              />
-                            )}
-                          </>
-                        ) : (
-                          <DisplayValue
-                            value={
-                              personalInfo.nationalityInput ||
-                              personalInfo.nationality
-                            }
-                          />
-                        )}
-                      </Field>
-
-                      <Field label="Religion">
-                        {isEditing ? (
-                          <>
-                            <select
-                              name="religion"
-                              value={personalInfo.religion}
-                              onChange={handlePersonalChange}
-                              className={inputClass}
-                            >
-                              <option value="">Select</option>
-                              {religionOptions.map((religion) => (
-                                <option key={religion} value={religion}>
-                                  {religion}
-                                </option>
-                              ))}
-                            </select>
-
-                            {personalInfo.religion === "Others" && (
-                              <input
-                                name="religionInput"
-                                value={personalInfo.religionInput}
-                                onChange={handlePersonalChange}
-                                placeholder="Specify religion"
-                                className={inputClass}
-                              />
-                            )}
-                          </>
-                        ) : (
-                          <DisplayValue
-                            value={
-                              personalInfo.religionInput ||
-                              personalInfo.religion
-                            }
-                          />
-                        )}
-                      </Field>
-
-                      <Field label="Ethnic Group">
-                        {isEditing ? (
-                          <>
-                            <label className="inline-flex items-center gap-2 text-sm text-slate-600">
-                              <input
-                                type="checkbox"
-                                name="hasEthnicGroup"
-                                checked={personalInfo.hasEthnicGroup}
-                                onChange={handlePersonalChange}
-                              />
-                              Do you belong to an ethnic group?
-                            </label>
-
-                            {personalInfo.hasEthnicGroup && (
-                              <select
-                                name="ethnicGroup"
-                                value={personalInfo.ethnicGroup}
-                                onChange={handlePersonalChange}
-                                className={inputClass}
-                              >
-                                <option value="">Select ethnic group</option>
-                                {ethnicGroupOptions.map((group) => (
-                                  <option key={group} value={group}>
-                                    {group}
-                                  </option>
-                                ))}
-                              </select>
-                            )}
-                          </>
-                        ) : (
-                          <DisplayValue value={personalInfo.ethnicGroup} />
-                        )}
-                      </Field>
-
-                      <Field label="Disability">
-                        {isEditing ? (
-                          <>
-                            <label className="inline-flex items-center gap-2 text-sm text-slate-600">
-                              <input
-                                type="checkbox"
-                                name="hasDisability"
-                                checked={personalInfo.hasDisability}
-                                onChange={handlePersonalChange}
-                              />
-                              Do you have a disability?
-                            </label>
-
-                            {personalInfo.hasDisability && (
-                              <input
-                                name="disability"
-                                value={personalInfo.disability}
-                                onChange={handlePersonalChange}
-                                placeholder="Specify disability"
-                                className={inputClass}
-                              />
-                            )}
-                          </>
-                        ) : (
-                          <DisplayValue value={personalInfo.disability} />
-                        )}
-                      </Field>
-                    </div>
-                  </SectionCard>
-                )}
-
-                {activeSection === "education" && (
-                  <SectionCard
-                    icon={<GraduationCap size={22} />}
-                    title="Educational Background"
-                    description="Bachelor's and post-graduate information from your application form."
-                  >
-                    <EditableTableSection
-                      title="Bachelor's Degree"
-                      isEditing={isEditing}
-                      rows={currentData.educationalBackground.bachelors}
-                      fields={[
-                        { key: "school", label: "School" },
-                        { key: "course", label: "Course" },
-                        { key: "year", label: "Year", type: "number" },
-                        { key: "award", label: "Award" },
-                      ]}
-                      onChange={(index, field, value) =>
-                        updateArrayField(
-                          "educationalBackground",
-                          "bachelors",
-                          index,
-                          field,
-                          value
-                        )
-                      }
-                      onAdd={() =>
-                        addRow("educationalBackground", "bachelors", {
-                          school: "",
-                          course: "",
-                          year: "",
-                          award: "",
-                        })
-                      }
-                      onRemove={() =>
-                        removeRow("educationalBackground", "bachelors")
-                      }
-                    />
-
-                    <EditableTableSection
-                      title="Post Graduate Degree"
-                      isEditing={isEditing}
-                      rows={currentData.educationalBackground.postGraduate}
-                      fields={[
-                        { key: "school", label: "School" },
-                        { key: "course", label: "Course" },
-                        { key: "year", label: "Year", type: "number" },
-                        { key: "award", label: "Award" },
-                      ]}
-                      onChange={(index, field, value) =>
-                        updateArrayField(
-                          "educationalBackground",
-                          "postGraduate",
-                          index,
-                          field,
-                          value
-                        )
-                      }
-                      onAdd={() =>
-                        addRow("educationalBackground", "postGraduate", {
-                          school: "",
-                          course: "",
-                          year: "",
-                          award: "",
-                        })
-                      }
-                      onRemove={() =>
-                        removeRow("educationalBackground", "postGraduate")
-                      }
-                    />
-                  </SectionCard>
-                )}
-
-                {activeSection === "eligibility" && (
-                  <SectionCard
-                    icon={<IdCard size={22} />}
-                    title="Eligibility and Work Experience"
-                    description="Eligibility and work experience details used in your application."
-                  >
-                    <EditableTableSection
-                      title="Eligibility"
-                      isEditing={isEditing}
-                      rows={currentData.eligibility.eligibilities}
-                      fields={[
-                        { key: "type", label: "Type" },
-                        { key: "rating", label: "Rating" },
-                        { key: "examDate", label: "Exam Date", type: "date" },
-                        { key: "licenseNumber", label: "License Number" },
-                        {
-                          key: "validUntil",
-                          label: "Valid Until",
-                          type: "date",
-                        },
-                      ]}
-                      onChange={(index, field, value) =>
-                        updateArrayField(
-                          "eligibility",
-                          "eligibilities",
-                          index,
-                          field,
-                          value
-                        )
-                      }
-                      onAdd={() =>
-                        addRow("eligibility", "eligibilities", {
-                          type: "",
-                          rating: "",
-                          examDate: "",
-                          licenseNumber: "",
-                          validUntil: "",
-                        })
-                      }
-                      onRemove={() =>
-                        removeRow("eligibility", "eligibilities")
-                      }
-                    />
-
-                    <EditableTableSection
-                      title="Work Experience"
-                      isEditing={isEditing}
-                      rows={currentData.eligibility.workExperiences}
-                      fields={[
-                        { key: "position", label: "Position" },
-                        { key: "agency", label: "Agency" },
-                        { key: "status", label: "Status" },
-                        { key: "from", label: "From", type: "month" },
-                        { key: "toYear", label: "To / Present" },
-                      ]}
-                      onChange={(index, field, value) =>
-                        updateArrayField(
-                          "eligibility",
-                          "workExperiences",
-                          index,
-                          field,
-                          value
-                        )
-                      }
-                      onAdd={() =>
-                        addRow("eligibility", "workExperiences", {
-                          position: "",
-                          agency: "",
-                          status: "",
-                          from: "",
-                          toYear: "",
-                        })
-                      }
-                      onRemove={() =>
-                        removeRow("eligibility", "workExperiences")
-                      }
-                    />
-                  </SectionCard>
-                )}
-
-                {activeSection === "learning" && (
-                  <SectionCard
-                    icon={<CalendarDays size={22} />}
-                    title="Learning and Development"
-                    description="Training and seminar records from your application form."
-                  >
-                    <EditableTableSection
-                      title="Trainings"
-                      isEditing={isEditing}
-                      rows={currentData.learningDevelopment.trainings}
-                      fields={[
-                        { key: "title", label: "Title" },
-                        { key: "fromDate", label: "From Date", type: "date" },
-                        { key: "toDate", label: "To Date", type: "date" },
-                        { key: "hours", label: "Hours", type: "number" },
-                        {
-                          key: "conductedBy",
-                          label: "Conducted / Sponsored By",
-                        },
-                      ]}
-                      onChange={(index, field, value) =>
-                        updateArrayField(
-                          "learningDevelopment",
-                          "trainings",
-                          index,
-                          field,
-                          value
-                        )
-                      }
-                      onAdd={() =>
-                        addRow("learningDevelopment", "trainings", {
-                          title: "",
-                          fromDate: "",
-                          toDate: "",
-                          hours: "",
-                          conductedBy: "",
-                        })
-                      }
-                      onRemove={() =>
-                        removeRow("learningDevelopment", "trainings")
-                      }
-                    />
-                  </SectionCard>
-                )}
-
-                {activeSection === "job" && (
-                  <SectionCard
-                    icon={<Briefcase size={22} />}
-                    title="Job Position and Attachments"
-                    description="Preferred job position and required supporting documents."
-                  >
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      <Field label="Position Applied For">
-                        {isEditing ? (
-                          <select
-                            value={formData.jobPosition.positionCategory}
-                            onChange={(e) =>
-                              handleJobPositionChange(
-                                "positionCategory",
-                                e.target.value
-                              )
-                            }
-                            className={inputClass}
-                          >
-                            <option value="">Select position type</option>
-                            <option value="Teaching">Teaching</option>
-                            <option value="Non-Teaching">Non-Teaching</option>
-                          </select>
-                        ) : (
-                          <DisplayValue
-                            value={profile.jobPosition.positionCategory}
-                          />
-                        )}
-                      </Field>
-
-                      <Field label="Position">
-                        {isEditing ? (
-                          <select
-                            value={formData.jobPosition.positionType}
-                            onChange={(e) =>
-                              handleJobPositionChange(
-                                "positionType",
-                                e.target.value
-                              )
-                            }
-                            className={inputClass}
-                            disabled={!formData.jobPosition.positionCategory}
-                          >
-                            <option value="">Select position</option>
-
-                            {(formData.jobPosition.positionCategory ===
-                            "Teaching"
-                              ? teachingPositions
-                              : nonTeachingPositions
-                            ).map((position) => (
-                              <option key={position} value={position}>
-                                {position}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <DisplayValue
-                            value={profile.jobPosition.positionType}
-                          />
-                        )}
-                      </Field>
-                    </div>
-
-                    {currentData.jobPosition.positionType === "Teacher I" && (
-                      <div className="mt-6 rounded-2xl border border-blue-200 bg-blue-50 p-5 text-sm text-slate-700">
-                        <p className="font-semibold text-blue-800">
-                          If you are applying for Teacher I, you are required to
-                          personally submit the hard copies of your attachments
-                          to the Human Resource Office.
-                        </p>
-
-                        <ol className="mt-4 list-decimal pl-5 space-y-2">
-                          <li>
-                            Unique Application Number generated after
-                            submission.
-                          </li>
-                          <li>Letter of intent addressed to the SDS.</li>
-                          <li>Fully accomplished Personal Data Sheet.</li>
-                          <li>
-                            Photocopy of Voter&apos;s ID or proof of residency.
-                          </li>
-                          <li>Photocopy of valid and updated PRC License/ID.</li>
-                          <li>Photocopy of Certificate of Board Rating.</li>
-                          <li>Photocopy of TOR and Diploma.</li>
-                          <li>Service Record or Certificate of Employment.</li>
-                          <li>Latest appointment, if applicable.</li>
-                          <li>Relevant trainings, if any.</li>
-                          <li>TESDA NC II or TMC, if applicable.</li>
-                          <li>Required Performance Ratings.</li>
-                          <li>
-                            Checklist, Omnibus, CAV, and Data Privacy Consent.
-                          </li>
-                          <li>Other HRMPSB requirements.</li>
-                        </ol>
-                      </div>
-                    )}
-
-                    {showAttachments && (
-                      <div className="mt-8 space-y-4">
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                          <div>
-                            <h3 className="text-sm font-bold uppercase tracking-wide text-slate-700">
-                              Attachments / Requirements
-                            </h3>
-                            <p className="text-sm text-slate-500 mt-1">
-                              Upload or review your supporting documents for the
-                              selected position.
-                            </p>
-                          </div>
-
-                          <div className="rounded-full bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-700">
-                            {uploadedCount} uploaded
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {currentUploadRequirements.map((requirement) => (
-                            <ProfileFileUpload
-                              key={requirement.field}
-                              label={requirement.label}
-                              description={requirement.description}
-                              field={requirement.field}
-                              file={
-                                currentData.jobPosition.files?.[
-                                  requirement.field
-                                ]
-                              }
-                              isEditing={isEditing}
-                              onFileChange={handleFileChange}
-                              onRemoveFile={handleRemoveFile}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {!showAttachments &&
-                      currentData.jobPosition.positionType &&
-                      currentData.jobPosition.positionType !== "Teacher I" && (
-                        <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">
-                          No attachment upload is required for this selected
-                          position.
-                        </div>
-                      )}
-                  </SectionCard>
-                )}
-
-                {activeSection === "review" && (
-                  <ApplicationReview
-                    data={currentData}
-                    uploadedCount={uploadedCount}
-                    onPrint={handlePrintApplication}
-                  />
-                )}
-
-                <div className="pb-2" />
-              </div>
-            </form>
-          </main>
-        </div>
-      </div>
-
-      <div className="hidden print:block">
-        <ApplicationReview
-          data={currentData}
-          uploadedCount={uploadedCount}
-          onPrint={handlePrintApplication}
-          printOnly
+        <ProfileHeader
+          initials={initials}
+          fullName={fullName || "Raymond S Bautista"}
+          status={profile.accountDetails.accountStatus}
+          applicantNumber={profile.accountDetails.applicantNumber}
         />
+
+        <div className="no-print mx-auto mt-6 grid max-w-6xl grid-cols-2 gap-4 rounded-2xl bg-white p-2 shadow-sm ring-1 ring-slate-200">
+          <button
+            type="button"
+            onClick={() => setActiveTab("application")}
+            className={`rounded-xl py-3 text-base font-semibold transition ${
+              activeTab === "application"
+                ? "bg-[#0056b3] text-white shadow-md"
+                : "bg-transparent text-slate-700 hover:bg-slate-100"
+            }`}
+          >
+            My Application
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("information")}
+            className={`rounded-xl py-3 text-base font-semibold transition ${
+              activeTab === "information"
+                ? "bg-[#0056b3] text-white shadow-md"
+                : "bg-transparent text-slate-700 hover:bg-slate-100"
+            }`}
+          >
+            My Information
+          </button>
+        </div>
+
+        {activeTab === "application" && (
+          <ApplicationList
+            applications={applications}
+            toggleApplicationDropdown={toggleApplicationDropdown}
+            withdrawApplication={withdrawApplication}
+          />
+        )}
+
+        {activeTab === "information" && (
+          <div className="mt-5 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 md:p-8">
+            <div className="no-print mb-5 flex justify-end">
+              {!isEditing ? (
+                <button
+                  type="button"
+                  onClick={handleEdit}
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#0056b3] px-7 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
+                >
+                  <Edit3 size={16} />
+                  Update
+                </button>
+              ) : (
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-200"
+                  >
+                    <X size={16} />
+                    Cancel
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    className="inline-flex items-center gap-2 rounded-xl bg-[#0056b3] px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+                  >
+                    <Save size={16} />
+                    Save
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 gap-8 lg:grid-cols-[300px_1fr]">
+              <VerticalStepper
+                steps={steps}
+                currentStep={currentStep}
+                setCurrentStep={setCurrentStep}
+              />
+
+              <div className="min-h-[540px] rounded-2xl bg-slate-50 p-6 ring-1 ring-slate-200 md:p-10">
+                <h2 className="mb-8 text-2xl font-bold uppercase tracking-tight text-[#003a78] md:text-3xl">
+                  {steps.find((s) => s.id === currentStep)?.title}
+                </h2>
+
+                <RenderStepContent
+                  currentStep={currentStep}
+                  setCurrentStep={setCurrentStep}
+                  formData={formData}
+                  updateFormData={updateFormData}
+                  isEditing={isEditing}
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function ApplicationReview({ data, uploadedCount, onPrint, printOnly = false }) {
-  const personalInfo = data.personalInfo || {};
-  const education = data.educationalBackground || {};
-  const eligibility = data.eligibility || {};
-  const learningDevelopment = data.learningDevelopment || {};
-  const jobPosition = data.jobPosition || {};
-  const accountDetails = data.accountDetails || {};
+function RenderStepContent({
+  currentStep,
+  setCurrentStep,
+  formData,
+  updateFormData,
+  isEditing,
+}) {
+  switch (currentStep) {
+    case 1:
+      return (
+        <PersonalInfo
+          data={formData.personalInfo}
+          disabled={!isEditing}
+          onChange={(data) => updateFormData("personalInfo", data)}
+          onNext={(data) => {
+            updateFormData("personalInfo", data);
+            setCurrentStep(2);
+          }}
+        />
+      );
+
+    case 2:
+      return (
+        <EducationalBackground
+          data={formData.educationalBackground}
+          disabled={!isEditing}
+          onChange={(data) => updateFormData("educationalBackground", data)}
+          onBack={() => setCurrentStep(1)}
+          onNext={(data) => {
+            updateFormData("educationalBackground", data);
+            setCurrentStep(3);
+          }}
+        />
+      );
+
+    case 3:
+      return (
+        <Eligibility
+          data={formData.eligibility}
+          disabled={!isEditing}
+          onChange={(data) => updateFormData("eligibility", data)}
+          onBack={() => setCurrentStep(2)}
+          onNext={(data) => {
+            updateFormData("eligibility", data);
+            setCurrentStep(4);
+          }}
+        />
+      );
+
+    case 4:
+      return (
+        <LearningDevelopment
+          data={formData.learningDevelopment}
+          disabled={!isEditing}
+          onChange={(data) => updateFormData("learningDevelopment", data)}
+          onBack={() => setCurrentStep(3)}
+          onNext={(data) => {
+            updateFormData("learningDevelopment", data);
+            setCurrentStep(5);
+          }}
+        />
+      );
+
+    case 5:
+      return (
+        <Attachment
+          data={formData.jobPosition}
+          disabled={!isEditing}
+          onChange={(data) => updateFormData("jobPosition", data)}
+          onBack={() => setCurrentStep(4)}
+          onNext={(data) => {
+            updateFormData("jobPosition", data);
+            setCurrentStep(6);
+          }}
+        />
+      );
+
+    case 6:
+      return (
+        <Review
+          data={formData}
+          onBack={() => setCurrentStep(5)}
+          onSubmit={(applicationData) => {
+            console.log("Application submitted:", applicationData);
+          }}
+        />
+      );
+
+    default:
+      return null;
+  }
+}
+
+function ProfileHeader({ initials, fullName, status, applicantNumber }) {
+  return (
+    <div className="mx-auto w-full max-w-6xl overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
+      <div className="relative min-h-[150px] bg-gradient-to-r from-[#0056b3] via-[#0056b3] to-[#003a78] px-6 py-6 md:px-10">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.22),transparent_35%)]" />
+
+        <div className="relative flex flex-col items-center gap-5 text-center md:flex-row md:text-left">
+          <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full border-[6px] border-white bg-blue-100 shadow-lg">
+            <span className="text-xl font-extrabold text-blue-700">
+              {initials}
+            </span>
+          </div>
+
+          <div className="min-w-0 flex-1 text-white">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/75">
+              Applicant Profile
+            </p>
+
+            <h1 className="mt-2 text-2xl font-extrabold md:text-3xl">
+              {fullName}
+            </h1>
+
+            <p className="mt-1 text-sm text-white/80">
+              Profile and Application Form
+            </p>
+          </div>
+
+          <div className="grid w-full max-w-sm gap-2 md:w-72">
+            <div className="rounded-full bg-white/95 px-4 py-2 text-center text-xs font-bold text-green-700 shadow-sm">
+              {status}
+            </div>
+
+            <div className="rounded-full bg-white/95 px-4 py-2 text-center text-xs font-bold text-blue-700 shadow-sm">
+              {applicantNumber}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ApplicationList({
+  applications,
+  toggleApplicationDropdown,
+  withdrawApplication,
+}) {
+  return (
+    <div className="mt-5 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        {applications.map((application) => (
+          <div
+            key={application.id}
+            className="relative grid grid-cols-1 border-b border-slate-200 px-5 py-5 last:border-b-0 md:grid-cols-[1fr_280px]"
+          >
+            <div>
+              <h3 className="text-lg font-semibold text-slate-800">
+                {application.position}
+              </h3>
+
+              <p className="mt-1 text-sm text-slate-500">
+                {application.location} • {application.dateApplied}
+              </p>
+            </div>
+
+            <div className="mt-4 md:mt-0">
+              <p className="text-sm font-semibold text-slate-600">Status</p>
+
+              <button
+                type="button"
+                onClick={() => toggleApplicationDropdown(application.id)}
+                className="mt-1 flex w-full items-center justify-between rounded-xl bg-slate-50 px-4 py-2.5 text-left text-base font-semibold text-slate-700 hover:bg-slate-100"
+              >
+                {application.status}
+                <ChevronDown size={18} />
+              </button>
+
+              {application.isOpen && (
+                <div className="absolute right-5 top-24 z-20 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+                  <button
+                    type="button"
+                    onClick={() => withdrawApplication(application.id)}
+                    className="w-full px-4 py-3 text-left text-slate-700 hover:bg-slate-100"
+                  >
+                    Withdraw Application
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function VerticalStepper({ steps, currentStep, setCurrentStep }) {
+  return (
+    <div className="hidden lg:block">
+      <div className="rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-200">
+        <div className="relative">
+          <div className="absolute bottom-6 left-5 top-6 w-px bg-slate-300" />
+
+          <div className="space-y-4">
+            {steps.map((step) => {
+              const isDone = currentStep > step.id;
+              const isActive = currentStep === step.id;
+
+              return (
+                <button
+                  key={step.id}
+                  type="button"
+                  onClick={() => setCurrentStep(step.id)}
+                  className={`relative flex w-full items-center gap-4 rounded-xl px-3 py-3 text-left transition ${
+                    isActive
+                      ? "bg-white shadow-sm ring-1 ring-blue-200"
+                      : "hover:bg-white"
+                  }`}
+                >
+                  <span
+                    className={`z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold transition ${
+                      isDone
+                        ? "border-green-500 bg-green-500 text-white"
+                        : isActive
+                        ? "border-[#0056b3] bg-[#0056b3] text-white"
+                        : "border-slate-300 bg-slate-50 text-slate-500"
+                    }`}
+                  >
+                    {isDone ? <CheckCircle2 size={20} /> : step.id}
+                  </span>
+
+                  <span className="min-w-0">
+                    <span
+                      className={`block text-sm font-extrabold uppercase leading-snug ${
+                        isActive
+                          ? "text-[#003a78]"
+                          : isDone
+                          ? "text-slate-800"
+                          : "text-slate-500"
+                      }`}
+                    >
+                      {step.title}
+                    </span>
+
+                    <span
+                      className={`mt-1 block text-xs ${
+                        isActive ? "text-blue-600" : "text-slate-400"
+                      }`}
+                    >
+                      Step {step.id} of {steps.length}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-2xl bg-blue-50 p-4 text-xs font-medium leading-5 text-blue-800 ring-1 ring-blue-100">
+        Click any step to preview or update that section.
+      </div>
+    </div>
+  );
+}
+
+function mergeProfile(baseProfile, parsedProfile) {
+  return {
+    ...baseProfile,
+    ...parsedProfile,
+    personalInfo: {
+      ...baseProfile.personalInfo,
+      ...parsedProfile.personalInfo,
+    },
+    educationalBackground: {
+      ...baseProfile.educationalBackground,
+      ...parsedProfile.educationalBackground,
+    },
+    eligibility: {
+      ...baseProfile.eligibility,
+      ...parsedProfile.eligibility,
+    },
+    learningDevelopment: {
+      ...baseProfile.learningDevelopment,
+      ...parsedProfile.learningDevelopment,
+    },
+    jobPosition: {
+      ...baseProfile.jobPosition,
+      ...parsedProfile.jobPosition,
+      files: {
+        ...defaultFiles,
+        ...(parsedProfile.jobPosition?.files || {}),
+      },
+    },
+    accountDetails: {
+      ...baseProfile.accountDetails,
+      ...parsedProfile.accountDetails,
+    },
+  };
+}
+
+/* ================= PERSONAL INFO ================= */
+
+function PersonalInfo({ data = {}, onChange, onNext, disabled = false }) {
+  const [errors, setErrors] = useState({});
+  const [personal, setPersonal] = useState({
+    firstName: data.firstName || "",
+    noMiddleName: data.noMiddleName ?? false,
+    middleName: data.middleName || "",
+    lastName: data.lastName || "",
+    suffix: data.suffix || "",
+    address: data.address || "",
+    contactNumber: data.contactNumber || "",
+    emailAddress: data.emailAddress || "",
+    dob: data.dob || "",
+    age: data.age || "",
+    sex: data.sex || "",
+    civilStatus: data.civilStatus || "",
+    nationality: data.nationality || "",
+    nationalityInput: data.nationalityInput || "",
+    religion: data.religion || "",
+    religionInput: data.religionInput || "",
+    hasEthnicGroup: data.hasEthnicGroup ?? false,
+    ethnicGroup: data.ethnicGroup || "",
+    hasDisability: data.hasDisability ?? false,
+    disability: data.disability || "",
+    isSoloParent: data.isSoloParent ?? false,
+    soloParentIdNumber: data.soloParentIdNumber || "",
+    isPwd: data.isPwd ?? false,
+    pwdIdNumber: data.pwdIdNumber || "",
+  });
+
+  useEffect(() => {
+    setPersonal({
+      firstName: data.firstName || "",
+      noMiddleName: data.noMiddleName ?? false,
+      middleName: data.middleName || "",
+      lastName: data.lastName || "",
+      suffix: data.suffix || "",
+      address: data.address || "",
+      contactNumber: data.contactNumber || "",
+      emailAddress: data.emailAddress || "",
+      dob: data.dob || "",
+      age: data.age || "",
+      sex: data.sex || "",
+      civilStatus: data.civilStatus || "",
+      nationality: data.nationality || "",
+      nationalityInput: data.nationalityInput || "",
+      religion: data.religion || "",
+      religionInput: data.religionInput || "",
+      hasEthnicGroup: data.hasEthnicGroup ?? false,
+      ethnicGroup: data.ethnicGroup || "",
+      hasDisability: data.hasDisability ?? false,
+      disability: data.disability || "",
+      isSoloParent: data.isSoloParent ?? false,
+      soloParentIdNumber: data.soloParentIdNumber || "",
+      isPwd: data.isPwd ?? false,
+      pwdIdNumber: data.pwdIdNumber || "",
+    });
+  }, [data]);
+
+  const suffixOptions = ["Jr.", "Sr.", "II", "III", "IV", "V", "VI"];
+  const religionOptions = [
+    "Roman Catholic",
+    "Christian",
+    "Islam",
+    "Iglesia ni Cristo",
+    "Protestant",
+    "Born Again Christian",
+    "Seventh-day Adventist",
+    "Jehovah's Witness",
+    "Buddhism",
+    "Hinduism",
+    "Aglipayan",
+    "None",
+    "Others",
+  ];
+  const ethnicGroupOptions = [
+    "Aeta",
+    "Agta",
+    "Bajau",
+    "Bicolano",
+    "Bisaya",
+    "Cebuano",
+    "Chavacano",
+    "Hiligaynon",
+    "Ifugao",
+    "Igorot",
+    "Ilocano",
+    "Ivatan",
+    "Kapampangan",
+    "Lumad",
+    "Maguindanaon",
+    "Maranao",
+    "Pangasinense",
+    "Sama",
+    "Tagalog",
+    "Tausug",
+    "Waray",
+    "Yakan",
+  ];
+
+  const calculateAge = (birthDate) => {
+    if (!birthDate) return "";
+
+    const today = new Date();
+    const birth = new Date(birthDate);
+
+    let computedAge = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+
+    if (
+      monthDiff < 0 ||
+      (monthDiff === 0 && today.getDate() < birth.getDate())
+    ) {
+      computedAge--;
+    }
+
+    return computedAge;
+  };
+
+  const updateField = (field, value) => {
+    const updated = {
+      ...personal,
+      [field]: value,
+    };
+
+    if (field === "dob") {
+      updated.age = calculateAge(value);
+    }
+
+    if (field === "contactNumber") {
+      updated.contactNumber = value.replace(/\D/g, "").slice(0, 11);
+    }
+
+    if (field === "noMiddleName") {
+      updated.middleName = value ? "" : personal.middleName;
+    }
+
+    if (field === "hasEthnicGroup" && !value) {
+      updated.ethnicGroup = "";
+    }
+
+    if (field === "hasDisability" && !value) {
+      updated.disability = "";
+    }
+
+    if (field === "isSoloParent" && !value) {
+      updated.soloParentIdNumber = "";
+    }
+
+    if (field === "isPwd" && !value) {
+      updated.pwdIdNumber = "";
+    }
+
+    setPersonal(updated);
+    onChange?.(updated);
+
+    if (errors[field]) {
+      setErrors((prev) => ({ ...prev, [field]: "" }));
+    }
+
+    if (field === "isSoloParent" && errors.soloParentIdNumber) {
+      setErrors((prev) => ({ ...prev, soloParentIdNumber: "" }));
+    }
+
+    if (field === "isPwd" && errors.pwdIdNumber) {
+      setErrors((prev) => ({ ...prev, pwdIdNumber: "" }));
+    }
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+
+    if (!personal.firstName.trim()) newErrors.firstName = "First name required";
+    if (!personal.noMiddleName && !personal.middleName.trim()) {
+      newErrors.middleName = "Middle name required";
+    }
+    if (!personal.lastName.trim()) newErrors.lastName = "Last name required";
+    if (!personal.address.trim()) newErrors.address = "Address required";
+
+    if (!personal.contactNumber.trim()) {
+      newErrors.contactNumber = "Contact number required";
+    } else if (!/^09\d{9}$/.test(personal.contactNumber)) {
+      newErrors.contactNumber = "Must start with 09 and be 11 digits";
+    }
+
+    if (!personal.emailAddress.trim()) {
+      newErrors.emailAddress = "Email required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(personal.emailAddress)) {
+      newErrors.emailAddress = "Invalid email";
+    }
+
+    if (!personal.dob) newErrors.dob = "Date of birth required";
+    if (!personal.sex) newErrors.sex = "Sex required";
+    if (!personal.civilStatus) newErrors.civilStatus = "Civil status required";
+    if (!personal.nationality) newErrors.nationality = "Nationality required";
+    if (!personal.religion) newErrors.religion = "Religion required";
+
+    if (personal.isSoloParent && !personal.soloParentIdNumber.trim()) {
+      newErrors.soloParentIdNumber = "Solo Parent ID number required";
+    }
+
+    if (personal.isPwd && !personal.pwdIdNumber.trim()) {
+      newErrors.pwdIdNumber = "PWD ID number required";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleNext = (e) => {
+    e.preventDefault();
+
+    if (!disabled && !validateForm()) return;
+
+    onNext?.({
+      ...personal,
+      middleName: personal.noMiddleName ? "" : personal.middleName,
+      ethnicGroup: personal.hasEthnicGroup ? personal.ethnicGroup : "",
+      disability: personal.hasDisability ? personal.disability : "",
+      soloParentIdNumber: personal.isSoloParent
+        ? personal.soloParentIdNumber
+        : "",
+      pwdIdNumber: personal.isPwd ? personal.pwdIdNumber : "",
+    });
+  };
+
+  return (
+    <form onSubmit={handleNext} className="space-y-6" noValidate>
+      <div className="grid grid-cols-1 gap-x-4 gap-y-6 md:grid-cols-4">
+        <InputBox
+          label="First Name"
+          required
+          value={personal.firstName}
+          disabled={disabled}
+          error={errors.firstName}
+          onChange={(value) => updateField("firstName", value)}
+        />
+
+        <InputBox
+          label="Middle Name"
+          required={!personal.noMiddleName}
+          value={personal.middleName}
+          disabled={disabled || personal.noMiddleName}
+          error={errors.middleName}
+          onChange={(value) => updateField("middleName", value)}
+        />
+
+        <InputBox
+          label="Last Name"
+          required
+          value={personal.lastName}
+          disabled={disabled}
+          error={errors.lastName}
+          onChange={(value) => updateField("lastName", value)}
+        />
+
+        <SelectBox
+          label="Suffix"
+          value={personal.suffix}
+          disabled={disabled}
+          options={["", ...suffixOptions]}
+          onChange={(value) => updateField("suffix", value)}
+        />
+
+        <div className="md:col-span-4 -mt-4">
+          <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-600">
+            <input
+              type="checkbox"
+              disabled={disabled}
+              checked={personal.noMiddleName}
+              onChange={(e) => updateField("noMiddleName", e.target.checked)}
+              className="h-4 w-4"
+            />
+            I don&apos;t have a middle name
+          </label>
+        </div>
+
+        <div className="md:col-span-4">
+          <InputBox
+            label="Address"
+            required
+            value={personal.address}
+            disabled={disabled}
+            error={errors.address}
+            onChange={(value) => updateField("address", value)}
+          />
+        </div>
+
+        <div className="md:col-span-2">
+          <InputBox
+            label="Contact Number"
+            required
+            value={personal.contactNumber}
+            disabled={disabled}
+            error={errors.contactNumber}
+            onChange={(value) => updateField("contactNumber", value)}
+          />
+        </div>
+
+        <div className="md:col-span-2">
+          <InputBox
+            label="Email Address"
+            required
+            value={personal.emailAddress}
+            disabled={disabled}
+            error={errors.emailAddress}
+            onChange={(value) => updateField("emailAddress", value)}
+          />
+        </div>
+
+        <InputBox
+          label="Date of Birth"
+          type="date"
+          required
+          value={personal.dob}
+          disabled={disabled}
+          error={errors.dob}
+          onChange={(value) => updateField("dob", value)}
+        />
+
+        <InputBox
+          label="Age"
+          value={personal.age}
+          disabled
+          onChange={() => {}}
+        />
+
+        <SelectBox
+          label="Sex"
+          required
+          value={personal.sex}
+          disabled={disabled}
+          error={errors.sex}
+          options={["", "male", "female"]}
+          onChange={(value) => updateField("sex", value)}
+        />
+
+        <SelectBox
+          label="Civil Status"
+          required
+          value={personal.civilStatus}
+          disabled={disabled}
+          error={errors.civilStatus}
+          options={["", "single", "married", "widowed", "separated", "divorced"]}
+          onChange={(value) => updateField("civilStatus", value)}
+        />
+
+        <div className="md:col-span-2">
+          <SelectBox
+            label="Nationality"
+            required
+            value={personal.nationality}
+            disabled={disabled}
+            error={errors.nationality}
+            options={["", "Filipino", "Dual Citizen", "Others"]}
+            onChange={(value) => updateField("nationality", value)}
+          />
+
+          {(personal.nationality === "Dual Citizen" ||
+            personal.nationality === "Others") && (
+            <input
+              value={personal.nationalityInput}
+              disabled={disabled}
+              onChange={(e) => updateField("nationalityInput", e.target.value)}
+              placeholder="Specify nationality"
+              className="mt-2 h-11 w-full rounded-xl border border-slate-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
+            />
+          )}
+        </div>
+
+        <div className="md:col-span-2">
+          <SelectBox
+            label="Religion"
+            required
+            value={personal.religion}
+            disabled={disabled}
+            error={errors.religion}
+            options={["", ...religionOptions]}
+            onChange={(value) => updateField("religion", value)}
+          />
+
+          {personal.religion === "Others" && (
+            <input
+              value={personal.religionInput}
+              disabled={disabled}
+              onChange={(e) => updateField("religionInput", e.target.value)}
+              placeholder="Specify religion"
+              className="mt-2 h-11 w-full rounded-xl border border-slate-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
+            />
+          )}
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="mb-1 flex items-center gap-2 text-sm font-medium text-slate-600">
+            <input
+              type="checkbox"
+              disabled={disabled}
+              checked={personal.hasEthnicGroup}
+              onChange={(e) => updateField("hasEthnicGroup", e.target.checked)}
+              className="h-4 w-4"
+            />
+            Do you belong to an ethnic group?
+          </label>
+
+          {personal.hasEthnicGroup && (
+            <SelectBox
+              value={personal.ethnicGroup}
+              disabled={disabled}
+              options={["", ...ethnicGroupOptions]}
+              onChange={(value) => updateField("ethnicGroup", value)}
+            />
+          )}
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="mb-1 flex items-center gap-2 text-sm font-medium text-slate-600">
+            <input
+              type="checkbox"
+              disabled={disabled}
+              checked={personal.hasDisability}
+              onChange={(e) => updateField("hasDisability", e.target.checked)}
+              className="h-4 w-4"
+            />
+            Do you have a disability?
+          </label>
+
+          {personal.hasDisability && (
+            <input
+              value={personal.disability}
+              disabled={disabled}
+              onChange={(e) => updateField("disability", e.target.value)}
+              placeholder="Specify disability"
+              className="h-11 w-full rounded-xl border border-slate-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
+            />
+          )}
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="mb-1 flex items-center gap-2 text-sm font-medium text-slate-600">
+            <input
+              type="checkbox"
+              disabled={disabled}
+              checked={personal.isSoloParent}
+              onChange={(e) => updateField("isSoloParent", e.target.checked)}
+              className="h-4 w-4"
+            />
+            Solo Parent
+          </label>
+
+          {personal.isSoloParent && (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-600">
+                Solo Parent ID Number <span className="text-red-500">*</span>
+              </label>
+              <input
+                value={personal.soloParentIdNumber}
+                disabled={disabled}
+                onChange={(e) =>
+                  updateField("soloParentIdNumber", e.target.value)
+                }
+                placeholder="Solo Parent ID Number"
+                className={`h-11 w-full rounded-xl border bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 ${
+                  errors.soloParentIdNumber
+                    ? "border-red-500"
+                    : "border-slate-300"
+                }`}
+              />
+              {errors.soloParentIdNumber && (
+                <p className="mt-1 text-xs text-red-500">
+                  {errors.soloParentIdNumber}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="mb-1 flex items-center gap-2 text-sm font-medium text-slate-600">
+            <input
+              type="checkbox"
+              disabled={disabled}
+              checked={personal.isPwd}
+              onChange={(e) => updateField("isPwd", e.target.checked)}
+              className="h-4 w-4"
+            />
+            PWD
+          </label>
+
+          {personal.isPwd && (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-600">
+                PWD ID Number <span className="text-red-500">*</span>
+              </label>
+              <input
+                value={personal.pwdIdNumber}
+                disabled={disabled}
+                onChange={(e) => updateField("pwdIdNumber", e.target.value)}
+                placeholder="PWD ID Number"
+                className={`h-11 w-full rounded-xl border bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 ${
+                  errors.pwdIdNumber ? "border-red-500" : "border-slate-300"
+                }`}
+              />
+              {errors.pwdIdNumber && (
+                <p className="mt-1 text-xs text-red-500">
+                  {errors.pwdIdNumber}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <StepFooter disabledBack onNextSubmit />
+    </form>
+  );
+}
+
+/* ================= EDUCATION ================= */
+
+function EducationalBackground({
+  data,
+  onChange,
+  onBack,
+  onNext,
+  disabled = false,
+}) {
+  const [education, setEducation] = useState({
+    bachelors: data?.bachelors || [
+      { school: "", course: "", year: "", award: "" },
+    ],
+    postGraduate: data?.postGraduate || [
+      { school: "", course: "", year: "", award: "" },
+    ],
+  });
+
+  useEffect(() => {
+    setEducation({
+      bachelors: data?.bachelors || [
+        { school: "", course: "", year: "", award: "" },
+      ],
+      postGraduate: data?.postGraduate || [
+        { school: "", course: "", year: "", award: "" },
+      ],
+    });
+  }, [data]);
+
+  const sync = (updated) => {
+    setEducation(updated);
+    onChange?.(updated);
+  };
+
+  const handleChange = (listName, index, field, value) => {
+    const updated = {
+      ...education,
+      [listName]: education[listName].map((item, i) =>
+        i === index ? { ...item, [field]: value } : item
+      ),
+    };
+
+    sync(updated);
+  };
+
+  const addItem = (listName) => {
+    sync({
+      ...education,
+      [listName]: [
+        ...education[listName],
+        { school: "", course: "", year: "", award: "" },
+      ],
+    });
+  };
+
+  const removeItem = (listName) => {
+    if (education[listName].length <= 1) return;
+
+    sync({
+      ...education,
+      [listName]: education[listName].slice(0, -1),
+    });
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onNext?.(education);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-10">
+      <EducationGroup
+        title="Bachelor's Degree"
+        rows={education.bachelors}
+        listName="bachelors"
+        disabled={disabled}
+        onChange={handleChange}
+        onAdd={() => addItem("bachelors")}
+        onRemove={() => removeItem("bachelors")}
+      />
+
+      <EducationGroup
+        title="Post Graduate Degree"
+        rows={education.postGraduate}
+        listName="postGraduate"
+        disabled={disabled}
+        onChange={handleChange}
+        onAdd={() => addItem("postGraduate")}
+        onRemove={() => removeItem("postGraduate")}
+      />
+
+      <StepFooter onBack={onBack} onNextSubmit />
+    </form>
+  );
+}
+
+function EducationGroup({
+  title,
+  rows,
+  listName,
+  disabled,
+  onChange,
+  onAdd,
+  onRemove,
+}) {
+  return (
+    <div className="space-y-4">
+      <h2 className="text-lg font-semibold text-slate-700">{title}</h2>
+
+      {rows.map((item, index) => (
+        <div key={index} className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          <SmallInput
+            placeholder="School"
+            value={item.school}
+            disabled={disabled}
+            onChange={(e) =>
+              onChange(listName, index, "school", e.target.value)
+            }
+          />
+
+          <SmallInput
+            placeholder="Course"
+            value={item.course}
+            disabled={disabled}
+            onChange={(e) =>
+              onChange(listName, index, "course", e.target.value)
+            }
+          />
+
+          <SmallInput
+            placeholder="Year"
+            value={item.year}
+            disabled={disabled}
+            onChange={(e) =>
+              onChange(listName, index, "year", e.target.value)
+            }
+          />
+
+          <SmallInput
+            placeholder="Award"
+            value={item.award}
+            disabled={disabled}
+            onChange={(e) =>
+              onChange(listName, index, "award", e.target.value)
+            }
+          />
+        </div>
+      ))}
+
+      {!disabled && (
+        <div className="flex gap-4">
+          <button
+            type="button"
+            onClick={onAdd}
+            className="text-sm font-semibold text-blue-700 hover:underline"
+          >
+            + Add Row
+          </button>
+
+          {rows.length > 1 && (
+            <button
+              type="button"
+              onClick={onRemove}
+              className="text-sm font-semibold text-red-600 hover:underline"
+            >
+              - Remove Last
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ================= ELIGIBILITY ================= */
+
+function Eligibility({ data, onChange, onBack, onNext, disabled = false }) {
+  const [eligibility, setEligibility] = useState({
+    eligibilities: data?.eligibilities || [
+      {
+        type: "",
+        rating: "",
+        examDate: "",
+        licenseNumber: "",
+        validUntil: "",
+      },
+    ],
+    workExperiences: data?.workExperiences || [
+      {
+        position: "",
+        agency: "",
+        status: "",
+        from: "",
+        fromYear: "",
+        toYear: "",
+      },
+    ],
+  });
+
+  useEffect(() => {
+    setEligibility({
+      eligibilities: data?.eligibilities || [
+        {
+          type: "",
+          rating: "",
+          examDate: "",
+          licenseNumber: "",
+          validUntil: "",
+        },
+      ],
+      workExperiences: data?.workExperiences || [
+        {
+          position: "",
+          agency: "",
+          status: "",
+          from: "",
+          fromYear: "",
+          toYear: "",
+        },
+      ],
+    });
+  }, [data]);
+
+  const sync = (updated) => {
+    setEligibility(updated);
+    onChange?.(updated);
+  };
+
+  const updateList = (listName, index, field, value) => {
+    sync({
+      ...eligibility,
+      [listName]: eligibility[listName].map((item, i) =>
+        i === index ? { ...item, [field]: value } : item
+      ),
+    });
+  };
+
+  const addRow = (listName, emptyRow) => {
+    sync({
+      ...eligibility,
+      [listName]: [...eligibility[listName], emptyRow],
+    });
+  };
+
+  const removeRow = (listName) => {
+    if (eligibility[listName].length <= 1) return;
+
+    sync({
+      ...eligibility,
+      [listName]: eligibility[listName].slice(0, -1),
+    });
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onNext?.(eligibility);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-8">
+      <div className="space-y-4">
+        {eligibility.eligibilities.map((item, index) => (
+          <div key={index} className="grid grid-cols-1 gap-4 md:grid-cols-5">
+            <SmallInput
+              placeholder="Type"
+              value={item.type}
+              disabled={disabled}
+              onChange={(e) =>
+                updateList("eligibilities", index, "type", e.target.value)
+              }
+            />
+
+            <SmallInput
+              placeholder="Rating"
+              value={item.rating}
+              disabled={disabled}
+              onChange={(e) =>
+                updateList("eligibilities", index, "rating", e.target.value)
+              }
+            />
+
+            <SmallInput
+              type="date"
+              value={item.examDate}
+              disabled={disabled}
+              onChange={(e) =>
+                updateList("eligibilities", index, "examDate", e.target.value)
+              }
+            />
+
+            <SmallInput
+              placeholder="License Number"
+              value={item.licenseNumber}
+              disabled={disabled}
+              onChange={(e) =>
+                updateList(
+                  "eligibilities",
+                  index,
+                  "licenseNumber",
+                  e.target.value
+                )
+              }
+            />
+
+            <SmallInput
+              type="date"
+              value={item.validUntil}
+              disabled={disabled}
+              onChange={(e) =>
+                updateList("eligibilities", index, "validUntil", e.target.value)
+              }
+            />
+          </div>
+        ))}
+
+        {!disabled && (
+          <div className="flex gap-4">
+            <button
+              type="button"
+              onClick={() =>
+                addRow("eligibilities", {
+                  type: "",
+                  rating: "",
+                  examDate: "",
+                  licenseNumber: "",
+                  validUntil: "",
+                })
+              }
+              className="text-sm font-semibold text-blue-700 hover:underline"
+            >
+              + Add Row
+            </button>
+
+            {eligibility.eligibilities.length > 1 && (
+              <button
+                type="button"
+                onClick={() => removeRow("eligibilities")}
+                className="text-sm font-semibold text-red-600 hover:underline"
+              >
+                - Remove Last
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-4">
+        <h2 className="text-xl font-bold uppercase text-blue-900">
+          Work Experience
+        </h2>
+
+        {eligibility.workExperiences.map((item, index) => (
+          <div key={index} className="grid grid-cols-1 gap-4 md:grid-cols-5">
+            <SmallInput
+              placeholder="Position"
+              value={item.position}
+              disabled={disabled}
+              onChange={(e) =>
+                updateList("workExperiences", index, "position", e.target.value)
+              }
+            />
+
+            <SmallInput
+              placeholder="Agency"
+              value={item.agency}
+              disabled={disabled}
+              onChange={(e) =>
+                updateList("workExperiences", index, "agency", e.target.value)
+              }
+            />
+
+            <SmallInput
+              placeholder="Status"
+              value={item.status}
+              disabled={disabled}
+              onChange={(e) =>
+                updateList("workExperiences", index, "status", e.target.value)
+              }
+            />
+
+            <SmallInput
+              type="month"
+              value={item.from || item.fromYear}
+              disabled={disabled}
+              onChange={(e) =>
+                updateList("workExperiences", index, "from", e.target.value)
+              }
+            />
+
+            <SmallInput
+              placeholder="To / Present"
+              value={item.toYear}
+              disabled={disabled}
+              onChange={(e) =>
+                updateList("workExperiences", index, "toYear", e.target.value)
+              }
+            />
+          </div>
+        ))}
+
+        {!disabled && (
+          <div className="flex gap-4">
+            <button
+              type="button"
+              onClick={() =>
+                addRow("workExperiences", {
+                  position: "",
+                  agency: "",
+                  status: "",
+                  from: "",
+                  toYear: "",
+                })
+              }
+              className="text-sm font-semibold text-blue-700 hover:underline"
+            >
+              + Add Row
+            </button>
+
+            {eligibility.workExperiences.length > 1 && (
+              <button
+                type="button"
+                onClick={() => removeRow("workExperiences")}
+                className="text-sm font-semibold text-red-600 hover:underline"
+              >
+                - Remove Last
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      <StepFooter onBack={onBack} onNextSubmit />
+    </form>
+  );
+}
+
+/* ================= LEARNING DEVELOPMENT ================= */
+
+function LearningDevelopment({
+  data,
+  onChange,
+  onBack,
+  onNext,
+  disabled = false,
+}) {
+  const [learning, setLearning] = useState({
+    trainings: data?.trainings || [
+      {
+        title: "",
+        fromDate: "",
+        toDate: "",
+        hours: "",
+        conductedBy: "",
+      },
+    ],
+  });
+
+  useEffect(() => {
+    setLearning({
+      trainings: data?.trainings || [
+        {
+          title: "",
+          fromDate: "",
+          toDate: "",
+          hours: "",
+          conductedBy: "",
+        },
+      ],
+    });
+  }, [data]);
+
+  const sync = (updated) => {
+    setLearning(updated);
+    onChange?.(updated);
+  };
+
+  const updateTraining = (index, field, value) => {
+    sync({
+      trainings: learning.trainings.map((item, i) =>
+        i === index ? { ...item, [field]: value } : item
+      ),
+    });
+  };
+
+  const addTraining = () => {
+    sync({
+      trainings: [
+        ...learning.trainings,
+        {
+          title: "",
+          fromDate: "",
+          toDate: "",
+          hours: "",
+          conductedBy: "",
+        },
+      ],
+    });
+  };
+
+  const removeTraining = () => {
+    if (learning.trainings.length <= 1) return;
+
+    sync({
+      trainings: learning.trainings.slice(0, -1),
+    });
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onNext?.(learning);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-8">
+      <div className="space-y-4">
+        {learning.trainings.map((item, index) => (
+          <div
+            key={index}
+            className="grid grid-cols-1 gap-4 md:grid-cols-[1.4fr_2fr_0.7fr_1.4fr]"
+          >
+            <SmallInput
+              placeholder="Title"
+              value={item.title}
+              disabled={disabled}
+              onChange={(e) => updateTraining(index, "title", e.target.value)}
+            />
+
+            <div className="grid grid-cols-2 gap-2">
+              <SmallInput
+                type="date"
+                value={item.fromDate}
+                disabled={disabled}
+                onChange={(e) =>
+                  updateTraining(index, "fromDate", e.target.value)
+                }
+              />
+
+              <SmallInput
+                type="date"
+                value={item.toDate}
+                disabled={disabled}
+                onChange={(e) =>
+                  updateTraining(index, "toDate", e.target.value)
+                }
+              />
+            </div>
+
+            <SmallInput
+              type="number"
+              placeholder="Hours"
+              value={item.hours}
+              disabled={disabled}
+              onChange={(e) => updateTraining(index, "hours", e.target.value)}
+            />
+
+            <SmallInput
+              placeholder="Conducted / Sponsored By"
+              value={item.conductedBy}
+              disabled={disabled}
+              onChange={(e) =>
+                updateTraining(index, "conductedBy", e.target.value)
+              }
+            />
+          </div>
+        ))}
+
+        {!disabled && (
+          <div className="flex gap-4">
+            <button
+              type="button"
+              onClick={addTraining}
+              className="text-sm font-semibold text-blue-700 hover:underline"
+            >
+              + Add Row
+            </button>
+
+            {learning.trainings.length > 1 && (
+              <button
+                type="button"
+                onClick={removeTraining}
+                className="text-sm font-semibold text-red-600 hover:underline"
+              >
+                - Remove Last
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      <StepFooter onBack={onBack} onNextSubmit />
+    </form>
+  );
+}
+
+/* ================= ATTACHMENT ================= */
+
+function Attachment({ data, onChange, onBack, onNext, disabled = false }) {
+  const teachingPositions = [
+    "Teacher I",
+    "Teacher II",
+    "Teacher III",
+    "Teacher IV",
+    "Teacher V",
+    "Teacher VI",
+    "Teacher VII",
+    "Master Teacher I",
+    "Master Teacher II",
+    "Master Teacher III",
+    "Master Teacher IV",
+    "Master Teacher V",
+  ];
+
+  const nonTeachingPositions = [
+    "Administrative Officer",
+    "Administrative Assistant",
+    "Administrative Aide",
+    "Accounting Clerk",
+    "Bookkeeper",
+    "Disbursing Officer",
+    "Guidance Counselor",
+    "Librarian",
+    "Nurse",
+    "Registrar",
+    "School Clerk",
+    "Security Guard",
+    "Utility Worker",
+  ];
+
+  const teacherPromotionPositions = [
+    "Teacher II",
+    "Teacher III",
+    "Teacher IV",
+    "Teacher V",
+    "Teacher VI",
+    "Teacher VII",
+    "Master Teacher I",
+    "Master Teacher II",
+    "Master Teacher III",
+    "Master Teacher IV",
+    "Master Teacher V",
+  ];
+
+  const teacherUploadRequirements = [
+    { field: "letterOfIntent", label: "Letter of Intent" },
+    { field: "pds", label: "Personal Data Sheet" },
+    { field: "residency", label: "Proof of Residency" },
+    { field: "prcLicense", label: "PRC License / ID" },
+    { field: "boardRating", label: "Certificate of Board Rating" },
+    { field: "academicRecord", label: "Academic Records" },
+    { field: "serviceRecord", label: "Service Record / COE" },
+    { field: "latestAppointment", label: "Latest Appointment" },
+    { field: "trainingCertificates", label: "Training Certificates" },
+    { field: "tesdaCertificate", label: "TESDA NC II / TMC" },
+    { field: "performanceRating", label: "Performance Ratings" },
+    { field: "cavDataPrivacy", label: "CAV / Omnibus / Data Privacy Form" },
+    { field: "otherDocuments", label: "Other Supporting Documents" },
+  ];
+
+  const nonTeachingUploadRequirements = [
+    { field: "letterOfIntent", label: "Letter of Intent" },
+    { field: "pds", label: "Personal Data Sheet" },
+    { field: "residency", label: "Proof of Residency" },
+    { field: "prcLicense", label: "PRC License / ID" },
+    { field: "eligibilityRating", label: "Certificate of Eligibility / Rating" },
+    { field: "academicRecord", label: "Academic Records" },
+    { field: "trainingCertificates", label: "Training Certificates" },
+    { field: "employmentCertificate", label: "Employment / Service Record" },
+    { field: "latestAppointment", label: "Latest Appointment" },
+    { field: "performanceRating", label: "Performance Rating" },
+    { field: "cavDataPrivacy", label: "CAV / Omnibus / Data Privacy Form" },
+    { field: "otherDocuments", label: "Other Supporting Documents" },
+  ];
+
+  const [job, setJob] = useState({
+    positionCategory: data?.positionCategory || "",
+    positionType: data?.positionType || "",
+    jobOpeningId: data?.jobOpeningId || "",
+    files: {
+      ...defaultFiles,
+      ...(data?.files || {}),
+    },
+  });
+
+  useEffect(() => {
+    setJob({
+      positionCategory: data?.positionCategory || "",
+      positionType: data?.positionType || "",
+      jobOpeningId: data?.jobOpeningId || "",
+      files: {
+        ...defaultFiles,
+        ...(data?.files || {}),
+      },
+    });
+  }, [data]);
+
+  const sync = (updated) => {
+    setJob(updated);
+    onChange?.(updated);
+  };
+
+  const handleCategoryChange = (value) => {
+    sync({
+      ...job,
+      positionCategory: value,
+      positionType: "",
+      files: { ...defaultFiles },
+    });
+  };
+
+  const handlePositionChange = (value) => {
+    sync({
+      ...job,
+      positionType: value,
+      files: { ...defaultFiles },
+    });
+  };
+
+  const handleFileChange = (field, file) => {
+    if (!file) return;
+
+    const safeFile = {
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      lastModified: file.lastModified,
+    };
+
+    sync({
+      ...job,
+      files: {
+        ...job.files,
+        [field]: safeFile,
+      },
+    });
+  };
+
+  const handleRemoveFile = (field) => {
+    sync({
+      ...job,
+      files: {
+        ...job.files,
+        [field]: null,
+      },
+    });
+  };
+
+  const showPositionList =
+    job.positionCategory === "Teaching" ||
+    job.positionCategory === "Non-Teaching";
+
+  const showAttachments =
+    job.positionCategory === "Non-Teaching"
+      ? job.positionType !== ""
+      : teacherPromotionPositions.includes(job.positionType);
+
+  const currentUploadRequirements =
+    job.positionCategory === "Non-Teaching"
+      ? nonTeachingUploadRequirements
+      : teacherUploadRequirements;
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onNext?.(job);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-600">
+            Position Applied For
+          </label>
+
+          <select
+            value={job.positionCategory}
+            disabled={disabled}
+            onChange={(e) => handleCategoryChange(e.target.value)}
+            className="h-11 w-full rounded-xl border border-slate-300 bg-white px-4 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
+          >
+            <option value="">Select position type</option>
+            <option value="Teaching">Teaching</option>
+            <option value="Non-Teaching">Non-Teaching</option>
+          </select>
+        </div>
+
+        {showPositionList && (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600">
+              {job.positionCategory === "Teaching"
+                ? "Teaching Position"
+                : "Non-Teaching Position"}
+            </label>
+
+            <select
+              value={job.positionType}
+              disabled={disabled}
+              onChange={(e) => handlePositionChange(e.target.value)}
+              className="h-11 w-full rounded-xl border border-slate-300 bg-white px-4 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
+            >
+              <option value="">Select position</option>
+
+              {(job.positionCategory === "Teaching"
+                ? teachingPositions
+                : nonTeachingPositions
+              ).map((position) => (
+                <option key={position} value={position}>
+                  {position}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+
+      {job.positionType === "Teacher I" && (
+        <div className="space-y-4 rounded-xl border border-blue-200 bg-blue-50 p-5 text-sm text-slate-700">
+          <p className="font-semibold text-blue-800">
+            If you are applying for Teacher I, you are required to personally
+            submit the hard copies of your attachments to the Human Resource
+            Office.
+          </p>
+
+          <ol className="list-decimal space-y-2 pl-5">
+            <li>Unique Application Number generated after submission.</li>
+            <li>Letter of intent addressed to the SDS.</li>
+            <li>Fully accomplished Personal Data Sheet.</li>
+            <li>Photocopy of Voter&apos;s ID and/or proof of residency.</li>
+            <li>Photocopy of valid and updated PRC License/ID.</li>
+            <li>Photocopy of Certificate of Board Rating.</li>
+            <li>Photocopy of TOR and Diploma.</li>
+            <li>Service Record or Certificate of Employment.</li>
+            <li>Latest appointment, if applicable.</li>
+            <li>Relevant trainings, if any.</li>
+            <li>TESDA NC II or TMC, if applicable.</li>
+            <li>Required Performance Ratings.</li>
+            <li>Checklist, Omnibus, CAV, and Data Privacy Consent.</li>
+            <li>Other HRMPSB requirements.</li>
+          </ol>
+        </div>
+      )}
+
+      {showAttachments && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold text-slate-700">
+            Attachments / Requirements
+          </h2>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {currentUploadRequirements.map((requirement) => (
+              <FileUpload
+                key={requirement.field}
+                label={requirement.label}
+                field={requirement.field}
+                file={job.files?.[requirement.field]}
+                disabled={disabled}
+                onFileChange={handleFileChange}
+                onRemoveFile={handleRemoveFile}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      <StepFooter onBack={onBack} onNextSubmit />
+    </form>
+  );
+}
+
+function FileUpload({
+  label,
+  field,
+  file,
+  disabled,
+  onFileChange,
+  onRemoveFile,
+}) {
+  return (
+    <div className="space-y-2">
+      <label className="block text-sm font-medium text-slate-700">{label}</label>
+
+      {disabled ? (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          {file?.name || "Not uploaded"}
+        </div>
+      ) : (
+        <>
+          <input
+            type="file"
+            id={`profile-${field}`}
+            className="hidden"
+            onChange={(e) => onFileChange(field, e.target.files?.[0] || null)}
+          />
+
+          <label
+            htmlFor={`profile-${field}`}
+            className="flex h-24 w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 transition hover:border-blue-500 hover:bg-blue-50"
+          >
+            {!file ? (
+              <span className="text-sm text-slate-500">
+                Click to upload file
+              </span>
+            ) : (
+              <span className="px-2 text-center text-sm font-medium text-green-600">
+                Uploaded: {file.name}
+              </span>
+            )}
+          </label>
+
+          {file && (
+            <button
+              type="button"
+              onClick={() => onRemoveFile(field)}
+              className="text-sm font-semibold text-red-600 hover:underline"
+            >
+              Remove Attachment
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ================= REVIEW ================= */
+
+function Review({ data, onBack, onSubmit }) {
+  const [uan, setUan] = useState(data?.uan || "");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLocked, setIsLocked] = useState(Boolean(data?.uan));
+  const [showModal, setShowModal] = useState(false);
+  const [modalStage, setModalStage] = useState("done");
+  const [copyLabel, setCopyLabel] = useState("Copy");
+
+  const personalInfo = data?.personalInfo || {};
+  const education = data?.educationalBackground || {};
+  const eligibility = data?.eligibility || {};
+  const learningDevelopment = data?.learningDevelopment || {};
+  const jobPosition = data?.jobPosition || {};
 
   const applicantName =
     [
@@ -1855,6 +2227,47 @@ function ApplicationReview({ data, uploadedCount, onPrint, printOnly = false }) 
       .filter(Boolean)
       .join(" ") || emptyText;
 
+  const uanDisplay = String(uan || "").toUpperCase();
+
+  const submitApplication = async () => {
+    if (isSubmitting || isLocked) return;
+
+    setIsSubmitting(true);
+    setModalStage("saving");
+    setShowModal(true);
+
+    setTimeout(() => {
+      const generatedUan =
+        uan ||
+        `CSJDM-${new Date().getFullYear()}-${Date.now()
+          .toString()
+          .slice(-4)}`;
+
+      setUan(generatedUan);
+      setIsLocked(true);
+      setModalStage("done");
+      setIsSubmitting(false);
+
+      onSubmit?.({
+        ...data,
+        uan: generatedUan,
+      });
+    }, 900);
+  };
+
+  const copyUan = async () => {
+    if (!uan) return;
+
+    try {
+      await navigator.clipboard.writeText(uanDisplay);
+      setCopyLabel("Copied");
+      window.setTimeout(() => setCopyLabel("Copy"), 1600);
+    } catch {
+      setCopyLabel("Copy failed");
+      window.setTimeout(() => setCopyLabel("Copy"), 1600);
+    }
+  };
+
   const renderList = (items, renderItem) =>
     items?.length ? (
       items.map(renderItem)
@@ -1863,49 +2276,72 @@ function ApplicationReview({ data, uploadedCount, onPrint, printOnly = false }) 
     );
 
   return (
-    <div
-      id={printOnly ? "application-print-section" : undefined}
-      className="space-y-6"
-    >
-      {!printOnly && (
-        <div className="no-print flex justify-end">
-          <button
-            type="button"
-            onClick={onPrint}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-white font-semibold hover:bg-blue-700 transition"
-          >
-            <Printer size={18} />
-            Print Application Form
-          </button>
-        </div>
-      )}
-
-      <div className="rounded-3xl bg-white border border-slate-200 p-6 shadow-sm space-y-8">
-        <div className="border-b border-slate-200 pb-5">
-          <p className="text-sm font-semibold uppercase tracking-wider text-blue-700">
-            Application Form Review
-          </p>
-
-          <h1 className="mt-2 text-2xl font-bold text-slate-900">
-            {applicantName}
-          </h1>
-
-          <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-slate-600">
-            <p>
-              <strong>Applicant Number:</strong>{" "}
-              {accountDetails.applicantNumber || emptyText}
+    <div className="space-y-8">
+      <div id="print-section">
+        <div className="space-y-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="border-b border-slate-200 pb-6">
+            <p className="text-sm font-semibold uppercase tracking-wider text-blue-700">
+              Application Receipt
             </p>
-            <p>
-              <strong>Status:</strong> {accountDetails.accountStatus || emptyText}
-            </p>
-            <p>
-              <strong>Uploaded Attachments:</strong> {uploadedCount} file(s)
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+              Review your details carefully. Submitting will save the
+              application, generate your UAN, and lock this form.
             </p>
           </div>
-        </div>
 
-        <ReviewSection title="Personal Information">
-          <div className="grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
+          {uan && (
+            <div className="border-b border-slate-200 pb-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-md bg-blue-50 px-3 py-2 text-center">
+                    <p className="text-xs font-semibold uppercase text-blue-700">
+                      UAN
+                    </p>
+                    <p className="mt-1 break-all text-lg font-bold tracking-widest text-blue-800">
+                      {uanDisplay}
+                    </p>
+                  </div>
+
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-slate-800">
+                      {applicantName}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {jobPosition.positionType ||
+                        jobPosition.positionCategory ||
+                        ""}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="no-print flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={copyUan}
+                    className="inline-flex items-center gap-2 rounded-md border bg-white px-3 py-1 text-sm font-semibold text-blue-700 hover:bg-blue-50"
+                  >
+                    <Copy className="h-4 w-4" />
+                    {copyLabel}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="inline-flex items-center gap-2 rounded-md border bg-white px-3 py-1 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Print
+                  </button>
+
+                  <div className="hidden items-center gap-2 text-sm font-semibold text-blue-700 sm:inline-flex">
+                    <ShieldCheck className="h-4 w-4" />
+                    Locked
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <ReviewSection title="Personal Information">
             <p>
               <strong>Name:</strong> {applicantName}
             </p>
@@ -1919,7 +2355,7 @@ function ApplicationReview({ data, uploadedCount, onPrint, printOnly = false }) 
             <p>
               <strong>Date of Birth:</strong> {personalInfo.dob || emptyText}
             </p>
-            <p className="sm:col-span-2">
+            <p>
               <strong>Address:</strong> {personalInfo.address || emptyText}
             </p>
             <p>
@@ -1940,7 +2376,9 @@ function ApplicationReview({ data, uploadedCount, onPrint, printOnly = false }) 
             </p>
             <p>
               <strong>Religion:</strong>{" "}
-              {personalInfo.religionInput || personalInfo.religion || emptyText}
+              {personalInfo.religionInput ||
+                personalInfo.religion ||
+                emptyText}
             </p>
             <p>
               <strong>Ethnic Group:</strong>{" "}
@@ -1950,357 +2388,373 @@ function ApplicationReview({ data, uploadedCount, onPrint, printOnly = false }) 
               <strong>Disability:</strong>{" "}
               {personalInfo.disability || emptyText}
             </p>
-          </div>
-        </ReviewSection>
+            <p>
+              <strong>Solo Parent:</strong>{" "}
+              {personalInfo.isSoloParent ? "Yes" : "No"}
+            </p>
+            <p>
+              <strong>Solo Parent ID Number:</strong>{" "}
+              {personalInfo.soloParentIdNumber || emptyText}
+            </p>
+            <p>
+              <strong>PWD:</strong> {personalInfo.isPwd ? "Yes" : "No"}
+            </p>
+            <p>
+              <strong>PWD ID Number:</strong>{" "}
+              {personalInfo.pwdIdNumber || emptyText}
+            </p>
+          </ReviewSection>
 
-        <ReviewSection title="Educational Background">
-          <h3 className="text-sm font-semibold text-slate-800">
-            Bachelor&apos;s Degree
-          </h3>
+          <ReviewSection title="Educational Background">
+            <h3 className="text-sm font-semibold text-slate-800">
+              Bachelor&apos;s Degree
+            </h3>
 
-          <div className="space-y-2">
             {renderList(education.bachelors, (item, index) => (
-              <div key={index} className="text-sm text-slate-700">
-                <strong>{item.school || emptyText}</strong> -{" "}
-                {item.course || emptyText}, {item.year || emptyText}
+              <p key={index}>
+                {item.school || emptyText} - {item.course || emptyText},{" "}
+                {item.year || emptyText}
                 {item.award ? ` (${item.award})` : ""}
-              </div>
+              </p>
             ))}
-          </div>
 
-          <h3 className="pt-4 text-sm font-semibold text-slate-800">
-            Post Graduate Degree
-          </h3>
+            <h3 className="pt-3 text-sm font-semibold text-slate-800">
+              Post Graduate Degree
+            </h3>
 
-          <div className="space-y-2">
             {renderList(education.postGraduate, (item, index) => (
-              <div key={index} className="text-sm text-slate-700">
-                <strong>{item.school || emptyText}</strong> -{" "}
-                {item.course || emptyText}, {item.year || emptyText}
+              <p key={index}>
+                {item.school || emptyText} - {item.course || emptyText},{" "}
+                {item.year || emptyText}
                 {item.award ? ` (${item.award})` : ""}
-              </div>
+              </p>
             ))}
-          </div>
-        </ReviewSection>
+          </ReviewSection>
 
-        <ReviewSection title="Eligibility">
-          <div className="space-y-2">
+          <ReviewSection title="Eligibility">
             {renderList(eligibility.eligibilities, (item, index) => (
-              <div key={index} className="text-sm text-slate-700">
+              <p key={index}>
                 <strong>{item.type || emptyText}</strong> - Rating{" "}
                 {item.rating || emptyText}, Exam {item.examDate || emptyText},
-                License {item.licenseNumber || emptyText}, Valid Until{" "}
-                {item.validUntil || emptyText}
-              </div>
+                License {item.licenseNumber || emptyText}
+              </p>
             ))}
-          </div>
 
-          <h3 className="pt-4 text-sm font-semibold text-slate-800">
-            Work Experience
-          </h3>
+            <h3 className="pt-3 text-sm font-semibold text-slate-800">
+              Work Experience
+            </h3>
 
-          <div className="space-y-2">
             {renderList(eligibility.workExperiences, (item, index) => (
-              <div key={index} className="text-sm text-slate-700">
+              <p key={index}>
                 <strong>{item.position || emptyText}</strong> -{" "}
                 {item.agency || emptyText}, {item.status || emptyText},{" "}
-                {item.from || emptyText} to {item.toYear || emptyText}
-              </div>
+                {item.from || item.fromYear || emptyText} to{" "}
+                {item.toYear || emptyText}
+              </p>
             ))}
-          </div>
-        </ReviewSection>
+          </ReviewSection>
 
-        <ReviewSection title="Learning and Development">
-          <div className="space-y-2">
+          <ReviewSection title="Learning and Development">
             {renderList(learningDevelopment.trainings, (item, index) => (
-              <div key={index} className="text-sm text-slate-700">
+              <p key={index}>
                 <strong>{item.title || emptyText}</strong> -{" "}
                 {item.fromDate || emptyText} to {item.toDate || emptyText},{" "}
                 {item.hours || emptyText} hours,{" "}
                 {item.conductedBy || emptyText}
-              </div>
+              </p>
             ))}
-          </div>
-        </ReviewSection>
+          </ReviewSection>
 
-        <ReviewSection title="Job Position and Attachments">
-          <div className="space-y-2 text-sm text-slate-700">
+          <ReviewSection title="Job Position and Attachments">
             <p>
               <strong>Position Applied For:</strong>{" "}
-              {jobPosition.positionCategory || emptyText}
+              {jobPosition.positionType ||
+                jobPosition.positionCategory ||
+                emptyText}
             </p>
-            <p>
-              <strong>Position:</strong> {jobPosition.positionType || emptyText}
-            </p>
-          </div>
 
-          {jobPosition.positionType === "Teacher I" && (
-            <div className="mt-4 rounded-xl border-l-4 border-blue-600 bg-blue-50 p-4 text-sm text-slate-700">
-              <p className="font-semibold text-blue-900">
-                Teacher I applicants must personally submit hard copies of the
-                required attachments to the Human Resource Office.
-              </p>
-            </div>
-          )}
-
-          <div className="mt-4">
             <p className="font-semibold text-slate-800">Attached Files:</p>
 
             <ul className="mt-2 grid gap-1 text-sm text-slate-700 sm:grid-cols-2">
               {Object.entries(jobPosition.files || {}).map(([key, file]) => (
                 <li key={key}>
-                  <strong>{key}:</strong>{" "}
-                  {file?.name ||
-                    file?.fileName ||
-                    file?.filename ||
-                    "Not uploaded"}
+                  <strong>{key}:</strong> {file?.name || "Not uploaded"}
                 </li>
               ))}
             </ul>
+          </ReviewSection>
+
+          <div className="border-t border-slate-200 pt-5 text-sm text-amber-800">
+            <div className="flex gap-3 rounded-lg bg-amber-50 p-4">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+              <p>
+                Once submitted, your application will be locked and can no
+                longer be edited. Make sure all details are correct before
+                proceeding.
+              </p>
+            </div>
           </div>
-        </ReviewSection>
-
-        <div className="border-t border-slate-200 pt-5 text-sm text-slate-500 italic">
-          This printed form reflects the current saved applicant profile and
-          application information.
         </div>
       </div>
-    </div>
-  );
-}
 
-function ReviewSection({ title, children }) {
-  return (
-    <section className="space-y-3">
-      <h2 className="text-lg font-semibold text-blue-900">{title}</h2>
-      <div className="border-b border-slate-300" />
-      {children}
-    </section>
-  );
-}
+      {showModal && (
+        <SubmitModal
+          modalStage={modalStage}
+          uanDisplay={uanDisplay}
+          copyLabel={copyLabel}
+          copyUan={copyUan}
+          close={() => setShowModal(false)}
+        />
+      )}
 
-function InfoItem({ icon, label, value }) {
-  return (
-    <div className="flex items-start gap-3">
-      <div className="mt-0.5 text-blue-700">{icon}</div>
+      <div className="no-print flex flex-col gap-3 pt-6 sm:flex-row sm:items-center sm:justify-between">
+        <button
+          type="button"
+          onClick={onBack}
+          disabled={isLocked || isSubmitting}
+          className={`inline-flex items-center justify-center gap-2 rounded-lg border-2 px-5 py-2.5 text-sm font-bold transition-all ${
+            isLocked || isSubmitting
+              ? "cursor-not-allowed border-gray-300 text-gray-400"
+              : "border-slate-200 text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back
+        </button>
 
-      <div className="min-w-0">
-        <p className="text-xs text-slate-500">{label}</p>
-        <p className="text-sm font-medium text-slate-800 break-words">
-          {value || "N/A"}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function SectionCard({ icon, title, description, children }) {
-  return (
-    <section className="rounded-3xl bg-white border border-slate-200 p-6 shadow-sm space-y-6">
-      <div className="flex items-start gap-3 border-b border-slate-200 pb-4">
-        <div className="mt-1 flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-100 text-blue-700">
-          {icon}
-        </div>
-
-        <div>
-          <h2 className="text-lg font-bold text-blue-900">{title}</h2>
-          {description && (
-            <p className="text-sm text-slate-500 mt-1">{description}</p>
+        <button
+          type="button"
+          onClick={submitApplication}
+          disabled={isSubmitting || isLocked}
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-700 px-6 py-2.5 text-sm font-bold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isSubmitting ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Send className="h-4 w-4" />
           )}
-        </div>
+          {isLocked ? "Submitted" : "Submit"}
+        </button>
       </div>
-
-      {children}
-    </section>
-  );
-}
-
-function Field({ label, className = "", children }) {
-  return (
-    <div className={className}>
-      <label className="text-sm font-semibold text-slate-600">{label}</label>
-      {children}
     </div>
   );
 }
 
-function DisplayValue({ value, capitalize = false }) {
+function SubmitModal({ modalStage, uanDisplay, copyLabel, copyUan, close }) {
   return (
-    <p
-      className={`mt-1 rounded-xl bg-slate-50 border border-slate-100 px-3 py-2.5 text-sm text-slate-800 min-h-[42px] ${
-        capitalize ? "capitalize" : ""
-      }`}
-    >
-      {value || "N/A"}
-    </p>
-  );
-}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4">
+      <div className="relative w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+        {modalStage !== "saving" && (
+          <button
+            type="button"
+            onClick={close}
+            className="absolute right-4 top-4 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        )}
 
-function EditableTableSection({
-  title,
-  isEditing,
-  rows,
-  fields,
-  onChange,
-  onAdd,
-  onRemove,
-}) {
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h3 className="text-sm font-bold uppercase tracking-wide text-slate-700">
-          {title}
-        </h3>
-
-        {isEditing && (
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onAdd}
-              className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100"
-            >
-              <Plus size={15} />
-              Add Row
-            </button>
-
-            {rows.length > 1 && (
-              <button
-                type="button"
-                onClick={onRemove}
-                className="inline-flex items-center gap-1 rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-100"
-              >
-                <Trash2 size={15} />
-                Remove Last
-              </button>
-            )}
+        {modalStage === "saving" && (
+          <div className="flex flex-col items-center px-8 py-16 text-center">
+            <Loader2 className="h-14 w-14 animate-spin text-blue-700" />
+            <h3 className="mt-6 text-2xl font-extrabold text-slate-950">
+              Submitting application
+            </h3>
+            <p className="mt-2 text-sm text-slate-500">
+              Submitting your application and generating your UAN...
+            </p>
           </div>
         )}
-      </div>
 
-      <div className="space-y-4">
-        {rows.map((row, rowIndex) => (
-          <div
-            key={rowIndex}
-            className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4"
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                Entry {rowIndex + 1}
+        {modalStage === "done" && (
+          <div className="px-8 pb-10 pt-12 text-center sm:px-12">
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-green-500 text-white shadow-[0_0_30px_rgba(34,197,94,0.45)]">
+              <CheckCircle2 className="h-12 w-12" />
+            </div>
+
+            <h3 className="mt-8 text-3xl font-extrabold tracking-tight text-slate-950">
+              Application submitted!
+            </h3>
+
+            <p className="mt-2 text-base font-medium text-slate-500">
+              Your application has been saved successfully.
+            </p>
+
+            <div className="mt-6 rounded-md bg-blue-50 px-3 py-3">
+              <p className="text-xs font-semibold uppercase text-blue-700">
+                UAN
+              </p>
+              <p className="break-all text-lg font-bold tracking-widest text-blue-800">
+                {uanDisplay}
+              </p>
+
+              <div className="mt-3 flex justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={copyUan}
+                  className="inline-flex items-center gap-2 rounded-md border bg-white px-3 py-1 text-sm font-semibold text-blue-700 hover:bg-blue-50"
+                >
+                  <Copy className="h-4 w-4" />
+                  {copyLabel}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="inline-flex items-center gap-2 rounded-md border bg-white px-3 py-1 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Print
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-6 inline-flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-2 text-sm text-slate-700">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-50 text-blue-700">
+                <MailCheck className="h-4 w-4" />
+              </div>
+              <p className="leading-5">
+                Activation instructions will be sent to your email address.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-              {fields.map((field) => (
-                <div key={field.key}>
-                  <label className="text-xs font-semibold text-slate-500">
-                    {field.label}
-                  </label>
-
-                  {isEditing ? (
-                    <input
-                      type={field.type || "text"}
-                      value={row[field.key] || ""}
-                      onChange={(e) =>
-                        onChange(rowIndex, field.key, e.target.value)
-                      }
-                      className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                    />
-                  ) : (
-                    <p className="mt-1 rounded-xl bg-white border border-slate-100 px-3 py-2.5 text-sm text-slate-800 min-h-[42px]">
-                      {row[field.key] || "N/A"}
-                    </p>
-                  )}
-                </div>
-              ))}
+            <div className="mt-6">
+              <button
+                type="button"
+                onClick={close}
+                className="rounded-lg bg-blue-700 px-5 py-2 text-sm font-bold text-white hover:bg-blue-800"
+              >
+                Done
+              </button>
             </div>
           </div>
-        ))}
+        )}
       </div>
     </div>
   );
 }
 
-function ProfileFileUpload({
-  label,
-  description,
-  field,
-  file,
-  isEditing,
-  onFileChange,
-  onRemoveFile,
-}) {
-  const fileName =
-    file?.name || file?.fileName || file?.filename || file?.label || "";
+/* ================= SMALL COMPONENTS ================= */
 
+function ReviewSection({ title, children }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
-      <div>
-        <label className="block text-sm font-bold text-slate-700">
-          {label}
-        </label>
+    <section className="space-y-3 text-sm text-slate-700">
+      <h2 className="text-lg font-semibold text-blue-900">{title}</h2>
+      <div className="border-b border-slate-300" />
+      <div className="grid gap-2 sm:grid-cols-2">{children}</div>
+    </section>
+  );
+}
 
-        {description && (
-          <p className="text-xs text-slate-500 mt-1 leading-5">
-            {description}
-          </p>
-        )}
-      </div>
+function StepFooter({ onBack, disabledBack = false, onNextSubmit = false }) {
+  return (
+    <div className="flex items-center justify-between pt-6">
+      <button
+        type="button"
+        onClick={onBack}
+        disabled={disabledBack}
+        className="rounded-xl border-2 border-slate-200 bg-white px-6 py-2 font-bold text-slate-600 transition-all hover:bg-slate-50 disabled:opacity-40"
+      >
+        Back
+      </button>
 
-      {isEditing ? (
-        <>
-          <input
-            type="file"
-            id={`profile-${field}`}
-            className="hidden"
-            onChange={(e) => onFileChange(field, e.target.files?.[0] || null)}
-          />
-
-          <label
-            htmlFor={`profile-${field}`}
-            className={`flex min-h-28 w-full cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-4 text-center transition ${
-              fileName
-                ? "border-green-300 bg-green-50"
-                : "border-slate-300 bg-slate-50 hover:border-blue-500 hover:bg-blue-50"
-            }`}
-          >
-            {fileName ? (
-              <>
-                <CheckCircle2 className="mb-2 h-6 w-6 text-green-600" />
-                <span className="text-sm font-semibold text-green-700 break-all">
-                  {fileName}
-                </span>
-              </>
-            ) : (
-              <>
-                <UploadCloud className="mb-2 h-7 w-7 text-slate-400" />
-                <span className="text-sm font-medium text-slate-500">
-                  Click to upload file
-                </span>
-              </>
-            )}
-          </label>
-
-          {fileName && (
-            <button
-              type="button"
-              onClick={() => onRemoveFile(field)}
-              className="text-sm font-semibold text-red-600 hover:underline"
-            >
-              Remove Attachment
-            </button>
-          )}
-        </>
-      ) : (
-        <div className="rounded-2xl bg-slate-50 border border-slate-100 px-4 py-3 text-sm">
-          {fileName ? (
-            <span className="font-semibold text-green-700 break-all">
-              Uploaded: {fileName}
-            </span>
-          ) : (
-            <span className="text-slate-500">Not uploaded</span>
-          )}
-        </div>
-      )}
+      <button
+        type={onNextSubmit ? "submit" : "button"}
+        className="rounded-xl bg-[#0056b3] px-6 py-2 font-bold text-white transition hover:bg-[#003a78]"
+      >
+        Next Step
+      </button>
     </div>
+  );
+}
+
+function InputBox({
+  label,
+  value,
+  onChange,
+  disabled,
+  required = false,
+  type = "text",
+  error,
+}) {
+  return (
+    <div>
+      {label && (
+        <label className="mb-1 block text-sm font-medium text-slate-600">
+          {label} {required && <span className="text-red-500">*</span>}
+        </label>
+      )}
+
+      <input
+        type={type}
+        value={value || ""}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={label}
+        max={
+          type === "date" ? new Date().toISOString().split("T")[0] : undefined
+        }
+        className={`h-11 w-full rounded-xl border bg-white px-4 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 ${
+          error ? "border-red-500" : "border-slate-300"
+        }`}
+      />
+
+      {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
+    </div>
+  );
+}
+
+function SelectBox({
+  label,
+  value,
+  onChange,
+  disabled,
+  required = false,
+  options = [],
+  error,
+}) {
+  return (
+    <div>
+      {label && (
+        <label className="mb-1 block text-sm font-medium text-slate-600">
+          {label} {required && <span className="text-red-500">*</span>}
+        </label>
+      )}
+
+      <select
+        value={value || ""}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+        className={`h-11 w-full rounded-xl border bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 ${
+          error ? "border-red-500" : "border-slate-300"
+        }`}
+      >
+        {options.map((option) => (
+          <option key={option || "empty"} value={option}>
+            {option || "Select"}
+          </option>
+        ))}
+      </select>
+
+      {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
+    </div>
+  );
+}
+
+function SmallInput({
+  value,
+  disabled,
+  onChange,
+  placeholder,
+  type = "text",
+}) {
+  return (
+    <input
+      type={type}
+      value={value || ""}
+      disabled={disabled}
+      onChange={onChange}
+      placeholder={placeholder}
+      className="h-11 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm text-slate-700 placeholder-slate-400 outline-none hover:border-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-600"
+    />
   );
 }

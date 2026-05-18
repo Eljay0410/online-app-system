@@ -1,13 +1,26 @@
 import React, { useState } from "react";
-import { Menu, X, ChevronDown, User, LogOut, LayoutDashboard, Briefcase } from "lucide-react";
+import {
+  Menu,
+  X,
+  ChevronDown,
+  User,
+  LogOut,
+  LayoutDashboard,
+  Briefcase,
+} from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { useAuth, normalizeRole, getAuthenticatedHomePath } from "../../features/auth/auth";
+import {
+  useAuth,
+  normalizeRole,
+  getAuthenticatedHomePath,
+} from "../../features/auth/auth";
 import { apiRequest } from "../../lib/api";
 
 const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
+
   const [isOpen, setIsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
@@ -24,99 +37,157 @@ const Navbar = () => {
     } catch (error) {
       console.error("Logout failed:", error);
     }
+
     logout();
     setIsProfileOpen(false);
     setIsOpen(false);
     navigate("/login", { replace: true });
   };
 
-  const navLinks = [
-    { name: "Job Listings", path: "/", icon: Briefcase },
-  ];
+  const navLinks = [{ name: "Job Listings", path: "/", icon: Briefcase }];
 
   if (isLoggedIn) {
     if (role === "applicant") {
-      navLinks.push({ name: "My Applications", path: "/applications", icon: LayoutDashboard });
+      navLinks.push({
+        name: "My Applications",
+        path: "/applications",
+        icon: LayoutDashboard,
+      });
     } else if (role === "admin") {
-      navLinks.push({ name: "Admin Dashboard", path: "/admin", icon: LayoutDashboard });
+      navLinks.push({
+        name: "Admin Dashboard",
+        path: "/admin",
+        icon: LayoutDashboard,
+      });
     } else if (role === "superadmin") {
-      navLinks.push({ name: "Superadmin Dashboard", path: "/superadmin", icon: LayoutDashboard });
+      navLinks.push({
+        name: "Superadmin Dashboard",
+        path: "/superadmin",
+        icon: LayoutDashboard,
+      });
     }
   }
 
   const isActive = (path) => location.pathname === path;
 
   return (
-    <nav className="fixed z-50 w-full border-b border-white/10 bg-[#0056b3] shadow-md transition-all duration-300">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex h-20 items-center justify-between">
-          {/* Logo Section */}
-          <Link to={homePath} className="flex flex-col justify-center leading-tight">
-            <p className="text-[10px] sm:text-[11px] uppercase tracking-[0.15em] text-white/70 font-semibold">
-              Department of Education
-            </p>
-            <h1 className="text-sm sm:text-base md:text-lg font-bold text-white tracking-tight">
-              CITY OF SAN JOSE DEL MONTE
-            </h1>
-            <p className="text-[12px] sm:text-[13px] text-white/90 font-medium mt-0.5">
-              Online Application System
-            </p>
-          </Link>
+    <nav className="fixed left-0 top-0 z-50 h-[96px] w-full bg-[#0056b3] shadow-md">
+      <div className="flex h-full w-full items-center">
+        {/* Left Branding */}
+        <Link
+          to={homePath}
+          className="flex h-full w-[300px] shrink-0 flex-col justify-center px-3 leading-tight sm:w-[360px] md:w-[420px]"
+        >
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/70 sm:text-[11px]">
+            Department of Education
+          </p>
 
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center gap-1">
+          <h1 className="mt-0.5 whitespace-nowrap text-[18px] font-bold tracking-tight text-white sm:text-[22px] md:text-[24px]">
+            CITY OF SAN JOSE DEL MONTE
+          </h1>
+
+          <p className="mt-0.5 text-[12px] font-medium text-white/90 sm:text-[14px]">
+            Certificate Verifier System - CERVER
+          </p>
+        </Link>
+
+        {/* Center Spacer */}
+        <div className="hidden h-full flex-1 md:block" />
+
+        {/* Desktop Navigation */}
+        <div className="hidden h-full items-center justify-end md:flex">
+          <div className="flex h-full items-center gap-8 px-5">
             {navLinks.map((link) => (
               <Link
                 key={link.path}
                 to={link.path}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                className={`text-[15px] font-semibold transition-colors duration-200 ${
                   isActive(link.path)
-                    ? "bg-white/15 text-white"
-                    : "text-white/80 hover:bg-white/10 hover:text-white"
+                    ? "text-white"
+                    : "text-white hover:text-black"
                 }`}
               >
-                <link.icon size={18} />
                 {link.name}
               </Link>
             ))}
 
-            <div className="ml-4 h-8 w-px bg-white/10" />
+            {!isLoggedIn && (
+              <>
+                <Link
+                  to="/about"
+                  className={`text-[15px] font-semibold transition-colors duration-200 ${
+                    isActive("/about")
+                      ? "text-white"
+                      : "text-white hover:text-black"
+                  }`}
+                >
+                  About
+                </Link>
+
+                <Link
+                  to="/contact"
+                  className={`text-[15px] font-semibold transition-colors duration-200 ${
+                    isActive("/contact")
+                      ? "text-white"
+                      : "text-white hover:text-black"
+                  }`}
+                >
+                  Contact
+                </Link>
+              </>
+            )}
 
             {isLoggedIn ? (
-              <div className="relative ml-4">
+              <div className="relative ml-2">
                 <button
+                  type="button"
                   onClick={() => setIsProfileOpen(!isProfileOpen)}
-                  className="flex items-center gap-3 rounded-full bg-white/10 p-1.5 pr-4 transition hover:bg-white/20"
+                  className="flex h-11 items-center gap-3 rounded-full bg-white/10 p-1.5 pr-4 transition hover:bg-white/20"
                 >
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#0056b3] font-bold shadow-sm">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white font-bold text-[#0056b3] shadow-sm">
                     {initial}
                   </div>
-                  <span className="text-sm font-semibold text-white">Account</span>
-                  <ChevronDown size={16} className={`text-white/70 transition-transform duration-200 ${isProfileOpen ? 'rotate-180' : ''}`} />
+
+                  <span className="text-sm font-semibold text-white">
+                    Account
+                  </span>
+
+                  <ChevronDown
+                    size={16}
+                    className={`text-white/70 transition-transform duration-200 ${
+                      isProfileOpen ? "rotate-180" : ""
+                    }`}
+                  />
                 </button>
 
                 {isProfileOpen && (
-                  <div className="absolute right-0 mt-3 w-56 overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-black/5 animate-in fade-in slide-in-from-top-2">
-                    <div className="bg-slate-50 px-4 py-3 border-b border-slate-100">
-                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Signed in as</p>
-                      <p className="text-sm font-bold text-slate-900 truncate">{user?.email}</p>
+                  <div className="absolute right-0 mt-3 w-56 overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-black/5">
+                    <div className="border-b border-slate-100 bg-slate-50 px-4 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                        Signed in as
+                      </p>
+
+                      <p className="truncate text-sm font-bold text-slate-900">
+                        {user?.email}
+                      </p>
                     </div>
-                    
+
                     <div className="p-1.5">
                       {role === "applicant" && (
                         <Link
                           to="/profile"
                           onClick={() => setIsProfileOpen(false)}
-                          className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700 rounded-lg transition hover:bg-blue-50 hover:text-[#0056b3]"
+                          className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-700 transition hover:bg-blue-50 hover:text-[#0056b3]"
                         >
                           <User size={18} />
                           My Profile
                         </Link>
                       )}
-                      
+
                       <button
+                        type="button"
                         onClick={handleLogout}
-                        className="flex w-full items-center gap-3 px-3 py-2.5 text-sm text-red-600 rounded-lg transition hover:bg-red-50"
+                        className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-red-600 transition hover:bg-red-50"
                       >
                         <LogOut size={18} />
                         Logout
@@ -126,51 +197,54 @@ const Navbar = () => {
                 )}
               </div>
             ) : (
-              <div className="ml-4 flex items-center gap-3">
+              <div className="ml-2 flex items-center gap-3">
                 <Link
                   to="/register"
-                  className="text-sm font-semibold text-white/90 transition hover:text-white px-3 py-2"
+                  className="px-3 py-2 text-sm font-semibold text-white transition hover:text-black"
                 >
                   Register
                 </Link>
+
                 <Link
                   to="/login"
-                  className="rounded-lg bg-white px-5 py-2.5 text-sm font-bold text-[#0056b3] shadow-lg transition hover:bg-blue-50 hover:scale-105 active:scale-95"
+                  className="rounded-lg bg-white px-5 py-2.5 text-sm font-bold text-[#0056b3] shadow-lg transition hover:bg-blue-50"
                 >
                   Log in
                 </Link>
               </div>
             )}
           </div>
+        </div>
 
-          {/* Mobile menu button */}
-          <div className="md:hidden flex items-center gap-2">
-            {isLoggedIn && (
-               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-white font-bold">
-               {initial}
-             </div>
-            )}
-            <button 
-              onClick={() => setIsOpen(!isOpen)} 
-              className="p-2 rounded-lg text-white hover:bg-white/10 transition"
-            >
-              {isOpen ? <X size={28} /> : <Menu size={28} />}
-            </button>
-          </div>
+        {/* Mobile Button */}
+        <div className="ml-auto flex items-center gap-2 px-3 md:hidden">
+          {isLoggedIn && (
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 font-bold text-white">
+              {initial}
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setIsOpen(!isOpen)}
+            className="rounded-lg p-2 text-white transition hover:bg-white/10"
+          >
+            {isOpen ? <X size={28} /> : <Menu size={28} />}
+          </button>
         </div>
       </div>
 
-      {/* Mobile menu */}
+      {/* Mobile Menu */}
       {isOpen && (
-        <div className="md:hidden bg-white border-t border-slate-100 animate-in slide-in-from-top">
-          <div className="px-4 py-6 space-y-4">
+        <div className="border-t border-slate-100 bg-white md:hidden">
+          <div className="space-y-4 px-4 py-6">
             <div className="space-y-1">
               {navLinks.map((link) => (
                 <Link
                   key={link.path}
                   to={link.path}
                   onClick={() => setIsOpen(false)}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-base font-semibold transition ${
+                  className={`flex items-center gap-3 rounded-xl px-4 py-3 text-base font-semibold transition ${
                     isActive(link.path)
                       ? "bg-blue-50 text-[#0056b3]"
                       : "text-slate-700 hover:bg-slate-50"
@@ -180,26 +254,56 @@ const Navbar = () => {
                   {link.name}
                 </Link>
               ))}
+
+              {!isLoggedIn && (
+                <>
+                  <Link
+                    to="/about"
+                    onClick={() => setIsOpen(false)}
+                    className={`flex items-center gap-3 rounded-xl px-4 py-3 text-base font-semibold transition ${
+                      isActive("/about")
+                        ? "bg-blue-50 text-[#0056b3]"
+                        : "text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    About
+                  </Link>
+
+                  <Link
+                    to="/contact"
+                    onClick={() => setIsOpen(false)}
+                    className={`flex items-center gap-3 rounded-xl px-4 py-3 text-base font-semibold transition ${
+                      isActive("/contact")
+                        ? "bg-blue-50 text-[#0056b3]"
+                        : "text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    Contact
+                  </Link>
+                </>
+              )}
             </div>
 
-            <div className="h-px bg-slate-100 mx-4" />
+            <div className="mx-4 h-px bg-slate-100" />
 
             <div className="px-4">
               {isLoggedIn ? (
                 <div className="space-y-3">
-                   {role === "applicant" && (
+                  {role === "applicant" && (
                     <Link
                       to="/profile"
                       onClick={() => setIsOpen(false)}
-                      className="flex items-center gap-3 py-2 text-slate-700 font-medium"
+                      className="flex items-center gap-3 py-2 font-medium text-slate-700"
                     >
                       <User size={20} />
                       My Profile
                     </Link>
                   )}
+
                   <button
+                    type="button"
                     onClick={handleLogout}
-                    className="flex w-full items-center gap-3 py-2 text-red-600 font-bold"
+                    className="flex w-full items-center gap-3 py-2 font-bold text-red-600"
                   >
                     <LogOut size={20} />
                     Logout
@@ -214,6 +318,7 @@ const Navbar = () => {
                   >
                     Log in
                   </Link>
+
                   <Link
                     to="/register"
                     onClick={() => setIsOpen(false)}
