@@ -56,6 +56,7 @@ export default function JobOpenings() {
         }
 
         const result = await apiRequest(`/api/job-openings?${params.toString()}`);
+
         if (isMounted) {
           setJobs(result.jobs || []);
         }
@@ -78,9 +79,11 @@ export default function JobOpenings() {
 
   const locationHints = useMemo(() => {
     const unique = new Set();
+
     for (const job of jobs) {
       if (job.location) unique.add(job.location);
     }
+
     return Array.from(unique).slice(0, 6);
   }, [jobs]);
 
@@ -99,15 +102,17 @@ export default function JobOpenings() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 pb-10 pt-24 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-slate-50 px-4 pb-10 pt-40 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-7xl space-y-6">
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#0056b3]">
             Job Listings
           </p>
+
           <h1 className="mt-2 text-2xl font-bold text-slate-900 sm:text-3xl">
             Available vacancies
           </h1>
+
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
             Search by title or school/location, then open a posting or start
             your application flow.
@@ -116,10 +121,14 @@ export default function JobOpenings() {
           <div className="mt-5 grid gap-3 md:grid-cols-[1.2fr_1fr_auto]">
             <div className="flex h-11 items-center gap-2 rounded-xl border border-slate-300 bg-slate-50 px-3">
               <Search className="h-4 w-4 text-slate-400" />
+
               <input
                 value={filters.search}
                 onChange={(e) =>
-                  setFilters((current) => ({ ...current, search: e.target.value }))
+                  setFilters((current) => ({
+                    ...current,
+                    search: e.target.value,
+                  }))
                 }
                 placeholder="Search by title or keyword"
                 className="min-w-0 flex-1 bg-transparent text-sm outline-none"
@@ -128,6 +137,7 @@ export default function JobOpenings() {
 
             <div className="flex h-11 items-center gap-2 rounded-xl border border-slate-300 bg-slate-50 px-3">
               <MapPin className="h-4 w-4 text-slate-400" />
+
               <input
                 value={filters.location}
                 onChange={(e) =>
@@ -158,7 +168,10 @@ export default function JobOpenings() {
                   key={hint}
                   type="button"
                   onClick={() =>
-                    setFilters((current) => ({ ...current, location: hint }))
+                    setFilters((current) => ({
+                      ...current,
+                      location: hint,
+                    }))
                   }
                   className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700"
                 >
@@ -196,10 +209,8 @@ export default function JobOpenings() {
                     <h2 className="text-lg font-semibold text-slate-900">
                       {job.title}
                     </h2>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {job.description || "School vacancy posting"}
-                    </p>
                   </div>
+
                   <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
                     Open
                   </span>
@@ -210,10 +221,12 @@ export default function JobOpenings() {
                     <MapPin className="h-4 w-4 text-slate-400" />
                     <span>{job.location}</span>
                   </div>
+
                   <div className="flex items-center gap-2">
                     <BriefcaseBusiness className="h-4 w-4 text-slate-400" />
                     <span>{job.vacancy} vacancy(ies)</span>
                   </div>
+
                   <div className="flex items-center gap-2">
                     <CalendarDays className="h-4 w-4 text-slate-400" />
                     <span>Deadline {formatDate(job.deadline)}</span>
@@ -227,6 +240,7 @@ export default function JobOpenings() {
                   >
                     View details
                   </Link>
+
                   <button
                     type="button"
                     onClick={() => handleApply(job)}
@@ -247,6 +261,7 @@ export default function JobOpenings() {
             <h3 className="text-lg font-semibold text-slate-900">
               Continue your application
             </h3>
+
             <p className="mt-2 text-sm leading-6 text-slate-600">
               Register or log in first, then complete your profile before
               applying to {promptJob.title}.
@@ -260,14 +275,18 @@ export default function JobOpenings() {
               >
                 Register
               </Link>
+
               <Link
-                to={`/login?next=${encodeURIComponent(`/profile?jobId=${promptJob.id}`)}`}
+                to={`/login?next=${encodeURIComponent(
+                  `/profile?jobId=${promptJob.id}`
+                )}`}
                 className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-slate-300 px-4 font-semibold text-slate-700 transition hover:bg-slate-50"
                 onClick={() => setPromptJob(null)}
               >
                 Login
               </Link>
             </div>
+
             <button
               type="button"
               onClick={() => setPromptJob(null)}

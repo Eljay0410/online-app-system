@@ -87,7 +87,7 @@ const Navbar = () => {
           </h1>
 
           <p className="mt-0.5 text-[12px] font-medium text-white/90 sm:text-[14px]">
-            Certificate Verifier System - CERVER
+            Online Application System - OASys
           </p>
         </Link>
 

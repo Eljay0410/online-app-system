@@ -1,14 +1,9 @@
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import {
-  ArrowLeft,
-  Eye,
-  EyeOff,
-  Loader2,
-  RefreshCw,
-} from "lucide-react";
+import { Eye, EyeOff, Loader2, RefreshCw } from "lucide-react";
 import { apiRequest } from "../../lib/api";
 import { getAuthenticatedHomePath, normalizeRole, useAuth } from "./auth";
+import imageSample from "../../assets/imagesample.svg";
 
 const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 const guestRoutes = ["/login", "/register", "/activate"];
@@ -33,9 +28,11 @@ export default function Login() {
   const navigate = useNavigate();
   const { login } = useAuth();
   const [searchParams] = useSearchParams();
+
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const [message, setMessage] = useState("");
@@ -97,6 +94,7 @@ export default function Login() {
       });
 
       login(result.user, result.token);
+
       const user = result.user;
       const safeNextPath = getSafeNextPath(searchParams.get("next"));
       const nextRoute = safeNextPath.split("?")[0];
@@ -189,150 +187,162 @@ export default function Login() {
       ? "Forgot your password?"
       : "Resend verification email";
 
-  const handleBack = () => {
-    if (mode === "login") {
-      navigate("/");
-      return;
-    }
-
-    switchMode("login");
-  };
-
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4 pt-24 pb-8 sm:px-6 sm:pt-24 sm:pb-10">
-      <section className="w-full max-w-[520px] rounded-[20px] border border-slate-200 bg-white px-6 py-6 shadow-[0_12px_30px_rgba(15,23,42,0.08)] sm:px-8 sm:py-8">
-        <button
-          type="button"
-          onClick={handleBack}
-          className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#0056b3] text-white transition hover:bg-[#003a78]"
-          aria-label="Go back"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </button>
+    <main className="min-h-screen overflow-hidden bg-white pt-[96px]">
+      <div className="grid min-h-[calc(100vh-96px)] grid-cols-1 lg:grid-cols-[30.5%_69.5%]">
+        {/* LEFT LOGIN AREA */}
+        <section className="min-w-0 bg-[#eeeeee]">
+          <div className="flex min-h-[calc(100vh-96px)] w-full items-center justify-center px-5 py-8">
+            <div className="w-full max-w-[330px]">
+              <div>
+                <h1 className="text-[25px] font-extrabold leading-[1.08] tracking-tight text-slate-950 sm:text-[28px]">
+                  {heading}
+                </h1>
 
-        <div className="mt-6">
-          <h1 className="text-[26px] font-semibold tracking-tight text-slate-900 sm:text-[28px]">
-            {heading}
-          </h1>
-          <p className="mt-3 max-w-[52ch] text-[15px] leading-7 text-slate-600">
-            {mode === "login" ? (
-              <>
-                Log in to the Online Application System using your email. If
-                you don&apos;t have an account yet,{" "}
-                <Link
-                  to="/register"
-                  className="font-semibold text-[#0056b3] hover:underline"
-                >
-                  create one here
-                </Link>
-                .
-              </>
-            ) : mode === "forgot" ? (
-              "Enter the email address associated with your account and we'll send you a reset link."
-            ) : (
-              "Enter the email address tied to your account and we'll send a new verification link."
-            )}
-          </p>
-        </div>
+                <div className="mt-7 space-y-2 text-[13px] leading-6 text-slate-600">
+                  {mode === "login" ? (
+                    <>
+                      <p>
+                        Log in to the Online Application System using your
+                        email.
+                      </p>
 
-        {message && (
-          <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-            {message}
-          </div>
-        )}
-
-        <form onSubmit={submitHandler} className="mt-6 space-y-5 text-left" noValidate>
-          <TextField
-            label={mode === "login" ? "Email" : "Email address"}
-            value={email}
-            onChange={setEmail}
-            error={errors.email}
-            type="email"
-            placeholder={
-              mode === "login"
-                ? "Enter your email address"
-                : "ex: myname@example.com"
-            }
-            autoComplete="email"
-          />
-
-          {mode === "login" && (
-            <TextField
-              label="Password"
-              value={password}
-              onChange={setPassword}
-              type={showPassword ? "text" : "password"}
-              error={errors.password}
-              placeholder="Enter your password"
-              autoComplete="current-password"
-              rightElement={
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((current) => !current)}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                  aria-pressed={showPassword}
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-5 w-5" />
+                      <p>
+                        If you don&apos;t have an account yet,{" "}
+                        <Link
+                          to="/register"
+                          className="font-bold text-[#0056b3] hover:underline"
+                        >
+                          create one here
+                        </Link>
+                        .
+                      </p>
+                    </>
+                  ) : mode === "forgot" ? (
+                    <p>
+                      Enter the email address associated with your account and
+                      we&apos;ll send you a reset link.
+                    </p>
                   ) : (
-                    <Eye className="h-5 w-5" />
+                    <p>
+                      Enter the email address tied to your account and we&apos;ll
+                      send a new verification link.
+                    </p>
                   )}
-                </button>
-              }
-            />
-          )}
+                </div>
+              </div>
 
-          {errors.form && (
-            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {errors.form}
-            </div>
-          )}
+              {message && (
+                <div className="mt-5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
+                  {message}
+                </div>
+              )}
 
-          {mode === "login" && (
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => {
-                  switchMode("forgot");
-                }}
-                className="text-sm font-medium text-slate-500 transition hover:text-[#0056b3]"
+              <form
+                onSubmit={submitHandler}
+                className="mt-8 space-y-5"
+                noValidate
               >
-                Forgot password?
-              </button>
+                <TextField
+                  label={mode === "login" ? "Email" : "Email address"}
+                  value={email}
+                  onChange={setEmail}
+                  error={errors.email}
+                  type="email"
+                  placeholder="Enter your email address"
+                  autoComplete="email"
+                />
+
+                {mode === "login" && (
+                  <TextField
+                    label="Password"
+                    value={password}
+                    onChange={setPassword}
+                    type={showPassword ? "text" : "password"}
+                    error={errors.password}
+                    placeholder="Enter your password"
+                    autoComplete="current-password"
+                    rightElement={
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((current) => !current)}
+                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+                        aria-label={
+                          showPassword ? "Hide password" : "Show password"
+                        }
+                        aria-pressed={showPassword}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    }
+                  />
+                )}
+
+                {errors.form && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                    {errors.form}
+                  </div>
+                )}
+
+                {mode === "login" && (
+                  <div className="flex justify-end pt-1">
+                    <button
+                      type="button"
+                      onClick={() => switchMode("forgot")}
+                      className="text-[13px] font-medium text-slate-500 transition hover:text-[#0056b3]"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="mt-4 inline-flex h-[43px] w-full items-center justify-center gap-2 rounded-lg bg-[#244a96] text-[13px] font-semibold text-white shadow-sm transition hover:bg-[#183978] disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : mode === "resend" ? (
+                    <RefreshCw className="h-4 w-4" />
+                  ) : null}
+
+                  {mode === "login"
+                    ? "Login"
+                    : mode === "forgot"
+                    ? "Send Reset Link"
+                    : "Resend Verification"}
+                </button>
+              </form>
+
+              {mode !== "login" && (
+                <div className="mt-5">
+                  <button
+                    type="button"
+                    onClick={() => switchMode("login")}
+                    className="text-xs font-semibold text-slate-600 transition hover:text-[#0056b3]"
+                  >
+                    Back to login
+                  </button>
+                </div>
+              )}
             </div>
-          )}
+          </div>
+        </section>
 
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#0056b3] px-4 text-[15px] font-semibold text-white transition hover:bg-[#003a78] disabled:cursor-not-allowed disabled:opacity-70"
-          >
-            {isSubmitting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : mode === "resend" ? (
-              <RefreshCw className="h-4 w-4" />
-            ) : null}
-            {mode === "login"
-              ? "Login"
-              : mode === "forgot"
-              ? "Send Reset Link"
-              : "Resend Verification"}
-          </button>
-        </form>
-
-        <div className="mt-6 flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-          {mode !== "login" && (
-            <button
-              type="button"
-              onClick={() => switchMode("login")}
-              className="font-medium text-slate-600 transition hover:text-[#0056b3]"
-            >
-              Back to login
-            </button>
-          )}
-        </div>
-      </section>
+        {/* RIGHT IMAGE FULL */}
+        <section className="hidden min-w-0 overflow-hidden bg-[#0056d6] lg:block">
+          <img
+            src={imageSample}
+            alt="Online Application System"
+            className="h-[calc(100vh-96px)] w-full object-cover object-center"
+          />
+        </section>
+      </div>
     </main>
   );
 }
@@ -349,27 +359,34 @@ function TextField({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-sm font-semibold text-slate-900">
+      <span className="mb-2 block text-[12px] font-bold text-slate-950">
         {label}
       </span>
+
       <div
-        className={`flex h-11 items-center rounded-xl border bg-white px-3.5 transition focus-within:ring-2 ${
+        className={`flex h-[39px] w-full items-center rounded-lg border bg-white px-3 transition focus-within:ring-2 ${
           error
             ? "border-red-500 ring-1 ring-red-100"
-            : "border-slate-300 focus-within:border-[#0056b3] focus-within:ring-blue-100"
+            : "border-slate-300 focus-within:border-[#244a96] focus-within:ring-blue-100"
         }`}
       >
         <input
           type={type}
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(event) => onChange(event.target.value)}
           placeholder={placeholder}
           autoComplete={autoComplete}
-          className="min-w-0 flex-1 bg-transparent text-[14px] text-slate-900 outline-none placeholder:text-slate-400"
+          className="min-w-0 flex-1 bg-transparent text-[13px] text-slate-950 outline-none placeholder:text-slate-400"
         />
+
         {rightElement}
       </div>
-      {error && <p className="mt-2 text-xs font-medium text-red-600">{error}</p>}
+
+      {error && (
+        <p className="mt-1.5 text-[11px] font-semibold text-red-600">
+          {error}
+        </p>
+      )}
     </label>
   );
 }
