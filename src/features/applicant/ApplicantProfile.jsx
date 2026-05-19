@@ -1,23 +1,11 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  ChevronDown,
-  Copy,
-  Edit3,
-  Loader2,
-  MailCheck,
-  Save,
-  Send,
-  ShieldCheck,
-  X,
-} from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { CheckCircle2, Edit3, Save, X } from "lucide-react";
 import BackButton from "../../components/ui/BackButton";
-import { getStoredUser, storeUser } from "../auth/auth";
-
-const emptyText = "N/A";
+import { apiRequest } from "../../lib/api";
+import { getStoredUser, storeUser, useAuth } from "../auth/auth";
 
 const defaultFiles = {
   letterOfIntent: null,
@@ -112,43 +100,25 @@ const defaultProfile = {
   },
 };
 
-const initialApplications = [
-  {
-    id: 1,
-    position: "Teacher I",
-    location: "No location",
-    dateApplied: "May 11, 2026",
-    status: "Application Submitted",
-    isOpen: false,
-  },
-  {
-    id: 2,
-    position: "Administrative Aide",
-    location: "No location",
-    dateApplied: "May 11, 2026",
-    status: "Application Submitted",
-    isOpen: false,
-  },
-];
-
 const steps = [
   { id: 1, title: "PERSONAL INFORMATION", key: "personalInfo" },
   { id: 2, title: "EDUCATIONAL BACKGROUND", key: "educationalBackground" },
   { id: 3, title: "ELIGIBILITY", key: "eligibility" },
   { id: 4, title: "LEARNING DEVELOPMENT", key: "learningDevelopment" },
   { id: 5, title: "ATTACHMENT", key: "jobPosition" },
-  { id: 6, title: "REVIEW", key: "review" },
 ];
 
-export default function ApplicantProfile() {
+export default function ApplicantProfile({ embedded = false }) {
+  const { updateUser } = useAuth();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState(defaultProfile);
   const [formData, setFormData] = useState(defaultProfile);
-  const [activeTab, setActiveTab] = useState("application");
   const [currentStep, setCurrentStep] = useState(1);
   const [isEditing, setIsEditing] = useState(false);
-  const [applications, setApplications] = useState(initialApplications);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
     const storedUser = getStoredUser?.();
 
     const accountPrefill = {
@@ -161,55 +131,85 @@ export default function ApplicantProfile() {
       },
     };
 
-    try {
-      const savedFullProfile = localStorage.getItem("applicantFullProfile");
-      const savedProfile = localStorage.getItem("applicantProfile");
+    const hydrateFromStorage = () => {
+      try {
+        const savedFullProfile = localStorage.getItem("applicantFullProfile");
+        const savedProfile = localStorage.getItem("applicantProfile");
 
-      if (savedFullProfile) {
-        const parsed = JSON.parse(savedFullProfile);
-        const merged = mergeProfile(accountPrefill, parsed);
-        setProfile(merged);
-        setFormData(merged);
-        return;
+        if (savedFullProfile) {
+          const parsed = JSON.parse(savedFullProfile);
+          const merged = mergeProfile(accountPrefill, parsed);
+          if (isMounted) {
+            setProfile(merged);
+            setFormData(merged);
+          }
+          return;
+        }
+
+        if (savedProfile) {
+          const parsed = JSON.parse(savedProfile);
+
+          const merged = {
+            ...accountPrefill,
+            personalInfo: {
+              ...accountPrefill.personalInfo,
+              ...parsed,
+              contactNumber: parsed.contactNumber || parsed.phone || "",
+              emailAddress: parsed.emailAddress || parsed.email || "",
+              dob: parsed.dob || parsed.birthDate || "",
+              isSoloParent: parsed.isSoloParent || false,
+              soloParentIdNumber: parsed.soloParentIdNumber || "",
+              isPwd: parsed.isPwd || false,
+              pwdIdNumber: parsed.pwdIdNumber || "",
+            },
+            accountDetails: {
+              ...accountPrefill.accountDetails,
+              applicantNumber:
+                parsed.applicantNumber ||
+                accountPrefill.accountDetails.applicantNumber,
+              accountStatus:
+                parsed.accountStatus ||
+                accountPrefill.accountDetails.accountStatus,
+            },
+          };
+
+          if (isMounted) {
+            setProfile(merged);
+            setFormData(merged);
+          }
+          return;
+        }
+      } catch (error) {
+        console.error("Failed to load applicant profile:", error);
       }
 
-      if (savedProfile) {
-        const parsed = JSON.parse(savedProfile);
+      if (isMounted) {
+        setProfile(accountPrefill);
+        setFormData(accountPrefill);
+      }
+    };
 
-        const merged = {
-          ...accountPrefill,
-          personalInfo: {
-            ...accountPrefill.personalInfo,
-            ...parsed,
-            contactNumber: parsed.contactNumber || parsed.phone || "",
-            emailAddress: parsed.emailAddress || parsed.email || "",
-            dob: parsed.dob || parsed.birthDate || "",
-            isSoloParent: parsed.isSoloParent || false,
-            soloParentIdNumber: parsed.soloParentIdNumber || "",
-            isPwd: parsed.isPwd || false,
-            pwdIdNumber: parsed.pwdIdNumber || "",
-          },
-          accountDetails: {
-            ...accountPrefill.accountDetails,
-            applicantNumber:
-              parsed.applicantNumber ||
-              accountPrefill.accountDetails.applicantNumber,
-            accountStatus:
-              parsed.accountStatus ||
-              accountPrefill.accountDetails.accountStatus,
-          },
-        };
+    const loadProfile = async () => {
+      try {
+        const result = await apiRequest("/api/applicant/profile");
+        if (!isMounted) return;
 
+        const serverData = result.profile?.data || {};
+        const merged = mergeProfile(accountPrefill, serverData);
         setProfile(merged);
         setFormData(merged);
-        return;
-      }
-    } catch (error) {
-      console.error("Failed to load applicant profile:", error);
-    }
 
-    setProfile(accountPrefill);
-    setFormData(accountPrefill);
+        localStorage.setItem("applicantFullProfile", JSON.stringify(merged));
+      } catch (error) {
+        hydrateFromStorage();
+      }
+    };
+
+    loadProfile();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const fullName = useMemo(() => {
@@ -246,9 +246,17 @@ export default function ApplicantProfile() {
     setIsEditing(false);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (isSaving) return;
+    setIsSaving(true);
+
+    const completedAt = new Date().toISOString();
     const finalProfile = {
       ...formData,
+      applicationDetails: {
+        ...(formData.applicationDetails || {}),
+        completedAt,
+      },
       personalInfo: {
         ...formData.personalInfo,
         soloParentIdNumber: formData.personalInfo.isSoloParent
@@ -267,62 +275,75 @@ export default function ApplicantProfile() {
       },
     };
 
-    setProfile(finalProfile);
-    localStorage.setItem("applicantFullProfile", JSON.stringify(finalProfile));
-
-    localStorage.setItem(
-      "applicantProfile",
-      JSON.stringify({
-        ...finalProfile.personalInfo,
-        email: finalProfile.personalInfo.emailAddress,
-        phone: finalProfile.personalInfo.contactNumber,
-        birthDate: finalProfile.personalInfo.dob,
-        applicantNumber: finalProfile.accountDetails.applicantNumber,
-        accountStatus: finalProfile.accountDetails.accountStatus,
-      })
-    );
-
-    const storedUser = getStoredUser?.();
-
-    if (storedUser && storeUser) {
-      storeUser({
-        ...storedUser,
-        firstName: finalProfile.personalInfo.firstName,
-        lastName: finalProfile.personalInfo.lastName,
-        email: finalProfile.personalInfo.emailAddress,
-        profileComplete: true,
+    try {
+      const result = await apiRequest("/api/applicant/profile", {
+        method: "PUT",
+        body: JSON.stringify(finalProfile),
       });
+
+      const savedData = result.profile?.data || finalProfile;
+      const merged = mergeProfile(defaultProfile, savedData);
+
+      setProfile(merged);
+      setFormData(merged);
+
+      localStorage.setItem("applicantFullProfile", JSON.stringify(merged));
+      localStorage.setItem(
+        "applicantProfile",
+        JSON.stringify({
+          ...merged.personalInfo,
+          email: merged.personalInfo.emailAddress,
+          phone: merged.personalInfo.contactNumber,
+          birthDate: merged.personalInfo.dob,
+          applicantNumber: merged.accountDetails.applicantNumber,
+          accountStatus: merged.accountDetails.accountStatus,
+        })
+      );
+
+      const storedUser = getStoredUser?.();
+      const userPatch = {
+        firstName: merged.personalInfo.firstName,
+        lastName: merged.personalInfo.lastName,
+        email: merged.personalInfo.emailAddress,
+        profileComplete: Boolean(result.profileComplete),
+        uan: result.uan || storedUser?.uan,
+      };
+
+      if (storedUser && storeUser) {
+        storeUser({
+          ...storedUser,
+          ...userPatch,
+        });
+      }
+
+      updateUser?.(userPatch);
+      setIsEditing(false);
+    } catch (error) {
+      console.error("Failed to save applicant profile:", error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleStepBack = () => {
+    if (currentStep > 1) {
+      setCurrentStep((prev) => Math.max(1, prev - 1));
+      return;
     }
 
-    setIsEditing(false);
-  };
-
-  const toggleApplicationDropdown = (applicationId) => {
-    setApplications((prev) =>
-      prev.map((application) =>
-        application.id === applicationId
-          ? { ...application, isOpen: !application.isOpen }
-          : { ...application, isOpen: false }
-      )
-    );
-  };
-
-  const withdrawApplication = (applicationId) => {
-    setApplications((prev) =>
-      prev.map((application) =>
-        application.id === applicationId
-          ? {
-              ...application,
-              status: "Withdrawn",
-              isOpen: false,
-            }
-          : application
-      )
-    );
+    if (!embedded) {
+      navigate(-1);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 pb-8 pt-28 font-['Poppins']">
+    <div
+      className={
+        embedded
+          ? "font-['Poppins']"
+          : "min-h-screen bg-slate-50 px-4 pb-8 pt-28 font-['Poppins']"
+      }
+    >
       <style>
         {`
           @media print {
@@ -353,57 +374,27 @@ export default function ApplicantProfile() {
       </style>
 
       <div className="mx-auto max-w-6xl">
-        <BackButton
-          to="/"
-          ariaLabel="Back to job listings"
-          className="no-print mt-1 mb-4"
-        />
+        {!embedded && (
+          <>
+            <ProfileHeader
+              initials={initials}
+              fullName={fullName || "Applicant"}
+              status={profile.accountDetails.accountStatus}
+              applicantNumber={profile.accountDetails.applicantNumber}
+            />
 
-        <div className="mb-4">
-          <h1 className="text-2xl font-bold text-slate-950">
-            Applicant Profile
-          </h1>
-          <p className="mt-1 text-sm text-slate-600">
-            Profile and application details
-          </p>
-        </div>
-
-        <div className="no-print mx-auto mt-4 grid max-w-6xl grid-cols-2 gap-3 rounded-2xl bg-white p-1.5 shadow-sm ring-1 ring-slate-200">
-          <button
-            type="button"
-            onClick={() => setActiveTab("application")}
-            className={`rounded-xl py-2.5 text-sm font-semibold transition ${
-              activeTab === "application"
-                ? "bg-[#0056b3] text-white shadow-md"
-                : "bg-transparent text-slate-700 hover:bg-slate-100"
-            }`}
-          >
-            My Application
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("information")}
-            className={`rounded-xl py-2.5 text-sm font-semibold transition ${
-              activeTab === "information"
-                ? "bg-[#0056b3] text-white shadow-md"
-                : "bg-transparent text-slate-700 hover:bg-slate-100"
-            }`}
-          >
-            My Information
-          </button>
-        </div>
-
-        {activeTab === "application" && (
-          <ApplicationList
-            applications={applications}
-            toggleApplicationDropdown={toggleApplicationDropdown}
-            withdrawApplication={withdrawApplication}
-          />
+            <div className="mb-4 mt-6">
+              <h1 className="oas-page-title">
+                Applicant Profile
+              </h1>
+              <p className="oas-page-description">
+                Profile details and requirements
+              </p>
+            </div>
+          </>
         )}
 
-        {activeTab === "information" && (
-          <div className="mt-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 md:p-6">
+        <div className="mt-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 md:p-6">
             <div className="no-print mb-5 flex justify-end">
               {!isEditing ? (
                 <button
@@ -428,10 +419,11 @@ export default function ApplicantProfile() {
                   <button
                     type="button"
                     onClick={handleSave}
-                    className="inline-flex items-center gap-2 rounded-xl bg-[#0056b3] px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+                    disabled={isSaving}
+                    className="inline-flex items-center gap-2 rounded-xl bg-[#0056b3] px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
                   >
                     <Save size={16} />
-                    Save
+                    {isSaving ? "Saving..." : "Save"}
                   </button>
                 </div>
               )}
@@ -445,7 +437,15 @@ export default function ApplicantProfile() {
               />
 
               <div className="min-h-[540px] rounded-2xl bg-slate-50 p-6 ring-1 ring-slate-200 md:p-10">
-                <h2 className="mb-8 text-2xl font-bold uppercase tracking-tight text-[#003a78] md:text-3xl">
+                {currentStep > 1 && (
+                  <BackButton
+                    onClick={handleStepBack}
+                    className="mb-4"
+                    ariaLabel="Go back"
+                  />
+                )}
+
+                <h2 className="oas-page-title mb-8 uppercase text-[#003a78]">
                   {steps.find((s) => s.id === currentStep)?.title}
                 </h2>
 
@@ -458,8 +458,7 @@ export default function ApplicantProfile() {
                 />
               </div>
             </div>
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );
@@ -492,7 +491,6 @@ function RenderStepContent({
           data={formData.educationalBackground}
           disabled={!isEditing}
           onChange={(data) => updateFormData("educationalBackground", data)}
-          onBack={() => setCurrentStep(1)}
           onNext={(data) => {
             updateFormData("educationalBackground", data);
             setCurrentStep(3);
@@ -506,7 +504,6 @@ function RenderStepContent({
           data={formData.eligibility}
           disabled={!isEditing}
           onChange={(data) => updateFormData("eligibility", data)}
-          onBack={() => setCurrentStep(2)}
           onNext={(data) => {
             updateFormData("eligibility", data);
             setCurrentStep(4);
@@ -520,7 +517,6 @@ function RenderStepContent({
           data={formData.learningDevelopment}
           disabled={!isEditing}
           onChange={(data) => updateFormData("learningDevelopment", data)}
-          onBack={() => setCurrentStep(3)}
           onNext={(data) => {
             updateFormData("learningDevelopment", data);
             setCurrentStep(5);
@@ -534,22 +530,9 @@ function RenderStepContent({
           data={formData.jobPosition}
           disabled={!isEditing}
           onChange={(data) => updateFormData("jobPosition", data)}
-          onBack={() => setCurrentStep(4)}
-          onNext={(data) => {
-            updateFormData("jobPosition", data);
-            setCurrentStep(6);
-          }}
-        />
-      );
-
-    case 6:
-      return (
-        <Review
-          data={formData}
-          onBack={() => setCurrentStep(5)}
-          onSubmit={(applicationData) => {
-            console.log("Application submitted:", applicationData);
-          }}
+          onNext={(data) => updateFormData("jobPosition", data)}
+          onSave={handleSave}
+          isSaving={isSaving}
         />
       );
 
@@ -561,11 +544,11 @@ function RenderStepContent({
 function ProfileHeader({ initials, fullName, status, applicantNumber }) {
   return (
     <div className="mx-auto w-full max-w-6xl overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-      <div className="relative min-h-[132px] bg-[#244a96] px-6 py-5 md:px-10">
+      <div className="relative min-h-[132px] bg-slate-900 px-6 py-5 md:px-10">
 
         <div className="relative flex flex-col items-center gap-4 text-center md:flex-row md:text-left">
-          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border-[4px] border-white bg-blue-100 shadow-lg">
-            <span className="text-lg font-extrabold text-blue-700">
+          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border-[4px] border-white bg-slate-100 shadow-lg">
+            <span className="text-lg font-extrabold text-slate-700">
               {initials}
             </span>
           </div>
@@ -580,7 +563,7 @@ function ProfileHeader({ initials, fullName, status, applicantNumber }) {
             </h1>
 
             <p className="mt-1 text-xs text-white/80">
-              Profile and Application Form
+              Profile details and uploads
             </p>
           </div>
 
@@ -589,65 +572,11 @@ function ProfileHeader({ initials, fullName, status, applicantNumber }) {
               {status}
             </div>
 
-            <div className="rounded-full bg-white/95 px-4 py-2 text-center text-xs font-bold text-blue-700 shadow-sm">
+            <div className="rounded-full bg-white/95 px-4 py-2 text-center text-xs font-bold text-slate-700 shadow-sm">
               {applicantNumber}
             </div>
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-function ApplicationList({
-  applications,
-  toggleApplicationDropdown,
-  withdrawApplication,
-}) {
-  return (
-    <div className="mt-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-        {applications.map((application) => (
-          <div
-            key={application.id}
-            className="relative grid grid-cols-1 border-b border-slate-200 px-4 py-4 last:border-b-0 md:grid-cols-[1fr_260px]"
-          >
-            <div>
-              <h3 className="text-lg font-semibold text-slate-800">
-                {application.position}
-              </h3>
-
-              <p className="mt-1 text-sm text-slate-500">
-                {application.location} • {application.dateApplied}
-              </p>
-            </div>
-
-            <div className="mt-4 md:mt-0">
-              <p className="text-sm font-semibold text-slate-600">Status</p>
-
-              <button
-                type="button"
-                onClick={() => toggleApplicationDropdown(application.id)}
-                className="mt-1 flex w-full items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100"
-              >
-                {application.status}
-                <ChevronDown size={18} />
-              </button>
-
-              {application.isOpen && (
-                <div className="absolute right-5 top-24 z-20 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
-                  <button
-                    type="button"
-                    onClick={() => withdrawApplication(application.id)}
-                    className="w-full px-4 py-3 text-left text-slate-700 hover:bg-slate-100"
-                  >
-                    Withdraw Application
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
       </div>
     </div>
   );
@@ -672,7 +601,7 @@ function VerticalStepper({ steps, currentStep, setCurrentStep }) {
                   onClick={() => setCurrentStep(step.id)}
                   className={`relative flex w-full items-center gap-4 rounded-xl px-3 py-3 text-left transition ${
                     isActive
-                      ? "bg-blue-50 shadow-sm ring-1 ring-blue-200"
+                      ? "bg-slate-50 shadow-sm ring-1 ring-slate-200"
                       : "hover:bg-slate-50"
                   }`}
                 >
@@ -681,7 +610,7 @@ function VerticalStepper({ steps, currentStep, setCurrentStep }) {
                       isDone
                         ? "border-green-500 bg-green-500 text-white"
                         : isActive
-                        ? "border-[#0056b3] bg-[#0056b3] text-white"
+                        ? "border-slate-800 bg-slate-800 text-white"
                         : "border-slate-300 bg-white text-slate-500"
                     }`}
                   >
@@ -692,7 +621,7 @@ function VerticalStepper({ steps, currentStep, setCurrentStep }) {
                     <span
                       className={`block text-sm font-extrabold uppercase leading-snug ${
                         isActive
-                          ? "text-[#003a78]"
+                          ? "text-slate-900"
                           : isDone
                           ? "text-slate-800"
                           : "text-slate-500"
@@ -703,7 +632,7 @@ function VerticalStepper({ steps, currentStep, setCurrentStep }) {
 
                     <span
                       className={`mt-1 block text-xs ${
-                        isActive ? "text-blue-600" : "text-slate-400"
+                        isActive ? "text-slate-600" : "text-slate-400"
                       }`}
                     >
                       Step {step.id} of {steps.length}
@@ -716,7 +645,7 @@ function VerticalStepper({ steps, currentStep, setCurrentStep }) {
         </div>
       </div>
 
-      <div className="mt-4 rounded-2xl bg-blue-50 p-4 text-xs font-medium leading-5 text-blue-800 ring-1 ring-blue-100">
+      <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-xs font-medium leading-5 text-slate-700 ring-1 ring-slate-200">
         Click any step to preview or update that section.
       </div>
     </div>
@@ -1276,20 +1205,14 @@ function PersonalInfo({ data = {}, onChange, onNext, disabled = false }) {
         </div>
       </div>
 
-      <StepFooter disabledBack onNextSubmit />
+      <StepFooter onNextSubmit />
     </form>
   );
 }
 
 /* ================= EDUCATION ================= */
 
-function EducationalBackground({
-  data,
-  onChange,
-  onBack,
-  onNext,
-  disabled = false,
-}) {
+function EducationalBackground({ data, onChange, onNext, disabled = false }) {
   const [education, setEducation] = useState({
     bachelors: data?.bachelors || [
       { school: "", course: "", year: "", award: "" },
@@ -1372,7 +1295,7 @@ function EducationalBackground({
         onRemove={() => removeItem("postGraduate")}
       />
 
-      <StepFooter onBack={onBack} onNextSubmit />
+      <StepFooter onNextSubmit />
     </form>
   );
 }
@@ -1387,8 +1310,8 @@ function EducationGroup({
   onRemove,
 }) {
   return (
-    <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-bold text-blue-950">{title}</h2>
+    <div className="oas-panel space-y-4 p-5">
+      <h2 className="oas-panel-title">{title}</h2>
 
       <div className="space-y-3">
         {rows.map((item, index) => (
@@ -1463,7 +1386,7 @@ function EducationGroup({
 
 /* ================= ELIGIBILITY ================= */
 
-function Eligibility({ data, onChange, onBack, onNext, disabled = false }) {
+function Eligibility({ data, onChange, onNext, disabled = false }) {
   const [eligibility, setEligibility] = useState({
     eligibilities: data?.eligibilities || [
       {
@@ -1547,8 +1470,8 @@ function Eligibility({ data, onChange, onBack, onNext, disabled = false }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
-      <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-bold text-blue-950">
+      <div className="oas-panel space-y-4 p-5">
+        <h2 className="oas-panel-title">
           Eligibility Records
         </h2>
 
@@ -1649,8 +1572,8 @@ function Eligibility({ data, onChange, onBack, onNext, disabled = false }) {
         )}
       </div>
 
-      <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-bold text-blue-950">Work Experience</h2>
+      <div className="oas-panel space-y-4 p-5">
+        <h2 className="oas-panel-title">Work Experience</h2>
 
         <div className="space-y-3">
           {eligibility.workExperiences.map((item, index) => (
@@ -1744,20 +1667,14 @@ function Eligibility({ data, onChange, onBack, onNext, disabled = false }) {
         )}
       </div>
 
-      <StepFooter onBack={onBack} onNextSubmit />
+      <StepFooter onNextSubmit />
     </form>
   );
 }
 
 /* ================= LEARNING DEVELOPMENT ================= */
 
-function LearningDevelopment({
-  data,
-  onChange,
-  onBack,
-  onNext,
-  disabled = false,
-}) {
+function LearningDevelopment({ data, onChange, onNext, disabled = false }) {
   const [learning, setLearning] = useState({
     trainings: data?.trainings || [
       {
@@ -1827,8 +1744,8 @@ function LearningDevelopment({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
-      <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-bold text-blue-950">
+      <div className="oas-panel space-y-4 p-5">
+        <h2 className="oas-panel-title">
           Trainings / Seminars
         </h2>
 
@@ -1919,14 +1836,14 @@ function LearningDevelopment({
         )}
       </div>
 
-      <StepFooter onBack={onBack} onNextSubmit />
+      <StepFooter onNextSubmit />
     </form>
   );
 }
 
 /* ================= ATTACHMENT ================= */
 
-function Attachment({ data, onChange, onBack, onNext, disabled = false }) {
+function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false }) {
   const teachingPositions = [
     "Teacher I",
     "Teacher II",
@@ -2093,6 +2010,7 @@ function Attachment({ data, onChange, onBack, onNext, disabled = false }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     onNext?.(job);
+    onSave?.();
   };
 
   return (
@@ -2145,15 +2063,15 @@ function Attachment({ data, onChange, onBack, onNext, disabled = false }) {
       </div>
 
       {job.positionType === "Teacher I" && (
-        <div className="space-y-4 rounded-xl border border-blue-200 bg-blue-50 p-5 text-sm text-slate-700">
-          <p className="font-semibold text-blue-800">
+        <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-700">
+          <p className="font-semibold text-slate-800">
             If you are applying for Teacher I, you are required to personally
             submit the hard copies of your attachments to the Human Resource
             Office.
           </p>
 
           <ol className="list-decimal space-y-2 pl-5">
-            <li>Unique Application Number generated after submission.</li>
+            <li>Unique Application Number (UAN) from your profile.</li>
             <li>Letter of intent addressed to the SDS.</li>
             <li>Fully accomplished Personal Data Sheet.</li>
             <li>Photocopy of Voter&apos;s ID and/or proof of residency.</li>
@@ -2173,7 +2091,7 @@ function Attachment({ data, onChange, onBack, onNext, disabled = false }) {
 
       {showAttachments && (
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-slate-700">
+          <h2 className="oas-panel-title">
             Attachments / Requirements
           </h2>
 
@@ -2193,7 +2111,17 @@ function Attachment({ data, onChange, onBack, onNext, disabled = false }) {
         </div>
       )}
 
-      <StepFooter onBack={onBack} onNextSubmit />
+      {!disabled && (
+        <div className="flex items-center justify-end pt-6">
+          <button
+            type="submit"
+            disabled={isSaving}
+            className="rounded-xl bg-[#0056b3] px-6 py-2 font-bold text-white transition hover:bg-[#003a78] disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            {isSaving ? "Saving..." : "Save Profile"}
+          </button>
+        </div>
+      )}
     </form>
   );
 }
@@ -2225,7 +2153,7 @@ function FileUpload({
 
           <label
             htmlFor={`profile-${field}`}
-            className="flex h-24 w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 transition hover:border-blue-500 hover:bg-blue-50"
+            className="flex h-24 w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 transition hover:border-slate-400 hover:bg-slate-50"
           >
             {!file ? (
               <span className="text-sm text-slate-500">
@@ -2253,451 +2181,11 @@ function FileUpload({
   );
 }
 
-/* ================= REVIEW ================= */
-
-function Review({ data, onBack, onSubmit }) {
-  const [uan, setUan] = useState(data?.uan || "");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLocked, setIsLocked] = useState(Boolean(data?.uan));
-  const [showModal, setShowModal] = useState(false);
-  const [modalStage, setModalStage] = useState("done");
-  const [copyLabel, setCopyLabel] = useState("Copy");
-
-  const personalInfo = data?.personalInfo || {};
-  const education = data?.educationalBackground || {};
-  const eligibility = data?.eligibility || {};
-  const learningDevelopment = data?.learningDevelopment || {};
-  const jobPosition = data?.jobPosition || {};
-
-  const applicantName =
-    [
-      personalInfo.firstName,
-      personalInfo.middleName,
-      personalInfo.lastName,
-      personalInfo.suffix,
-    ]
-      .filter(Boolean)
-      .join(" ") || emptyText;
-
-  const uanDisplay = String(uan || "").toUpperCase();
-
-  const submitApplication = async () => {
-    if (isSubmitting || isLocked) return;
-
-    setIsSubmitting(true);
-    setModalStage("saving");
-    setShowModal(true);
-
-    setTimeout(() => {
-      const generatedUan =
-        uan ||
-        `CSJDM-${new Date().getFullYear()}-${Date.now()
-          .toString()
-          .slice(-4)}`;
-
-      setUan(generatedUan);
-      setIsLocked(true);
-      setModalStage("done");
-      setIsSubmitting(false);
-
-      onSubmit?.({
-        ...data,
-        uan: generatedUan,
-      });
-    }, 900);
-  };
-
-  const copyUan = async () => {
-    if (!uan) return;
-
-    try {
-      await navigator.clipboard.writeText(uanDisplay);
-      setCopyLabel("Copied");
-      window.setTimeout(() => setCopyLabel("Copy"), 1600);
-    } catch {
-      setCopyLabel("Copy failed");
-      window.setTimeout(() => setCopyLabel("Copy"), 1600);
-    }
-  };
-
-  const renderList = (items, renderItem) =>
-    items?.length ? (
-      items.map(renderItem)
-    ) : (
-      <p className="text-sm text-slate-500">No entries provided.</p>
-    );
-
-  return (
-    <div className="space-y-8">
-      <div id="print-section">
-        <div className="space-y-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="border-b border-slate-200 pb-6">
-            <p className="text-sm font-semibold uppercase tracking-wider text-blue-700">
-              Application Receipt
-            </p>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-              Review your details carefully. Submitting will save the
-              application, generate your UAN, and lock this form.
-            </p>
-          </div>
-
-          {uan && (
-            <div className="border-b border-slate-200 pb-5">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-start gap-3">
-                  <div className="rounded-md bg-blue-50 px-3 py-2 text-center">
-                    <p className="text-xs font-semibold uppercase text-blue-700">
-                      UAN
-                    </p>
-                    <p className="mt-1 break-all text-lg font-bold tracking-widest text-blue-800">
-                      {uanDisplay}
-                    </p>
-                  </div>
-
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-slate-800">
-                      {applicantName}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {jobPosition.positionType ||
-                        jobPosition.positionCategory ||
-                        ""}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="no-print flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={copyUan}
-                    className="inline-flex items-center gap-2 rounded-md border bg-white px-3 py-1 text-sm font-semibold text-blue-700 hover:bg-blue-50"
-                  >
-                    <Copy className="h-4 w-4" />
-                    {copyLabel}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => window.print()}
-                    className="inline-flex items-center gap-2 rounded-md border bg-white px-3 py-1 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                  >
-                    Print
-                  </button>
-
-                  <div className="hidden items-center gap-2 text-sm font-semibold text-blue-700 sm:inline-flex">
-                    <ShieldCheck className="h-4 w-4" />
-                    Locked
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <ReviewSection title="Personal Information">
-            <p>
-              <strong>Name:</strong> {applicantName}
-            </p>
-            <p>
-              <strong>Email:</strong> {personalInfo.emailAddress || emptyText}
-            </p>
-            <p>
-              <strong>Contact Number:</strong>{" "}
-              {personalInfo.contactNumber || emptyText}
-            </p>
-            <p>
-              <strong>Date of Birth:</strong> {personalInfo.dob || emptyText}
-            </p>
-            <p>
-              <strong>Address:</strong> {personalInfo.address || emptyText}
-            </p>
-            <p>
-              <strong>Age:</strong> {personalInfo.age || emptyText}
-            </p>
-            <p>
-              <strong>Sex:</strong> {personalInfo.sex || emptyText}
-            </p>
-            <p>
-              <strong>Civil Status:</strong>{" "}
-              {personalInfo.civilStatus || emptyText}
-            </p>
-            <p>
-              <strong>Nationality:</strong>{" "}
-              {personalInfo.nationalityInput ||
-                personalInfo.nationality ||
-                emptyText}
-            </p>
-            <p>
-              <strong>Religion:</strong>{" "}
-              {personalInfo.religionInput ||
-                personalInfo.religion ||
-                emptyText}
-            </p>
-            <p>
-              <strong>Ethnic Group:</strong>{" "}
-              {personalInfo.ethnicGroup || emptyText}
-            </p>
-            <p>
-              <strong>Disability:</strong>{" "}
-              {personalInfo.disability || emptyText}
-            </p>
-            <p>
-              <strong>Solo Parent:</strong>{" "}
-              {personalInfo.isSoloParent ? "Yes" : "No"}
-            </p>
-            <p>
-              <strong>Solo Parent ID Number:</strong>{" "}
-              {personalInfo.soloParentIdNumber || emptyText}
-            </p>
-            <p>
-              <strong>PWD:</strong> {personalInfo.isPwd ? "Yes" : "No"}
-            </p>
-            <p>
-              <strong>PWD ID Number:</strong>{" "}
-              {personalInfo.pwdIdNumber || emptyText}
-            </p>
-          </ReviewSection>
-
-          <ReviewSection title="Educational Background">
-            <h3 className="text-sm font-semibold text-slate-800">
-              Bachelor&apos;s Degree
-            </h3>
-
-            {renderList(education.bachelors, (item, index) => (
-              <p key={index}>
-                {item.school || emptyText} - {item.course || emptyText},{" "}
-                {item.year || emptyText}
-                {item.award ? ` (${item.award})` : ""}
-              </p>
-            ))}
-
-            <h3 className="pt-3 text-sm font-semibold text-slate-800">
-              Post Graduate Degree
-            </h3>
-
-            {renderList(education.postGraduate, (item, index) => (
-              <p key={index}>
-                {item.school || emptyText} - {item.course || emptyText},{" "}
-                {item.year || emptyText}
-                {item.award ? ` (${item.award})` : ""}
-              </p>
-            ))}
-          </ReviewSection>
-
-          <ReviewSection title="Eligibility">
-            {renderList(eligibility.eligibilities, (item, index) => (
-              <p key={index}>
-                <strong>{item.type || emptyText}</strong> - Rating{" "}
-                {item.rating || emptyText}, Exam {item.examDate || emptyText},
-                License {item.licenseNumber || emptyText}
-              </p>
-            ))}
-
-            <h3 className="pt-3 text-sm font-semibold text-slate-800">
-              Work Experience
-            </h3>
-
-            {renderList(eligibility.workExperiences, (item, index) => (
-              <p key={index}>
-                <strong>{item.position || emptyText}</strong> -{" "}
-                {item.agency || emptyText}, {item.status || emptyText},{" "}
-                {item.from || item.fromYear || emptyText} to{" "}
-                {item.toYear || emptyText}
-              </p>
-            ))}
-          </ReviewSection>
-
-          <ReviewSection title="Learning and Development">
-            {renderList(learningDevelopment.trainings, (item, index) => (
-              <p key={index}>
-                <strong>{item.title || emptyText}</strong> -{" "}
-                {item.fromDate || emptyText} to {item.toDate || emptyText},{" "}
-                {item.hours || emptyText} hours,{" "}
-                {item.conductedBy || emptyText}
-              </p>
-            ))}
-          </ReviewSection>
-
-          <ReviewSection title="Job Position and Attachments">
-            <p>
-              <strong>Position Applied For:</strong>{" "}
-              {jobPosition.positionType ||
-                jobPosition.positionCategory ||
-                emptyText}
-            </p>
-
-            <p className="font-semibold text-slate-800">Attached Files:</p>
-
-            <ul className="mt-2 grid gap-1 text-sm text-slate-700 sm:grid-cols-2">
-              {Object.entries(jobPosition.files || {}).map(([key, file]) => (
-                <li key={key}>
-                  <strong>{key}:</strong> {file?.name || "Not uploaded"}
-                </li>
-              ))}
-            </ul>
-          </ReviewSection>
-
-          <div className="border-t border-slate-200 pt-5 text-sm text-amber-800">
-            <div className="flex gap-3 rounded-lg bg-amber-50 p-4">
-              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
-              <p>
-                Once submitted, your application will be locked and can no
-                longer be edited. Make sure all details are correct before
-                proceeding.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {showModal && (
-        <SubmitModal
-          modalStage={modalStage}
-          uanDisplay={uanDisplay}
-          copyLabel={copyLabel}
-          copyUan={copyUan}
-          close={() => setShowModal(false)}
-        />
-      )}
-
-      <div className="no-print flex flex-col gap-3 pt-6 sm:flex-row sm:items-center sm:justify-between">
-        <BackButton
-          onClick={onBack}
-          disabled={isLocked || isSubmitting}
-          label="Back"
-        />
-
-        <button
-          type="button"
-          onClick={submitApplication}
-          disabled={isSubmitting || isLocked}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-700 px-6 py-2.5 text-sm font-bold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isSubmitting ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Send className="h-4 w-4" />
-          )}
-          {isLocked ? "Submitted" : "Submit"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function SubmitModal({ modalStage, uanDisplay, copyLabel, copyUan, close }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4">
-      <div className="relative w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl">
-        {modalStage !== "saving" && (
-          <button
-            type="button"
-            onClick={close}
-            className="absolute right-4 top-4 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        )}
-
-        {modalStage === "saving" && (
-          <div className="flex flex-col items-center px-8 py-16 text-center">
-            <Loader2 className="h-14 w-14 animate-spin text-blue-700" />
-            <h3 className="mt-6 text-2xl font-extrabold text-slate-950">
-              Submitting application
-            </h3>
-            <p className="mt-2 text-sm text-slate-500">
-              Submitting your application and generating your UAN...
-            </p>
-          </div>
-        )}
-
-        {modalStage === "done" && (
-          <div className="px-8 pb-10 pt-12 text-center sm:px-12">
-            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-green-500 text-white shadow-[0_0_30px_rgba(34,197,94,0.45)]">
-              <CheckCircle2 className="h-12 w-12" />
-            </div>
-
-            <h3 className="mt-8 text-3xl font-extrabold tracking-tight text-slate-950">
-              Application submitted!
-            </h3>
-
-            <p className="mt-2 text-base font-medium text-slate-500">
-              Your application has been saved successfully.
-            </p>
-
-            <div className="mt-6 rounded-md bg-blue-50 px-3 py-3">
-              <p className="text-xs font-semibold uppercase text-blue-700">
-                UAN
-              </p>
-              <p className="break-all text-lg font-bold tracking-widest text-blue-800">
-                {uanDisplay}
-              </p>
-
-              <div className="mt-3 flex justify-center gap-2">
-                <button
-                  type="button"
-                  onClick={copyUan}
-                  className="inline-flex items-center gap-2 rounded-md border bg-white px-3 py-1 text-sm font-semibold text-blue-700 hover:bg-blue-50"
-                >
-                  <Copy className="h-4 w-4" />
-                  {copyLabel}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="inline-flex items-center gap-2 rounded-md border bg-white px-3 py-1 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  Print
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-6 inline-flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-2 text-sm text-slate-700">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-50 text-blue-700">
-                <MailCheck className="h-4 w-4" />
-              </div>
-              <p className="leading-5">
-                Activation instructions will be sent to your email address.
-              </p>
-            </div>
-
-            <div className="mt-6">
-              <button
-                type="button"
-                onClick={close}
-                className="rounded-lg bg-blue-700 px-5 py-2 text-sm font-bold text-white hover:bg-blue-800"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 /* ================= SMALL COMPONENTS ================= */
 
-function ReviewSection({ title, children }) {
+function StepFooter({ onNextSubmit = false }) {
   return (
-    <section className="space-y-3 text-sm text-slate-700">
-      <h2 className="text-lg font-semibold text-blue-900">{title}</h2>
-      <div className="border-b border-slate-300" />
-      <div className="grid gap-2 sm:grid-cols-2">{children}</div>
-    </section>
-  );
-}
-
-function StepFooter({ onBack, disabledBack = false, onNextSubmit = false }) {
-  return (
-    <div className="flex items-center justify-between pt-6">
-      <BackButton
-        onClick={onBack}
-        disabled={disabledBack}
-        label="Back"
-      />
-
+    <div className="flex items-center justify-end pt-6">
       <button
         type={onNextSubmit ? "submit" : "button"}
         className="rounded-xl bg-[#0056b3] px-6 py-2 font-bold text-white transition hover:bg-[#003a78]"

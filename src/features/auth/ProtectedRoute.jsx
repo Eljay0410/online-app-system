@@ -21,12 +21,11 @@ const ProtectedRoute = ({ allowedRoles, children }) => {
     return <Navigate to={getAuthenticatedHomePath(user)} replace />;
   }
 
-  if (
-    userRole === "applicant" &&
-    user.profileComplete === false &&
-    location.pathname !== "/profile"
-  ) {
-    return <Navigate to="/profile" replace />;
+  if (userRole === "applicant" && user.profileComplete === false) {
+    const allowedPaths = new Set(["/profile", "/applications"]);
+    if (!allowedPaths.has(location.pathname)) {
+      return <Navigate to="/profile" replace />;
+    }
   }
 
   return children;

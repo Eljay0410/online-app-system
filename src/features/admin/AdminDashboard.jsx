@@ -8,8 +8,6 @@ import {
   LayoutList,
   Loader2,
   Minus,
-  PanelLeftClose,
-  PanelLeftOpen,
   Plus,
   Save,
   Search,
@@ -18,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { apiRequest } from "../../lib/api";
+import SuperAdminSidebar from "../../components/layout/SuperAdminSidebar";
 
 const emptyJob = {
   title: "",
@@ -388,130 +387,30 @@ export default function AdminDashboard() {
     sidebarItems.find((item) => item.id === activeSection)?.label ||
     "Admin Dashboard";
 
+  const contentPadding = isSidebarCollapsed ? "lg:pl-20" : "lg:pl-72";
+
   return (
-    <main className="min-h-screen bg-slate-50 pt-24">
-      <div className="flex min-h-[calc(100vh-96px)]">
-        <aside
-          className={`fixed left-0 top-24 z-30 hidden h-[calc(100vh-96px)] border-r border-slate-200 bg-white text-slate-900 shadow-sm transition-all duration-300 lg:block ${
-            isSidebarCollapsed ? "w-20" : "w-72"
-          }`}
-        >
-          <div className="flex h-full flex-col">
-            <div
-              className={`flex items-center border-b border-slate-200 py-5 ${
-                isSidebarCollapsed
-                  ? "justify-center px-3"
-                  : "justify-between px-5"
-              }`}
-            >
-              {!isSidebarCollapsed && (
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                    Admin Panel
-                  </p>
+    <main className={`min-h-screen bg-slate-50 pt-24 ${contentPadding}`}>
+      <SuperAdminSidebar
+        activeTab={activeSection}
+        setActiveTab={setActiveSection}
+        collapsed={isSidebarCollapsed}
+        setCollapsed={setIsSidebarCollapsed}
+        role="admin"
+      />
 
-                  <h2 className="mt-2 truncate text-xl font-extrabold text-slate-950">
-                    OASys Dashboard
-                  </h2>
-                </div>
-              )}
-
-              <button
-                type="button"
-                onClick={() => setIsSidebarCollapsed((current) => !current)}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700 transition hover:bg-[#0056b3] hover:text-white"
-                title={
-                  isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
-                }
-              >
-                {isSidebarCollapsed ? (
-                  <PanelLeftOpen size={20} />
-                ) : (
-                  <PanelLeftClose size={20} />
-                )}
-              </button>
-            </div>
-
-            <nav className="flex-1 space-y-2 px-3 py-5">
-              {sidebarItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeSection === item.id;
-
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setActiveSection(item.id)}
-                    title={isSidebarCollapsed ? item.label : ""}
-                    className={`group flex w-full items-center rounded-xl py-3 text-left text-sm font-semibold transition ${
-                      isSidebarCollapsed
-                        ? "justify-center px-0"
-                        : "gap-3 px-4"
-                    } ${
-                      isActive
-                        ? "bg-[#0056b3] text-white shadow-md"
-                        : "text-slate-600 hover:bg-slate-100 hover:text-[#0056b3]"
-                    }`}
-                  >
-                    <Icon size={20} className="shrink-0" />
-
-                    {!isSidebarCollapsed && (
-                      <span className="truncate">{item.label}</span>
-                    )}
-                  </button>
-                );
-              })}
-            </nav>
-
-            {!isSidebarCollapsed && (
-              <div className="border-t border-slate-200 px-6 py-5 text-xs leading-5 text-slate-500">
-                Manage job postings, applicant records, and application reviews.
-              </div>
-            )}
-          </div>
-        </aside>
-
-        <section
-          className={`w-full px-4 pb-12 pt-8 transition-all duration-300 sm:px-6 lg:px-8 ${
-            isSidebarCollapsed ? "lg:ml-20" : "lg:ml-72"
-          }`}
-        >
-          <div className="mx-auto max-w-7xl space-y-6">
-            <div className="lg:hidden">
-              <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
-                {sidebarItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = activeSection === item.id;
-
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setActiveSection(item.id)}
-                      className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-xs font-semibold transition ${
-                        isActive
-                          ? "bg-[#0056b3] text-white"
-                          : "text-slate-600 hover:bg-slate-100"
-                      }`}
-                    >
-                      <Icon size={16} />
-                      {item.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#0056b3]">
+      <section className="w-full px-4 pb-12 pt-8 transition-all duration-300 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl space-y-6">
+          <div className="flex flex-col gap-2">
+              <p className="oas-page-kicker">
                 {activeSidebarLabel}
               </p>
 
-              <h1 className="text-3xl font-bold text-slate-950">
+              <h1 className="oas-page-title">
                 Admin Dashboard
               </h1>
 
-              <p className="text-sm text-slate-600">
+              <p className="oas-page-description">
                 Post job openings, manage job postings, review applicants, and
                 view published job listings.
               </p>
@@ -601,8 +500,6 @@ export default function AdminDashboard() {
             )}
           </div>
         </section>
-      </div>
-
       {jobToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
@@ -656,29 +553,31 @@ export default function AdminDashboard() {
 }
 
 function DashboardCard({
-  icon: Icon,
+  icon,
   label,
   value,
   iconClassName = "text-blue-700",
 }) {
+  const Icon = icon;
+
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="oas-panel p-5">
       <Icon className={`h-6 w-6 ${iconClassName}`} />
 
       <p className="mt-3 text-sm text-slate-500">{label}</p>
 
-      <p className="text-2xl font-bold text-slate-900">{value}</p>
+      <p className="oas-stat-value">{value}</p>
     </div>
   );
 }
 
 function PostJobSection({ form, handleFormChange, createJob, isSaving }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="oas-panel p-6">
       <div className="mb-5 flex items-center gap-2">
         <Plus className="h-5 w-5 text-blue-700" />
 
-        <h2 className="text-xl font-bold text-slate-900">Post Job Opening</h2>
+        <h2 className="oas-panel-title">Post Job Opening</h2>
       </div>
 
       <form onSubmit={createJob} className="grid gap-4">
@@ -757,9 +656,9 @@ function JobPostingSection({
   formatDate,
 }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-5 py-4">
-        <h2 className="text-xl font-bold text-slate-900">Job Posting</h2>
+    <section className="oas-panel">
+      <div className="oas-panel-header">
+        <h2 className="oas-panel-title">Job Posting</h2>
       </div>
 
       {isLoading ? (
@@ -859,9 +758,9 @@ function ApplicantListSection({
   getApplicantEmail,
 }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-5 py-4">
-        <h2 className="text-xl font-bold text-slate-900">Applicant List</h2>
+    <section className="oas-panel">
+      <div className="oas-panel-header">
+        <h2 className="oas-panel-title">Applicant List</h2>
 
         <p className="mt-1 text-sm text-slate-500">
           View all applicants, filter by position or location, and open each
@@ -1039,9 +938,9 @@ function ApplicantListSection({
 
 function JobListingSection({ jobs, isLoading, formatDate }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-5 py-4">
-        <h2 className="text-xl font-bold text-slate-900">Job Listing</h2>
+    <section className="oas-panel">
+      <div className="oas-panel-header">
+        <h2 className="oas-panel-title">Job Listing</h2>
 
         <p className="mt-1 text-sm text-slate-500">
           Preview all job listings that applicants can see.
@@ -1057,11 +956,11 @@ function JobListingSection({ jobs, isLoading, formatDate }) {
           {jobs.map((job) => (
             <article
               key={job.id}
-              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-200 hover:shadow-md"
+              className="oas-panel p-5 transition hover:border-blue-200 hover:shadow-md"
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">
+                  <h3 className="oas-panel-title">
                     {job.title}
                   </h3>
 

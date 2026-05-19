@@ -19,12 +19,6 @@ export default function BackButton({
       <span className={circleClassName}>
         <ArrowLeft className="h-5 w-5" />
       </span>
-
-      {label && (
-        <span className="text-sm font-semibold text-slate-600 transition group-hover:text-blue-700">
-          {label}
-        </span>
-      )}
     </>
   );
 

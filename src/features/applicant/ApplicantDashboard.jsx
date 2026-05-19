@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { apiRequest } from "../../lib/api";
 import { useAuth } from "../auth/auth";
+import SuperAdminSidebar from "../../components/layout/SuperAdminSidebar";
 
 const statusLabels = {
   submitted: "Submitted",
@@ -42,6 +43,7 @@ export default function ApplicantDashboard() {
   const [profile, setProfile] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -85,19 +87,29 @@ export default function ApplicantDashboard() {
     [applications]
   );
 
+  const contentPadding = collapsed ? "lg:pl-20" : "lg:pl-72";
+
   return (
-    <main className="min-h-screen bg-slate-50 px-4 pt-24 pb-10">
-      <div className="mx-auto w-full max-w-7xl space-y-6">
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+    <main className={`min-h-screen bg-slate-50 pt-24 ${contentPadding}`}>
+      <SuperAdminSidebar
+        activeTab="applications"
+        collapsed={collapsed}
+        setCollapsed={setCollapsed}
+        role="applicant"
+      />
+
+      <section className="px-4 pb-10 pt-6 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-7xl space-y-6">
+        <section className="oas-panel p-5 sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#0056b3]">
+              <p className="oas-page-kicker">
                 Applicant Dashboard
               </p>
-              <h1 className="mt-2 text-2xl font-bold text-slate-900">
+              <h1 className="oas-page-title mt-2">
                 Welcome back{user?.firstName ? `, ${user.firstName}` : ""}
               </h1>
-              <p className="mt-2 text-sm text-slate-600">
+              <p className="oas-page-description mt-2">
                 Track your applications and finish your profile before applying.
               </p>
             </div>
@@ -145,9 +157,9 @@ export default function ApplicantDashboard() {
           />
         </div>
 
-        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-            <h2 className="text-lg font-semibold text-slate-900">
+        <section className="oas-panel">
+          <div className="oas-panel-header flex items-center justify-between">
+            <h2 className="oas-panel-title">
               Application status
             </h2>
             <Link
@@ -181,7 +193,7 @@ export default function ApplicantDashboard() {
                         {application.jobTitle || application.position}
                       </h3>
                       <p className="mt-1 text-sm text-slate-500">
-                        {application.jobLocation || "No location"} •{" "}
+                        {application.jobLocation || "No location"} -{" "}
                         {formatDate(application.createdAt)}
                       </p>
                     </div>
@@ -201,8 +213,8 @@ export default function ApplicantDashboard() {
           )}
         </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">
+        <section className="oas-panel p-5">
+          <h2 className="oas-panel-title">
             Applicant profile
           </h2>
           <p className="mt-2 text-sm text-slate-600">
@@ -211,19 +223,20 @@ export default function ApplicantDashboard() {
               : "Your profile still needs application details and uploads."}
           </p>
         </section>
-      </div>
+        </div>
+      </section>
     </main>
   );
 }
 
 function StatCard({ label, value, icon }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="oas-panel p-5">
       <div className="flex items-center gap-3">
         <div className="rounded-xl bg-blue-50 p-3 text-[#0056b3]">{icon}</div>
         <div>
           <p className="text-sm text-slate-500">{label}</p>
-          <p className="text-2xl font-bold text-slate-900">{value}</p>
+          <p className="oas-stat-value">{value}</p>
         </div>
       </div>
     </div>

@@ -9,6 +9,7 @@ import {
 import { apiRequest } from "../../lib/api";
 import BackButton from "../../components/ui/BackButton";
 import { getAuthenticatedHomePath, normalizeRole, useAuth } from "../auth/auth";
+import SuperAdminSidebar from "../../components/layout/SuperAdminSidebar";
 
 const formatDate = (value) =>
   value
@@ -27,6 +28,11 @@ export default function JobDetails() {
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [showPrompt, setShowPrompt] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const [isApplying, setIsApplying] = useState(false);
+
+  const isApplicant = user && normalizeRole(user.role) === "applicant";
+  const contentPadding = collapsed ? "lg:pl-20" : "lg:pl-72";
 
   useEffect(() => {
     let isMounted = true;
@@ -64,12 +70,52 @@ export default function JobDetails() {
       return;
     }
 
-    navigate(`/profile?jobId=${jobId}`);
+    if (user.profileComplete === false) {
+      navigate("/profile");
+      return;
+    }
+
+    setIsApplying(true);
+    setMessage("");
+
+    apiRequest("/api/applications", {
+      method: "POST",
+      body: JSON.stringify({ jobOpeningId: jobId }),
+    })
+      .then(() => {
+        navigate("/applications");
+      })
+      .catch((error) => {
+        setMessage(error.message || "Failed to submit application.");
+      })
+      .finally(() => {
+        setIsApplying(false);
+      });
   };
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 pb-10 pt-24 sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-4xl space-y-6">
+    <main
+      className={`min-h-screen bg-slate-50 ${
+        isApplicant
+          ? `pt-24 ${contentPadding}`
+          : "px-4 pb-10 pt-24 sm:px-6 lg:px-8"
+      }`}
+    >
+      {isApplicant && (
+        <SuperAdminSidebar
+          activeTab="jobs"
+          collapsed={collapsed}
+          setCollapsed={setCollapsed}
+          role="applicant"
+        />
+      )}
+
+      <section
+        className={
+          isApplicant ? "px-4 pb-10 pt-6 sm:px-6 lg:px-8" : undefined
+        }
+      >
+        <div className="mx-auto w-full max-w-4xl space-y-6">
         <BackButton to="/" label="Back to job listings" />
 
         {message && (
@@ -79,21 +125,21 @@ export default function JobDetails() {
         )}
 
         {isLoading || !job ? (
-          <div className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-10 text-slate-500 shadow-sm">
+          <div className="oas-panel flex items-center justify-center gap-2 p-10 text-slate-500">
             <Loader2 className="h-5 w-5 animate-spin" />
             Loading job details...
           </div>
         ) : (
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <section className="oas-panel p-5 sm:p-6">
             <div className="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#0056b3]">
+                <p className="oas-page-kicker">
                   Vacancy Details
                 </p>
-                <h1 className="mt-2 text-3xl font-bold text-slate-900">
+                <h1 className="oas-page-title mt-2">
                   {job.title}
                 </h1>
-                <p className="mt-3 text-sm leading-6 text-slate-600">
+                <p className="oas-page-description mt-3">
                   {job.description || "No description provided yet."}
                 </p>
               </div>
@@ -101,10 +147,15 @@ export default function JobDetails() {
               <button
                 type="button"
                 onClick={handleApply}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#0056b3] px-4 font-semibold text-white transition hover:bg-[#003a78]"
+                disabled={isApplying}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#0056b3] px-4 font-semibold text-white transition hover:bg-[#003a78] disabled:cursor-not-allowed disabled:opacity-70"
               >
-                <UserRoundPlus className="h-4 w-4" />
-                Apply
+                {isApplying ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <UserRoundPlus className="h-4 w-4" />
+                )}
+                {isApplying ? "Applying..." : "Apply"}
               </button>
             </div>
 
@@ -115,7 +166,8 @@ export default function JobDetails() {
             </div>
           </section>
         )}
-      </div>
+        </div>
+      </section>
 
       {showPrompt && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-4 sm:items-center">

@@ -3,7 +3,6 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import Navbar from "./components/layout/Navbar";
 
-import ApplicationForm from "./features/registration/ApplicationForm";
 import Register from "./features/auth/Register";
 import ActivateAccount from "./features/auth/ActivateAccount";
 import Login from "./features/auth/Login";
@@ -14,7 +13,7 @@ import JobOpenings from "./features/jobs/JobOpenings";
 import JobDetails from "./features/jobs/JobDetails";
 
 import ApplicantDashboard from "./features/applicant/ApplicantDashboard";
-import Profile from "./features/profile/Profile";
+import Profile from "./features/Profile/Profile";
 
 import AdminDashboard from "./features/admin/AdminDashboard";
 import SuperAdminDashboard from "./features/admin/SuperAdminDashboard";
@@ -61,7 +60,7 @@ function App() {
             </GuestRoute>
           }
         />
-        <Route path="/apply" element={<ApplicationForm />} />
+        <Route path="/apply" element={<Navigate to="/profile" replace />} />
 
         <Route path="/jobopenings" element={<RedirectToHome />} />
         <Route path="/jobs" element={<RedirectToHome />} />

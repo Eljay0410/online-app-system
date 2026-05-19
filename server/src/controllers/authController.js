@@ -39,12 +39,42 @@ function mapLoginUser(user) {
     lastName: user.last_name || "",
     contactNumber: user.contact_number || "",
     role: normalizeRole(user.role),
+    isActive: Boolean(user.is_active),
     uan: String(user.profile_uan || user.uan || "").toUpperCase(),
     profileId: user.profile_id || null,
     profileComplete: Boolean(applicationDetails.completedAt),
     profileUpdatedAt: user.profile_updated_at || null,
     emailVerifiedAt: user.email_verified_at || null,
+    createdAt: user.created_at || null,
+    lastLogin: user.last_login || null,
   };
+}
+
+function mapAccountUser(user) {
+  return {
+    id: user.id,
+    email: user.email,
+    firstName: user.first_name || "",
+    middleName: user.middle_name || "",
+    noMiddleName: Boolean(user.no_middle_name),
+    lastName: user.last_name || "",
+    contactNumber: user.contact_number || "",
+    role: normalizeRole(user.role),
+    isActive: Boolean(user.is_active),
+    emailVerifiedAt: user.email_verified_at || null,
+    createdAt: user.created_at || null,
+    lastLogin: user.last_login || null,
+    uan: String(user.uan || "").toUpperCase(),
+  };
+}
+
+function hasPasswordStrength(password) {
+  return (
+    password.length >= 8 &&
+    /[a-z]/.test(password) &&
+    /[A-Z]/.test(password) &&
+    /\d/.test(password)
+  );
 }
 
 export async function checkEmail(req, res) {
@@ -279,6 +309,8 @@ export async function login(req, res) {
          u.role,
          u.is_active,
          u.email_verified_at,
+         u.created_at,
+         u.last_login,
          u.uan,
          p.id AS profile_id,
          p.uan AS profile_uan,
@@ -505,4 +537,232 @@ export async function logout(req, res) {
     success: true,
     message: "Logged out.",
   });
+}
+
+export async function updateAccountProfile(req, res) {
+  const userId = req.user?.id;
+  const firstName = String(req.body?.firstName || "").trim();
+  const middleName = String(req.body?.middleName || "").trim();
+  const noMiddleName = Boolean(req.body?.noMiddleName);
+  const lastName = String(req.body?.lastName || "").trim();
+  const contactNumber = String(
+    req.body?.contactNumber ?? req.body?.mobile ?? ""
+  ).trim();
+  const email = normalizeEmail(req.body?.email);
+
+  if (!userId) {
+    return res.status(401).json({
+      success: false,
+      message: "Please log in to continue.",
+    });
+  }
+
+  if (!firstName || !lastName || !email) {
+    return res.status(400).json({
+      success: false,
+      message: "First name, last name, and email address are required.",
+    });
+  }
+
+  if (!emailPattern.test(email)) {
+    return res.status(400).json({
+      success: false,
+      message: "Please enter a valid email address.",
+    });
+  }
+
+  if (contactNumber && !contactPattern.test(contactNumber)) {
+    return res.status(400).json({
+      success: false,
+      message: "Mobile number must start with 09 and be 11 digits.",
+    });
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const duplicateEmail = await client.query(
+      `SELECT id
+       FROM users
+       WHERE LOWER(email) = LOWER($1)
+         AND id <> $2
+       LIMIT 1`,
+      [email, userId]
+    );
+
+    if (duplicateEmail.rowCount > 0) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({
+        success: false,
+        message: "An account with this email already exists.",
+      });
+    }
+
+    const updated = await client.query(
+      `UPDATE users
+       SET email = $1,
+           first_name = $2,
+           middle_name = $3,
+           no_middle_name = $4,
+           last_name = $5,
+           contact_number = $6,
+           updated_at = NOW()
+       WHERE id = $7
+       RETURNING id, email, first_name, middle_name, no_middle_name, last_name,
+         contact_number, role, is_active, email_verified_at, created_at,
+         last_login, uan`,
+      [
+        email,
+        firstName,
+        noMiddleName ? null : middleName || null,
+        noMiddleName,
+        lastName,
+        contactNumber || null,
+        userId,
+      ]
+    );
+
+    const user = updated.rows[0];
+
+    if (!user) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({
+        success: false,
+        message: "Account not found.",
+      });
+    }
+
+    if (normalizeRole(user.role) === "applicant") {
+      const profileResult = await client.query(
+        "SELECT id, data FROM applicant_profiles WHERE user_id = $1 FOR UPDATE",
+        [userId]
+      );
+      const profile = profileResult.rows[0];
+
+      if (profile) {
+        const data = profile.data || {};
+        const personalInfo = data.personalInfo || {};
+        const nextData = {
+          ...data,
+          personalInfo: {
+            ...personalInfo,
+            firstName,
+            middleName: noMiddleName ? "" : middleName,
+            noMiddleName,
+            lastName,
+            contactNumber,
+            emailAddress: email,
+          },
+        };
+
+        await client.query(
+          `UPDATE applicant_profiles
+           SET data = $1,
+               updated_at = NOW()
+           WHERE id = $2`,
+          [nextData, profile.id]
+        );
+      }
+    }
+
+    await client.query("COMMIT");
+
+    return res.json({
+      success: true,
+      message: "Account details updated.",
+      user: mapAccountUser(user),
+    });
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    console.error("Update account profile error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update account details.",
+    });
+  } finally {
+    client.release();
+  }
+}
+
+export async function changePassword(req, res) {
+  const userId = req.user?.id;
+  const currentPassword = String(req.body?.currentPassword || "");
+  const newPassword = String(req.body?.newPassword || "");
+  const confirmPassword = String(req.body?.confirmPassword || "");
+
+  if (!userId) {
+    return res.status(401).json({
+      success: false,
+      message: "Please log in to continue.",
+    });
+  }
+
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    return res.status(400).json({
+      success: false,
+      message: "Current password, new password, and confirmation are required.",
+    });
+  }
+
+  if (newPassword !== confirmPassword) {
+    return res.status(400).json({
+      success: false,
+      message: "New password and confirmation do not match.",
+    });
+  }
+
+  if (!hasPasswordStrength(newPassword)) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "Password must be at least 8 characters and include uppercase, lowercase, and a number.",
+    });
+  }
+
+  try {
+    const result = await pool.query(
+      "SELECT id, password_hash FROM users WHERE id = $1 LIMIT 1",
+      [userId]
+    );
+    const user = result.rows[0];
+
+    if (!user?.password_hash) {
+      return res.status(400).json({
+        success: false,
+        message: "This account does not have a password set yet.",
+      });
+    }
+
+    const passwordMatches = await bcrypt.compare(
+      currentPassword,
+      user.password_hash
+    );
+
+    if (!passwordMatches) {
+      return res.status(400).json({
+        success: false,
+        message: "Current password is incorrect.",
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    await pool.query(
+      "UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2",
+      [passwordHash, userId]
+    );
+
+    return res.json({
+      success: true,
+      message: "Password changed successfully.",
+    });
+  } catch (error) {
+    console.error("Change password error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to change password.",
+    });
+  }
 }

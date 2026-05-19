@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { apiRequest } from "../../lib/api";
 import { getAuthenticatedHomePath, normalizeRole, useAuth } from "../auth/auth";
+import SuperAdminSidebar from "../../components/layout/SuperAdminSidebar";
 
 const formatDate = (value) =>
   value
@@ -32,6 +33,10 @@ export default function JobOpenings() {
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [promptJob, setPromptJob] = useState(null);
+  const [collapsed, setCollapsed] = useState(false);
+
+  const isApplicant = user && normalizeRole(user.role) === "applicant";
+  const contentPadding = collapsed ? "lg:pl-20" : "lg:pl-72";
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -102,18 +107,38 @@ export default function JobOpenings() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 pb-10 pt-40 sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-7xl space-y-6">
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#0056b3]">
+    <main
+      className={`min-h-screen bg-slate-50 ${
+        isApplicant
+          ? `pt-24 ${contentPadding}`
+          : "px-4 pb-10 pt-40 sm:px-6 lg:px-8"
+      }`}
+    >
+      {isApplicant && (
+        <SuperAdminSidebar
+          activeTab="jobs"
+          collapsed={collapsed}
+          setCollapsed={setCollapsed}
+          role="applicant"
+        />
+      )}
+
+      <section
+        className={
+          isApplicant ? "px-4 pb-10 pt-6 sm:px-6 lg:px-8" : undefined
+        }
+      >
+        <div className="mx-auto w-full max-w-7xl space-y-6">
+        <section className="oas-panel p-5 sm:p-6">
+          <p className="oas-page-kicker">
             Job Listings
           </p>
 
-          <h1 className="mt-2 text-2xl font-bold text-slate-900 sm:text-3xl">
+          <h1 className="oas-page-title mt-2">
             Available vacancies
           </h1>
 
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+          <p className="oas-page-description mt-2 max-w-2xl">
             Search by title or school/location, then open a posting or start
             your application flow.
           </p>
@@ -189,12 +214,12 @@ export default function JobOpenings() {
         )}
 
         {isLoading ? (
-          <div className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-10 text-slate-500 shadow-sm">
+          <div className="oas-panel flex items-center justify-center gap-2 p-10 text-slate-500">
             <Loader2 className="h-5 w-5 animate-spin" />
             Loading job openings...
           </div>
         ) : jobs.length === 0 ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-slate-500 shadow-sm">
+          <div className="oas-panel p-10 text-center text-slate-500">
             No job openings match your filters.
           </div>
         ) : (
@@ -202,11 +227,11 @@ export default function JobOpenings() {
             {jobs.map((job) => (
               <article
                 key={job.id}
-                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-200 hover:shadow-md"
+                className="oas-panel p-5 transition hover:border-blue-200 hover:shadow-md"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h2 className="text-lg font-semibold text-slate-900">
+                    <h2 className="oas-panel-title">
                       {job.title}
                     </h2>
                   </div>
@@ -253,7 +278,8 @@ export default function JobOpenings() {
             ))}
           </div>
         )}
-      </div>
+        </div>
+      </section>
 
       {promptJob && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-4 sm:items-center">

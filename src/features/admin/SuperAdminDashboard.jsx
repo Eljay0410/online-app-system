@@ -222,19 +222,19 @@ export default function SuperAdminDashboard() {
       <section className="px-4 pb-10 pt-6 transition-all duration-300 sm:px-6 lg:px-8 lg:pt-8">
         <div className="mx-auto max-w-7xl space-y-6">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+            <p className="oas-page-kicker">
               {currentPage.eyebrow}
             </p>
-            <h1 className="mt-2 text-2xl font-bold text-slate-900 sm:text-3xl">
+            <h1 className="oas-page-title mt-2">
               {currentPage.title}
             </h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+            <p className="oas-page-description mt-2 max-w-3xl">
               {currentPage.description}
             </p>
           </div>
 
           {isLoading && (
-            <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-5 text-slate-600 shadow-sm">
+            <div className="oas-panel flex items-center gap-3 p-5 text-slate-600">
               <Loader2 className="h-5 w-5 animate-spin text-blue-700" />
               Loading system overview...
             </div>
@@ -344,7 +344,7 @@ function OverviewDashboard({ overview, totals }) {
 
 function StatCard({ icon, label, value, description }) {
   return (
-    <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="oas-panel p-6">
       <div className="flex items-start justify-between">
         <div className="grid h-12 w-12 place-items-center rounded-2xl bg-blue-50 text-blue-700">
           {icon}
@@ -357,7 +357,7 @@ function StatCard({ icon, label, value, description }) {
 
       <p className="mt-5 text-sm font-semibold text-slate-500">{label}</p>
 
-      <p className="mt-2 text-4xl font-bold tracking-tight text-slate-950">
+      <p className="oas-stat-value mt-2">
         {value}
       </p>
 
@@ -368,9 +368,9 @@ function StatCard({ icon, label, value, description }) {
 
 function BreakdownCard({ title, items, labelKey }) {
   return (
-    <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-6 py-5">
-        <h2 className="text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+    <section className="oas-panel">
+      <div className="oas-panel-header">
+        <h2 className="oas-panel-title">
           {title}
         </h2>
       </div>
@@ -410,7 +410,7 @@ function CreateAdminSection({
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 
   return (
-    <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+    <section className="oas-panel">
 
       <form onSubmit={handleCreateAdmin} className="space-y-4 p-6">
         <div className="grid gap-4 sm:grid-cols-2">
@@ -514,7 +514,7 @@ function CreateAdminSection({
 
 function ManagementAccountsSection({ managementUsers, onDeleteUser }) {
   return (
-    <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+    <section className="oas-panel">
 
       <div className="divide-y divide-slate-100">
         {managementUsers.length === 0 ? (

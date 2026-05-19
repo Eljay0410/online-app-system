@@ -1,14 +1,19 @@
 import { Router } from "express";
 import {
+  changePassword,
   forgotPassword,
   checkEmail,
   login,
   logout,
   registerApplicant,
   resendActivationEmail,
+  updateAccountProfile,
 } from "../controllers/authController.js";
 import { requireAuth } from "../middleware/auth.js";
-import { authLimiters } from "../middleware/rateLimit.js";
+import {
+  authenticatedWriteLimiter,
+  authLimiters,
+} from "../middleware/rateLimit.js";
 
 const router = Router();
 
@@ -36,6 +41,18 @@ router.post(
   "/auth/forgot-password",
   authLimiters.emailAction,
   forgotPassword
+);
+router.patch(
+  "/auth/profile",
+  requireAuth,
+  authenticatedWriteLimiter,
+  updateAccountProfile
+);
+router.post(
+  "/auth/password",
+  requireAuth,
+  authenticatedWriteLimiter,
+  changePassword
 );
 router.post("/auth/logout", requireAuth, logout);
 

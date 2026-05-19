@@ -8,7 +8,6 @@ import {
   Loader2,
   Mail,
   Send,
-  ShieldCheck,
   X,
 } from "lucide-react";
 import { apiRequest } from "../../lib/api";
@@ -700,7 +699,7 @@ const PersonalInfo = ({ data = {}, onChange, onNext }) => {
   );
 };
 
-const EducationalBackground = ({ data, onChange, onBack, onNext }) => {
+const EducationalBackground = ({ data, onChange, onNext }) => {
   const [bachelors, setBachelors] = useState(
     data?.bachelors || [{ school: "", course: "", year: "", award: "" }]
   );
@@ -1113,9 +1112,7 @@ const EducationalBackground = ({ data, onChange, onBack, onNext }) => {
         </div>
       </div>
 
-      <div className="flex justify-between items-center pt-6">
-        <BackButton onClick={onBack} label="Back" />
-
+      <div className="flex justify-end items-center pt-6">
         <button
           type="submit"
           className="px-6 py-2 rounded-xl bg-[#0056b3] text-white font-bold hover:bg-[#003a78]"
@@ -1127,7 +1124,7 @@ const EducationalBackground = ({ data, onChange, onBack, onNext }) => {
   );
 };
 
-const Eligibility = ({ data, onChange, onBack, onNext }) => {
+const Eligibility = ({ data, onChange, onNext }) => {
   const [eligibilities, setEligibilities] = useState(
     data?.eligibilities || [
       {
@@ -1560,9 +1557,7 @@ const Eligibility = ({ data, onChange, onBack, onNext }) => {
         </div>
       </div>
 
-      <div className="flex justify-between items-center pt-6">
-        <BackButton onClick={onBack} label="Back" />
-
+      <div className="flex justify-end items-center pt-6">
         <button
           type="submit"
           className="px-6 py-2 rounded-xl bg-[#0056b3] text-white font-bold hover:bg-[#003a78]"
@@ -1574,7 +1569,7 @@ const Eligibility = ({ data, onChange, onBack, onNext }) => {
   );
 };
 
-const LearningDevelopment = ({ data, onChange, onBack, onNext }) => {
+const LearningDevelopment = ({ data, onChange, onNext }) => {
   const [trainings, setTrainings] = useState(
     data?.trainings || [
       {
@@ -1770,9 +1765,7 @@ const LearningDevelopment = ({ data, onChange, onBack, onNext }) => {
         </div>
       </div>
 
-      <div className="flex justify-between items-center pt-6">
-        <BackButton onClick={onBack} label="Back" />
-
+      <div className="flex justify-end items-center pt-6">
         <button
           type="submit"
           className="px-6 py-2 rounded-xl bg-[#0056b3] text-white font-bold hover:bg-[#003a78] transition"
@@ -1784,7 +1777,7 @@ const LearningDevelopment = ({ data, onChange, onBack, onNext }) => {
   );
 };
 
-const Attachment = ({ data, onChange, onBack, onNext }) => {
+const Attachment = ({ data, onChange, onNext }) => {
   const teachingRequirements = {
     letterOfIntent: null,
     pds: null,
@@ -2347,9 +2340,7 @@ const Attachment = ({ data, onChange, onBack, onNext }) => {
         </div>
       )}
 
-      <div className="flex justify-between items-center pt-6">
-        <BackButton onClick={onBack} label="Back" />
-
+      <div className="flex justify-end items-center pt-6">
         <button
           type="submit"
           className="px-6 py-2 rounded-xl bg-[#0056b3] text-white font-bold hover:bg-[#003a78] transition"
@@ -2363,10 +2354,9 @@ const Attachment = ({ data, onChange, onBack, onNext }) => {
 
 const emptyText = "N/A";
 
-const Review = ({ data, onBack, onSubmit }) => {
+const Review = ({ data, onSubmit }) => {
   const [uan, setUan] = useState(data?.uan || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLocked, setIsLocked] = useState(Boolean(data?.uan));
   const [showModal, setShowModal] = useState(false);
   const [modalStage, setModalStage] = useState("done");
   const [modalMessage, setModalMessage] = useState("");
@@ -2391,7 +2381,7 @@ const Review = ({ data, onBack, onSubmit }) => {
   const uanDisplay = String(uan || "").toUpperCase();
 
   const submitApplication = async () => {
-    if (isSubmitting || isLocked) return;
+    if (isSubmitting) return;
 
     setIsSubmitting(true);
     setModalStage("saving");
@@ -2413,7 +2403,6 @@ const Review = ({ data, onBack, onSubmit }) => {
       });
 
       setUan(result.uan);
-      setIsLocked(true);
       setEmailStatus(
         result.emailSent
           ? `Activation instructions were emailed to ${personalInfo.emailAddress}.`
@@ -2490,7 +2479,8 @@ const Review = ({ data, onBack, onSubmit }) => {
             </p>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
               Review your details carefully. Submitting will save the
-              application, generate your UAN, and lock this form.
+              application and generate your UAN. Updates after submission will
+              only apply to new job postings.
             </p>
           </div>
 
@@ -2529,10 +2519,6 @@ const Review = ({ data, onBack, onSubmit }) => {
                     Print
                   </button>
 
-                  <div className="hidden sm:inline-flex items-center gap-2 text-sm font-semibold text-blue-700">
-                    <ShieldCheck className="h-4 w-4" />
-                    Locked
-                  </div>
                 </div>
               </div>
             </div>
@@ -2705,8 +2691,8 @@ const Review = ({ data, onBack, onSubmit }) => {
           <div className="flex gap-3 rounded-lg bg-amber-50 p-4">
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
             <p>
-              Once submitted, your application will be locked and can no longer
-              be edited. Make sure all details are correct before proceeding.
+              Submitting saves a snapshot for this job. Changes you make later
+              will only apply to new applications.
             </p>
           </div>
         </div>
@@ -2828,17 +2814,11 @@ const Review = ({ data, onBack, onSubmit }) => {
         </div>
       )}
 
-      <div className="no-print flex flex-col gap-3 pt-6 sm:flex-row sm:items-center sm:justify-between">
-        <BackButton
-          onClick={onBack}
-          disabled={isLocked || isSubmitting}
-          label="Back"
-        />
-
+      <div className="no-print flex flex-col gap-3 pt-6 sm:flex-row sm:items-center sm:justify-end">
         <button
           type="button"
           onClick={submitApplication}
-          disabled={isSubmitting || isLocked}
+          disabled={isSubmitting}
           className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-700 px-6 py-2.5 text-sm font-bold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isSubmitting ? (
@@ -2846,7 +2826,7 @@ const Review = ({ data, onBack, onSubmit }) => {
           ) : (
             <Send className="h-4 w-4" />
           )}
-          {isLocked ? "Submitted" : "Submit"}
+          Submit
         </button>
       </div>
     </div>
@@ -2981,6 +2961,15 @@ const ApplicationForm = () => {
     { id: 6, title: "REVIEW" },
   ];
 
+  const handleStepBack = () => {
+    if (currentStep > 1) {
+      setCurrentStep((prev) => Math.max(1, prev - 1));
+      return;
+    }
+
+    navigate(-1);
+  };
+
   const renderStepContent = () => {
     switch (currentStep) {
       case 1:
@@ -3000,7 +2989,6 @@ const ApplicationForm = () => {
           <EducationalBackground
             data={formData.educationalBackground}
             onChange={(data) => updateFormData("educationalBackground", data)}
-            onBack={() => setCurrentStep(1)}
             onNext={(data) => {
               updateFormData("educationalBackground", data);
               setCurrentStep(3);
@@ -3013,7 +3001,6 @@ const ApplicationForm = () => {
           <Eligibility
             data={formData.eligibility}
             onChange={(data) => updateFormData("eligibility", data)}
-            onBack={() => setCurrentStep(2)}
             onNext={(data) => {
               updateFormData("eligibility", data);
               setCurrentStep(4);
@@ -3026,7 +3013,6 @@ const ApplicationForm = () => {
           <LearningDevelopment
             data={formData.learningDevelopment}
             onChange={(data) => updateFormData("learningDevelopment", data)}
-            onBack={() => setCurrentStep(3)}
             onNext={(data) => {
               updateFormData("learningDevelopment", data);
               setCurrentStep(5);
@@ -3039,7 +3025,6 @@ const ApplicationForm = () => {
           <Attachment
             data={formData.jobPosition}
             onChange={(data) => updateFormData("jobPosition", data)}
-            onBack={() => setCurrentStep(4)}
             onNext={(data) => {
               updateFormData("jobPosition", data);
               setCurrentStep(6);
@@ -3051,7 +3036,6 @@ const ApplicationForm = () => {
        return (
         <Review
           data={formData}
-          onBack={() => setCurrentStep(5)}
           onSubmit={(applicationData) => {
             setFormData((prev) => ({ ...prev, ...applicationData }));
           }}
@@ -3159,6 +3143,14 @@ const ApplicationForm = () => {
 
           <div className="flex-1 min-h-[500px]">
             <div className="border-l-[1.5px] border-slate-300 pl-10 h-full">
+              {currentStep > 1 && (
+                <BackButton
+                  onClick={handleStepBack}
+                  className="mb-4"
+                  ariaLabel="Go back"
+                />
+              )}
+
               <h2 className="text-2xl font-bold text-[#003a78] mb-8 tracking-tight uppercase">
                 {steps.find((s) => s.id === currentStep)?.title}
               </h2>
