@@ -5,12 +5,16 @@ import {
   ClipboardList,
   Eye,
   Filter,
+  LayoutList,
   Loader2,
   Minus,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   Save,
   Search,
   Trash2,
+  UserRoundSearch,
   X,
 } from "lucide-react";
 import { apiRequest } from "../../lib/api";
@@ -30,9 +34,88 @@ const statusLabels = {
   for_interview: "For Interview",
   qualified: "Qualified",
   rejected: "Rejected",
+  denied: "Denied",
 };
 
+const sidebarItems = [
+  {
+    id: "post-job",
+    label: "Post Job Opening",
+    icon: Plus,
+  },
+  {
+    id: "job-posting",
+    label: "Job Posting",
+    icon: Briefcase,
+  },
+  {
+    id: "applicant-list",
+    label: "Applicant List",
+    icon: UserRoundSearch,
+  },
+  {
+    id: "job-listing",
+    label: "Job Listing",
+    icon: LayoutList,
+  },
+];
+
+function getStatusBadgeClass(status) {
+  const normalizedStatus = String(status || "").toLowerCase();
+
+  if (normalizedStatus === "submitted") {
+    return "border-blue-200 bg-blue-50 text-blue-700";
+  }
+
+  if (normalizedStatus === "under_review") {
+    return "border-amber-200 bg-amber-50 text-amber-700";
+  }
+
+  if (normalizedStatus === "for_interview") {
+    return "border-violet-200 bg-violet-50 text-violet-700";
+  }
+
+  if (normalizedStatus === "qualified") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+
+  if (normalizedStatus === "rejected" || normalizedStatus === "denied") {
+    return "border-rose-200 bg-rose-50 text-rose-700";
+  }
+
+  return "border-slate-200 bg-slate-50 text-slate-700";
+}
+
+function getStatusOptionClass(status) {
+  const normalizedStatus = String(status || "").toLowerCase();
+
+  if (normalizedStatus === "submitted") {
+    return "bg-blue-50 text-blue-700";
+  }
+
+  if (normalizedStatus === "under_review") {
+    return "bg-amber-50 text-amber-700";
+  }
+
+  if (normalizedStatus === "for_interview") {
+    return "bg-violet-50 text-violet-700";
+  }
+
+  if (normalizedStatus === "qualified") {
+    return "bg-emerald-50 text-emerald-700";
+  }
+
+  if (normalizedStatus === "rejected" || normalizedStatus === "denied") {
+    return "bg-rose-50 text-rose-700";
+  }
+
+  return "bg-slate-50 text-slate-700";
+}
+
 export default function AdminDashboard() {
+  const [activeSection, setActiveSection] = useState("post-job");
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
   const [jobs, setJobs] = useState([]);
   const [applications, setApplications] = useState([]);
   const [form, setForm] = useState(emptyJob);
@@ -102,6 +185,7 @@ export default function AdminDashboard() {
       setJobs((prev) => [result.job, ...prev]);
       setForm(emptyJob);
       setMessage("Job opening posted.");
+      setActiveSection("job-posting");
     } catch (err) {
       setMessage(err.message);
     } finally {
@@ -300,397 +384,220 @@ export default function AdminDashboard() {
     ["submitted", "under_review"].includes(application.status)
   ).length;
 
+  const activeSidebarLabel =
+    sidebarItems.find((item) => item.id === activeSection)?.label ||
+    "Admin Dashboard";
+
   return (
-    <main className="min-h-screen bg-slate-50 px-4 pb-12 pt-28 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-bold text-blue-950">
-            Admin Dashboard
-          </h1>
+    <main className="min-h-screen bg-slate-50 pt-24">
+      <div className="flex min-h-[calc(100vh-96px)]">
+        <aside
+          className={`fixed left-0 top-24 z-30 hidden h-[calc(100vh-96px)] border-r border-slate-200 bg-white text-slate-900 shadow-sm transition-all duration-300 lg:block ${
+            isSidebarCollapsed ? "w-20" : "w-72"
+          }`}
+        >
+          <div className="flex h-full flex-col">
+            <div
+              className={`flex items-center border-b border-slate-200 py-5 ${
+                isSidebarCollapsed
+                  ? "justify-center px-3"
+                  : "justify-between px-5"
+              }`}
+            >
+              {!isSidebarCollapsed && (
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                    Admin Panel
+                  </p>
 
-          <p className="text-sm text-slate-600">
-            Post job openings, review applicants, filter applications, and view
-            submitted application forms.
-          </p>
-        </div>
-
-        {message && (
-          <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm font-medium text-blue-800">
-            {message}
-          </div>
-        )}
-
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <Briefcase className="h-6 w-6 text-blue-700" />
-
-            <p className="mt-3 text-sm text-slate-500">Open Jobs</p>
-
-            <p className="text-2xl font-bold text-slate-900">{openJobs}</p>
-          </div>
-
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <ClipboardList className="h-6 w-6 text-blue-700" />
-
-            <p className="mt-3 text-sm text-slate-500">Applications</p>
-
-            <p className="text-2xl font-bold text-slate-900">
-              {applications.length}
-            </p>
-          </div>
-
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <CheckCircle2 className="h-6 w-6 text-green-700" />
-
-            <p className="mt-3 text-sm text-slate-500">Needs Review</p>
-
-            <p className="text-2xl font-bold text-slate-900">
-              {pendingApplications}
-            </p>
-          </div>
-        </div>
-
-        <section className="grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
-          <form
-            onSubmit={createJob}
-            className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
-          >
-            <div className="mb-5 flex items-center gap-2">
-              <Plus className="h-5 w-5 text-blue-700" />
-
-              <h2 className="text-lg font-bold text-slate-900">
-                Post Job Opening
-              </h2>
-            </div>
-
-            <div className="grid gap-4">
-              <input
-                value={form.title}
-                onChange={(event) =>
-                  handleFormChange("title", event.target.value)
-                }
-                placeholder="Job title"
-                className="h-11 rounded-lg border border-slate-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-
-              <input
-                value={form.location}
-                onChange={(event) =>
-                  handleFormChange("location", event.target.value)
-                }
-                placeholder="School / location"
-                className="h-11 rounded-lg border border-slate-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <input
-                  type="number"
-                  min="1"
-                  value={form.vacancy}
-                  onChange={(event) =>
-                    handleFormChange("vacancy", event.target.value)
-                  }
-                  className="h-11 rounded-lg border border-slate-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-
-                <input
-                  type="date"
-                  value={form.deadline}
-                  onChange={(event) =>
-                    handleFormChange("deadline", event.target.value)
-                  }
-                  className="h-11 rounded-lg border border-slate-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-
-              <textarea
-                value={form.description}
-                onChange={(event) =>
-                  handleFormChange("description", event.target.value)
-                }
-                placeholder="Job details and requirements"
-                className="min-h-24 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-
-              <button
-                type="submit"
-                disabled={isSaving}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-700 px-5 py-2.5 font-bold text-white hover:bg-blue-800 disabled:opacity-60"
-              >
-                {isSaving ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Save className="h-4 w-4" />
-                )}
-
-                Post Job
-              </button>
-            </div>
-          </form>
-
-          <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-200 px-5 py-4">
-              <h2 className="text-lg font-bold text-slate-900">
-                Job Postings
-              </h2>
-            </div>
-
-            {isLoading ? (
-              <div className="flex items-center justify-center gap-2 p-8 text-slate-500">
-                <Loader2 className="h-5 w-5 animate-spin" />
-                Loading...
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {jobs.map((job) => (
-                  <div
-                    key={job.id}
-                    className="flex flex-col gap-4 px-5 py-4 xl:flex-row xl:items-center xl:justify-between"
-                  >
-                    <div>
-                      <p className="font-semibold text-slate-900">
-                        {job.title}
-                      </p>
-
-                      <p className="text-sm text-slate-500">
-                        {job.location} - {job.vacancy} vacancy
-                      </p>
-
-                      <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                        {job.status === "open" &&
-                        job.deadline &&
-                        new Date(job.deadline) < new Date()
-                          ? "Expired"
-                          : job.status}
-                      </p>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => decreaseVacancy(job)}
-                        disabled={Number(job.vacancy) <= 0}
-                        className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <Minus className="h-4 w-4" />
-                        Reduce Vacancy
-                      </button>
-
-                      <select
-                        value={job.status}
-                        onChange={(event) =>
-                          updateJob(job, {
-                            status: event.target.value,
-                          }).catch((err) => setMessage(err.message))
-                        }
-                        className="h-10 rounded-lg border border-slate-300 px-3 text-sm"
-                      >
-                        <option value="open">Open</option>
-                        <option value="closed">Closed</option>
-                        <option value="draft">Draft</option>
-                      </select>
-
-                      <button
-                        type="button"
-                        onClick={() => setJobToDelete(job)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                ))}
-
-                {!isLoading && jobs.length === 0 && (
-                  <div className="p-8 text-center text-slate-500">
-                    No job postings yet.
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </section>
-
-        <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 px-5 py-4">
-            <div className="flex flex-col gap-1">
-              <h2 className="text-lg font-bold text-slate-900">
-                Applicant List
-              </h2>
-
-              <p className="text-sm text-slate-500">
-                View all applicants, filter by position or location, and open
-                each applicant&apos;s application form.
-              </p>
-            </div>
-          </div>
-
-          <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
-            <div className="grid gap-3 lg:grid-cols-[1fr_220px_220px_auto]">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-
-                <input
-                  value={searchTerm}
-                  onChange={(event) => setSearchTerm(event.target.value)}
-                  placeholder="Search applicant, UAN, email, or position"
-                  className="h-11 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <select
-                value={selectedPosition}
-                onChange={(event) => setSelectedPosition(event.target.value)}
-                className="h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">All Positions</option>
-                {positions.map((position) => (
-                  <option key={position} value={position}>
-                    {position}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                value={selectedLocation}
-                onChange={(event) => setSelectedLocation(event.target.value)}
-                className="h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">All Locations</option>
-                {locations.map((location) => (
-                  <option key={location} value={location}>
-                    {location}
-                  </option>
-                ))}
-              </select>
+                  <h2 className="mt-2 truncate text-xl font-extrabold text-slate-950">
+                    OASys Dashboard
+                  </h2>
+                </div>
+              )}
 
               <button
                 type="button"
-                onClick={() => {
-                  setSearchTerm("");
-                  setSelectedPosition("all");
-                  setSelectedLocation("all");
-                }}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                onClick={() => setIsSidebarCollapsed((current) => !current)}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700 transition hover:bg-[#0056b3] hover:text-white"
+                title={
+                  isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
+                }
               >
-                <Filter className="h-4 w-4" />
-                Clear
+                {isSidebarCollapsed ? (
+                  <PanelLeftOpen size={20} />
+                ) : (
+                  <PanelLeftClose size={20} />
+                )}
               </button>
             </div>
-          </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-100 text-xs uppercase text-slate-600">
-                <tr>
-                  <th className="px-5 py-3">UAN</th>
-                  <th className="px-5 py-3">Applicant</th>
-                  <th className="px-5 py-3">Position</th>
-                  <th className="px-5 py-3">Location</th>
-                  <th className="px-5 py-3">Date Applied</th>
-                  <th className="px-5 py-3">Status</th>
-                  <th className="px-5 py-3 text-right">Action</th>
-                </tr>
-              </thead>
+            <nav className="flex-1 space-y-2 px-3 py-5">
+              {sidebarItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeSection === item.id;
 
-              <tbody>
-                {filteredApplications.map((application) => (
-                  <tr
-                    key={application.id}
-                    className="border-t border-slate-100 align-top"
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setActiveSection(item.id)}
+                    title={isSidebarCollapsed ? item.label : ""}
+                    className={`group flex w-full items-center rounded-xl py-3 text-left text-sm font-semibold transition ${
+                      isSidebarCollapsed
+                        ? "justify-center px-0"
+                        : "gap-3 px-4"
+                    } ${
+                      isActive
+                        ? "bg-[#0056b3] text-white shadow-md"
+                        : "text-slate-600 hover:bg-slate-100 hover:text-[#0056b3]"
+                    }`}
                   >
-                    <td className="px-5 py-4 font-semibold text-slate-900">
-                      {application.uan || "No UAN"}
-                    </td>
+                    <Icon size={20} className="shrink-0" />
 
-                    <td className="px-5 py-4">
-                      <p className="font-medium text-slate-800">
-                        {getApplicantName(application)}
-                      </p>
+                    {!isSidebarCollapsed && (
+                      <span className="truncate">{item.label}</span>
+                    )}
+                  </button>
+                );
+              })}
+            </nav>
 
-                      <p className="text-xs text-slate-500">
-                        {getApplicantEmail(application)}
-                      </p>
-                    </td>
+            {!isSidebarCollapsed && (
+              <div className="border-t border-slate-200 px-6 py-5 text-xs leading-5 text-slate-500">
+                Manage job postings, applicant records, and application reviews.
+              </div>
+            )}
+          </div>
+        </aside>
 
-                    <td className="px-5 py-4 text-slate-700">
-                      {getApplicationPosition(application)}
-                    </td>
+        <section
+          className={`w-full px-4 pb-12 pt-8 transition-all duration-300 sm:px-6 lg:px-8 ${
+            isSidebarCollapsed ? "lg:ml-20" : "lg:ml-72"
+          }`}
+        >
+          <div className="mx-auto max-w-7xl space-y-6">
+            <div className="lg:hidden">
+              <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+                {sidebarItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activeSection === item.id;
 
-                    <td className="px-5 py-4 text-slate-700">
-                      {getApplicationLocation(application)}
-                    </td>
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setActiveSection(item.id)}
+                      className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-xs font-semibold transition ${
+                        isActive
+                          ? "bg-[#0056b3] text-white"
+                          : "text-slate-600 hover:bg-slate-100"
+                      }`}
+                    >
+                      <Icon size={16} />
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-                    <td className="px-5 py-4 text-slate-700">
-                      {formatDate(getApplicationDate(application))}
-                    </td>
+            <div className="flex flex-col gap-2">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#0056b3]">
+                {activeSidebarLabel}
+              </p>
 
-                    <td className="px-5 py-4">
-                      <select
-                        value={application.status}
-                        onChange={(event) =>
-                          updateApplicationStatus(
-                            application,
-                            event.target.value
-                          ).catch((err) => setMessage(err.message))
-                        }
-                        className="h-10 rounded-lg border border-slate-300 px-3 text-sm"
-                      >
-                        {Object.entries(statusLabels).map(([value, label]) => (
-                          <option key={value} value={value}>
-                            {label}
-                          </option>
-                        ))}
-                      </select>
+              <h1 className="text-3xl font-bold text-slate-950">
+                Admin Dashboard
+              </h1>
 
-                      <textarea
-                        value={
-                          reviewNotes[application.id] ??
-                          application.reviewNotes ??
-                          ""
-                        }
-                        onChange={(event) =>
-                          setReviewNotes((current) => ({
-                            ...current,
-                            [application.id]: event.target.value,
-                          }))
-                        }
-                        placeholder="Review notes"
-                        className="mt-2 min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </td>
+              <p className="text-sm text-slate-600">
+                Post job openings, manage job postings, review applicants, and
+                view published job listings.
+              </p>
+            </div>
 
-                    <td className="px-5 py-4 text-right">
-                      <button
-                        type="button"
-                        onClick={() => setViewApplication(application)}
-                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
-                      >
-                        <Eye className="h-4 w-4" />
-                        View
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {!isLoading && filteredApplications.length === 0 && (
-              <div className="p-8 text-center text-slate-500">
-                No applicants found.
+            {message && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm font-medium text-blue-800">
+                {message}
               </div>
             )}
 
-            {isLoading && (
-              <div className="flex items-center justify-center gap-2 p-8 text-slate-500">
-                <Loader2 className="h-5 w-5 animate-spin" />
-                Loading applicants...
-              </div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <DashboardCard
+                icon={Briefcase}
+                label="Open Jobs"
+                value={openJobs}
+              />
+
+              <DashboardCard
+                icon={ClipboardList}
+                label="Applications"
+                value={applications.length}
+              />
+
+              <DashboardCard
+                icon={CheckCircle2}
+                label="Needs Review"
+                value={pendingApplications}
+                iconClassName="text-green-700"
+              />
+            </div>
+
+            {activeSection === "post-job" && (
+              <PostJobSection
+                form={form}
+                handleFormChange={handleFormChange}
+                createJob={createJob}
+                isSaving={isSaving}
+              />
+            )}
+
+            {activeSection === "job-posting" && (
+              <JobPostingSection
+                jobs={jobs}
+                isLoading={isLoading}
+                updateJob={updateJob}
+                decreaseVacancy={decreaseVacancy}
+                setJobToDelete={setJobToDelete}
+                setMessage={setMessage}
+                formatDate={formatDate}
+              />
+            )}
+
+            {activeSection === "applicant-list" && (
+              <ApplicantListSection
+                isLoading={isLoading}
+                filteredApplications={filteredApplications}
+                positions={positions}
+                locations={locations}
+                selectedPosition={selectedPosition}
+                selectedLocation={selectedLocation}
+                searchTerm={searchTerm}
+                setSelectedPosition={setSelectedPosition}
+                setSelectedLocation={setSelectedLocation}
+                setSearchTerm={setSearchTerm}
+                setViewApplication={setViewApplication}
+                updateApplicationStatus={updateApplicationStatus}
+                reviewNotes={reviewNotes}
+                setReviewNotes={setReviewNotes}
+                setMessage={setMessage}
+                statusLabels={statusLabels}
+                formatDate={formatDate}
+                getApplicationDate={getApplicationDate}
+                getApplicationPosition={getApplicationPosition}
+                getApplicationLocation={getApplicationLocation}
+                getApplicantName={getApplicantName}
+                getApplicantEmail={getApplicantEmail}
+              />
+            )}
+
+            {activeSection === "job-listing" && (
+              <JobListingSection
+                jobs={jobs}
+                isLoading={isLoading}
+                formatDate={formatDate}
+              />
             )}
           </div>
         </section>
@@ -748,6 +655,450 @@ export default function AdminDashboard() {
   );
 }
 
+function DashboardCard({
+  icon: Icon,
+  label,
+  value,
+  iconClassName = "text-blue-700",
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <Icon className={`h-6 w-6 ${iconClassName}`} />
+
+      <p className="mt-3 text-sm text-slate-500">{label}</p>
+
+      <p className="text-2xl font-bold text-slate-900">{value}</p>
+    </div>
+  );
+}
+
+function PostJobSection({ form, handleFormChange, createJob, isSaving }) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="mb-5 flex items-center gap-2">
+        <Plus className="h-5 w-5 text-blue-700" />
+
+        <h2 className="text-xl font-bold text-slate-900">Post Job Opening</h2>
+      </div>
+
+      <form onSubmit={createJob} className="grid gap-4">
+        <input
+          value={form.title}
+          onChange={(event) => handleFormChange("title", event.target.value)}
+          placeholder="Job title"
+          className="h-11 rounded-xl border border-slate-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          required
+        />
+
+        <input
+          value={form.location}
+          onChange={(event) => handleFormChange("location", event.target.value)}
+          placeholder="School / location"
+          className="h-11 rounded-xl border border-slate-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          required
+        />
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <input
+            type="number"
+            min="1"
+            value={form.vacancy}
+            onChange={(event) =>
+              handleFormChange("vacancy", event.target.value)
+            }
+            className="h-11 rounded-xl border border-slate-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            required
+          />
+
+          <input
+            type="date"
+            value={form.deadline}
+            onChange={(event) =>
+              handleFormChange("deadline", event.target.value)
+            }
+            className="h-11 rounded-xl border border-slate-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            required
+          />
+        </div>
+
+        <textarea
+          value={form.description}
+          onChange={(event) =>
+            handleFormChange("description", event.target.value)
+          }
+          placeholder="Job details and requirements"
+          className="min-h-32 rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+
+        <button
+          type="submit"
+          disabled={isSaving}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#0056b3] px-5 font-bold text-white hover:bg-[#003a78] disabled:opacity-60 sm:w-fit"
+        >
+          {isSaving ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Save className="h-4 w-4" />
+          )}
+          Post Job
+        </button>
+      </form>
+    </section>
+  );
+}
+
+function JobPostingSection({
+  jobs,
+  isLoading,
+  updateJob,
+  decreaseVacancy,
+  setJobToDelete,
+  setMessage,
+  formatDate,
+}) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="border-b border-slate-200 px-5 py-4">
+        <h2 className="text-xl font-bold text-slate-900">Job Posting</h2>
+      </div>
+
+      {isLoading ? (
+        <LoadingState label="Loading job postings..." />
+      ) : (
+        <div className="divide-y divide-slate-100">
+          {jobs.map((job) => (
+            <div
+              key={job.id}
+              className="flex flex-col gap-4 px-5 py-4 xl:flex-row xl:items-center xl:justify-between"
+            >
+              <div>
+                <p className="font-semibold text-slate-900">{job.title}</p>
+
+                <p className="text-sm text-slate-500">
+                  {job.location} • {job.vacancy} vacancy • Deadline{" "}
+                  {formatDate(job.deadline)}
+                </p>
+
+                <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  {job.status === "open" &&
+                  job.deadline &&
+                  new Date(job.deadline) < new Date()
+                    ? "Expired"
+                    : job.status}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => decreaseVacancy(job)}
+                  disabled={Number(job.vacancy) <= 0}
+                  className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Minus className="h-4 w-4" />
+                  Reduce Vacancy
+                </button>
+
+                <select
+                  value={job.status}
+                  onChange={(event) =>
+                    updateJob(job, {
+                      status: event.target.value,
+                    }).catch((err) => setMessage(err.message))
+                  }
+                  className="h-10 rounded-lg border border-slate-300 px-3 text-sm"
+                >
+                  <option value="open">Open</option>
+                  <option value="closed">Closed</option>
+                  <option value="draft">Draft</option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() => setJobToDelete(job)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {!isLoading && jobs.length === 0 && (
+            <EmptyState label="No job postings yet." />
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ApplicantListSection({
+  isLoading,
+  filteredApplications,
+  positions,
+  locations,
+  selectedPosition,
+  selectedLocation,
+  searchTerm,
+  setSelectedPosition,
+  setSelectedLocation,
+  setSearchTerm,
+  setViewApplication,
+  updateApplicationStatus,
+  reviewNotes,
+  setReviewNotes,
+  setMessage,
+  statusLabels,
+  formatDate,
+  getApplicationDate,
+  getApplicationPosition,
+  getApplicationLocation,
+  getApplicantName,
+  getApplicantEmail,
+}) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="border-b border-slate-200 px-5 py-4">
+        <h2 className="text-xl font-bold text-slate-900">Applicant List</h2>
+
+        <p className="mt-1 text-sm text-slate-500">
+          View all applicants, filter by position or location, and open each
+          applicant&apos;s application form.
+        </p>
+      </div>
+
+      <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
+        <div className="grid gap-3 lg:grid-cols-[1fr_220px_220px_auto]">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+
+            <input
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Search applicant, UAN, email, or position"
+              className="h-11 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-3 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <select
+            value={selectedPosition}
+            onChange={(event) => setSelectedPosition(event.target.value)}
+            className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All Positions</option>
+            {positions.map((position) => (
+              <option key={position} value={position}>
+                {position}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={selectedLocation}
+            onChange={(event) => setSelectedLocation(event.target.value)}
+            className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All Locations</option>
+            {locations.map((location) => (
+              <option key={location} value={location}>
+                {location}
+              </option>
+            ))}
+          </select>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSearchTerm("");
+              setSelectedPosition("all");
+              setSelectedLocation("all");
+            }}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+          >
+            <Filter className="h-4 w-4" />
+            Clear
+          </button>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-slate-100 text-xs uppercase text-slate-600">
+            <tr>
+              <th className="px-5 py-3">UAN</th>
+              <th className="px-5 py-3">Applicant</th>
+              <th className="px-5 py-3">Position</th>
+              <th className="px-5 py-3">Location</th>
+              <th className="px-5 py-3">Date Applied</th>
+              <th className="px-5 py-3">Status</th>
+              <th className="px-5 py-3 text-right">Action</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {filteredApplications.map((application) => (
+              <tr
+                key={application.id}
+                className="border-t border-slate-100 align-top"
+              >
+                <td className="px-5 py-4 font-semibold text-slate-900">
+                  {application.uan || "No UAN"}
+                </td>
+
+                <td className="px-5 py-4">
+                  <p className="font-medium text-slate-800">
+                    {getApplicantName(application)}
+                  </p>
+
+                  <p className="text-xs text-slate-500">
+                    {getApplicantEmail(application)}
+                  </p>
+                </td>
+
+                <td className="px-5 py-4 text-slate-700">
+                  {getApplicationPosition(application)}
+                </td>
+
+                <td className="px-5 py-4 text-slate-700">
+                  {getApplicationLocation(application)}
+                </td>
+
+                <td className="px-5 py-4 text-slate-700">
+                  {formatDate(getApplicationDate(application))}
+                </td>
+
+                <td className="px-5 py-4">
+                  <select
+                    value={application.status}
+                    onChange={(event) =>
+                      updateApplicationStatus(
+                        application,
+                        event.target.value
+                      ).catch((err) => setMessage(err.message))
+                    }
+                    className={`h-10 min-w-[155px] cursor-pointer rounded-full border px-3 text-sm font-semibold outline-none transition ${getStatusBadgeClass(
+                      application.status
+                    )}`}
+                  >
+                    {Object.entries(statusLabels).map(([value, label]) => (
+                      <option
+                        key={value}
+                        value={value}
+                        className={`font-semibold ${getStatusOptionClass(
+                          value
+                        )}`}
+                      >
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+
+                  <textarea
+                    value={
+                      reviewNotes[application.id] ??
+                      application.reviewNotes ??
+                      ""
+                    }
+                    onChange={(event) =>
+                      setReviewNotes((current) => ({
+                        ...current,
+                        [application.id]: event.target.value,
+                      }))
+                    }
+                    placeholder="Review notes"
+                    className="mt-2 min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </td>
+
+                <td className="px-5 py-4 text-right">
+                  <button
+                    type="button"
+                    onClick={() => setViewApplication(application)}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#0056b3] px-4 py-2 text-sm font-semibold text-white hover:bg-[#003a78]"
+                  >
+                    <Eye className="h-4 w-4" />
+                    View
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {!isLoading && filteredApplications.length === 0 && (
+          <EmptyState label="No applicants found." />
+        )}
+
+        {isLoading && <LoadingState label="Loading applicants..." />}
+      </div>
+    </section>
+  );
+}
+
+function JobListingSection({ jobs, isLoading, formatDate }) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="border-b border-slate-200 px-5 py-4">
+        <h2 className="text-xl font-bold text-slate-900">Job Listing</h2>
+
+        <p className="mt-1 text-sm text-slate-500">
+          Preview all job listings that applicants can see.
+        </p>
+      </div>
+
+      {isLoading ? (
+        <LoadingState label="Loading job listings..." />
+      ) : jobs.length === 0 ? (
+        <EmptyState label="No job listings available." />
+      ) : (
+        <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
+          {jobs.map((job) => (
+            <article
+              key={job.id}
+              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-200 hover:shadow-md"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">
+                    {job.title}
+                  </h3>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    {job.location}
+                  </p>
+                </div>
+
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                    job.status === "open"
+                      ? "bg-emerald-100 text-emerald-700"
+                      : "bg-slate-100 text-slate-600"
+                  }`}
+                >
+                  {job.status}
+                </span>
+              </div>
+
+              <div className="mt-4 space-y-2 text-sm text-slate-700">
+                <p>
+                  <span className="font-semibold">Vacancy:</span> {job.vacancy}
+                </p>
+
+                <p>
+                  <span className="font-semibold">Deadline:</span>{" "}
+                  {formatDate(job.deadline)}
+                </p>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function ApplicationFormModal({
   application,
   onClose,
@@ -775,7 +1126,8 @@ function ApplicationFormModal({
     application.educationalBackground ||
     {};
 
-  const eligibility = applicationData.eligibility || application.eligibility || {};
+  const eligibility =
+    applicationData.eligibility || application.eligibility || {};
 
   const learningDevelopment =
     applicationData.learningDevelopment || application.learningDevelopment || {};
@@ -787,7 +1139,8 @@ function ApplicationFormModal({
     application.jobOpening ||
     {};
 
-  const files = jobPosition.files || application.files || application.attachments || {};
+  const files =
+    jobPosition.files || application.files || application.attachments || {};
 
   const fullName =
     getApplicantName(application) ||
@@ -833,14 +1186,17 @@ function ApplicationFormModal({
         <div className="overflow-y-auto px-6 py-5">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <SummaryItem label="Email" value={getApplicantEmail(application)} />
+
             <SummaryItem
               label="Position"
               value={getApplicationPosition(application)}
             />
+
             <SummaryItem
               label="Location"
               value={getApplicationLocation(application)}
             />
+
             <SummaryItem
               label="Date Applied"
               value={formatDate(getApplicationDate(application))}
@@ -875,7 +1231,9 @@ function ApplicationFormModal({
                   ],
                   [
                     "Religion",
-                    personalInfo.religionInput || personalInfo.religion || "N/A",
+                    personalInfo.religionInput ||
+                      personalInfo.religion ||
+                      "N/A",
                   ],
                   ["Address", personalInfo.address || "N/A"],
                   ["Ethnic Group", personalInfo.ethnicGroup || "N/A"],
@@ -987,6 +1345,7 @@ function ApplicationFormModal({
                         className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
                       >
                         <p className="font-semibold text-slate-700">{key}</p>
+
                         <p className="mt-1 break-all text-slate-500">
                           {file?.name ||
                             file?.fileName ||
@@ -1010,7 +1369,7 @@ function ApplicationFormModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-800"
+            className="rounded-lg bg-[#0056b3] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#003a78]"
           >
             Close
           </button>
@@ -1052,6 +1411,7 @@ function InfoGrid({ items }) {
       {items.map(([label, value]) => (
         <div key={label} className="rounded-lg bg-slate-50 px-3 py-2 text-sm">
           <p className="font-semibold text-slate-700">{label}</p>
+
           <p className="mt-1 break-words text-slate-600">{value || "N/A"}</p>
         </div>
       ))}
@@ -1081,6 +1441,7 @@ function RecordList({ title, records, fields }) {
                     <span className="font-semibold text-slate-700">
                       {label}:{" "}
                     </span>
+
                     <span className="text-slate-600">
                       {record?.[key] || "N/A"}
                     </span>
@@ -1095,4 +1456,17 @@ function RecordList({ title, records, fields }) {
       </div>
     </div>
   );
+}
+
+function LoadingState({ label }) {
+  return (
+    <div className="flex items-center justify-center gap-2 p-8 text-slate-500">
+      <Loader2 className="h-5 w-5 animate-spin" />
+      {label}
+    </div>
+  );
+}
+
+function EmptyState({ label }) {
+  return <div className="p-8 text-center text-slate-500">{label}</div>;
 }

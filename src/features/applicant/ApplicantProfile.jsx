@@ -11,7 +11,6 @@ import {
   Edit3,
   Loader2,
   MailCheck,
-  Printer,
   Save,
   Send,
   ShieldCheck,
@@ -324,7 +323,7 @@ export default function ApplicantProfile() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 pt-24 px-4 pb-10 font-['Poppins']">
+    <div className="min-h-screen bg-slate-50 px-4 pb-10 pt-24 font-['Poppins']">
       <style>
         {`
           @media print {
@@ -354,10 +353,10 @@ export default function ApplicantProfile() {
         `}
       </style>
 
-      <div className="max-w-6xl mx-auto">
+      <div className="mx-auto max-w-6xl">
         <Link
           to="/applicantdashboard"
-          className="no-print inline-flex items-center text-xs font-semibold text-blue-700 hover:text-blue-900 mb-5"
+          className="no-print mb-5 inline-flex items-center text-xs font-semibold text-blue-700 hover:text-blue-900"
         >
           ← Back to Dashboard
         </Link>
@@ -658,9 +657,9 @@ function ApplicationList({
 function VerticalStepper({ steps, currentStep, setCurrentStep }) {
   return (
     <div className="hidden lg:block">
-      <div className="rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-200">
+      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
         <div className="relative">
-          <div className="absolute bottom-6 left-5 top-6 w-px bg-slate-300" />
+          <div className="absolute bottom-8 left-[31px] top-8 w-[2px] rounded-full bg-slate-200" />
 
           <div className="space-y-4">
             {steps.map((step) => {
@@ -674,17 +673,17 @@ function VerticalStepper({ steps, currentStep, setCurrentStep }) {
                   onClick={() => setCurrentStep(step.id)}
                   className={`relative flex w-full items-center gap-4 rounded-xl px-3 py-3 text-left transition ${
                     isActive
-                      ? "bg-white shadow-sm ring-1 ring-blue-200"
-                      : "hover:bg-white"
+                      ? "bg-blue-50 shadow-sm ring-1 ring-blue-200"
+                      : "hover:bg-slate-50"
                   }`}
                 >
                   <span
-                    className={`z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold transition ${
+                    className={`relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold transition ${
                       isDone
                         ? "border-green-500 bg-green-500 text-white"
                         : isActive
                         ? "border-[#0056b3] bg-[#0056b3] text-white"
-                        : "border-slate-300 bg-slate-50 text-slate-500"
+                        : "border-slate-300 bg-white text-slate-500"
                     }`}
                   >
                     {isDone ? <CheckCircle2 size={20} /> : step.id}
@@ -1025,7 +1024,7 @@ function PersonalInfo({ data = {}, onChange, onNext, disabled = false }) {
           onChange={(value) => updateField("suffix", value)}
         />
 
-        <div className="md:col-span-4 -mt-4">
+        <div className="-mt-4 md:col-span-4">
           <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-600">
             <input
               type="checkbox"
@@ -1384,51 +1383,57 @@ function EducationGroup({
   onRemove,
 }) {
   return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-slate-700">{title}</h2>
+    <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 className="text-lg font-bold text-blue-950">{title}</h2>
 
-      {rows.map((item, index) => (
-        <div key={index} className="grid grid-cols-1 gap-4 md:grid-cols-4">
-          <SmallInput
-            placeholder="School"
-            value={item.school}
-            disabled={disabled}
-            onChange={(e) =>
-              onChange(listName, index, "school", e.target.value)
-            }
-          />
+      <div className="space-y-3">
+        {rows.map((item, index) => (
+          <div key={index} className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <SmallInput
+              label={index === 0 ? "School" : ""}
+              placeholder="School"
+              value={item.school}
+              disabled={disabled}
+              onChange={(e) =>
+                onChange(listName, index, "school", e.target.value)
+              }
+            />
 
-          <SmallInput
-            placeholder="Course"
-            value={item.course}
-            disabled={disabled}
-            onChange={(e) =>
-              onChange(listName, index, "course", e.target.value)
-            }
-          />
+            <SmallInput
+              label={index === 0 ? "Course" : ""}
+              placeholder="Course"
+              value={item.course}
+              disabled={disabled}
+              onChange={(e) =>
+                onChange(listName, index, "course", e.target.value)
+              }
+            />
 
-          <SmallInput
-            placeholder="Year"
-            value={item.year}
-            disabled={disabled}
-            onChange={(e) =>
-              onChange(listName, index, "year", e.target.value)
-            }
-          />
+            <SmallInput
+              label={index === 0 ? "Year" : ""}
+              placeholder="Year"
+              value={item.year}
+              disabled={disabled}
+              onChange={(e) =>
+                onChange(listName, index, "year", e.target.value)
+              }
+            />
 
-          <SmallInput
-            placeholder="Award"
-            value={item.award}
-            disabled={disabled}
-            onChange={(e) =>
-              onChange(listName, index, "award", e.target.value)
-            }
-          />
-        </div>
-      ))}
+            <SmallInput
+              label={index === 0 ? "Award" : ""}
+              placeholder="Award"
+              value={item.award}
+              disabled={disabled}
+              onChange={(e) =>
+                onChange(listName, index, "award", e.target.value)
+              }
+            />
+          </div>
+        ))}
+      </div>
 
       {!disabled && (
-        <div className="flex gap-4">
+        <div className="flex gap-4 pt-1">
           <button
             type="button"
             onClick={onAdd}
@@ -1538,63 +1543,79 @@ function Eligibility({ data, onChange, onBack, onNext, disabled = false }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
-      <div className="space-y-4">
-        {eligibility.eligibilities.map((item, index) => (
-          <div key={index} className="grid grid-cols-1 gap-4 md:grid-cols-5">
-            <SmallInput
-              placeholder="Type"
-              value={item.type}
-              disabled={disabled}
-              onChange={(e) =>
-                updateList("eligibilities", index, "type", e.target.value)
-              }
-            />
+      <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-bold text-blue-950">
+          Eligibility Records
+        </h2>
 
-            <SmallInput
-              placeholder="Rating"
-              value={item.rating}
-              disabled={disabled}
-              onChange={(e) =>
-                updateList("eligibilities", index, "rating", e.target.value)
-              }
-            />
+        <div className="space-y-3">
+          {eligibility.eligibilities.map((item, index) => (
+            <div key={index} className="grid grid-cols-1 gap-4 md:grid-cols-5">
+              <SmallInput
+                label={index === 0 ? "Type" : ""}
+                placeholder="Type"
+                value={item.type}
+                disabled={disabled}
+                onChange={(e) =>
+                  updateList("eligibilities", index, "type", e.target.value)
+                }
+              />
 
-            <SmallInput
-              type="date"
-              value={item.examDate}
-              disabled={disabled}
-              onChange={(e) =>
-                updateList("eligibilities", index, "examDate", e.target.value)
-              }
-            />
+              <SmallInput
+                label={index === 0 ? "Rating" : ""}
+                placeholder="Rating"
+                value={item.rating}
+                disabled={disabled}
+                onChange={(e) =>
+                  updateList("eligibilities", index, "rating", e.target.value)
+                }
+              />
 
-            <SmallInput
-              placeholder="License Number"
-              value={item.licenseNumber}
-              disabled={disabled}
-              onChange={(e) =>
-                updateList(
-                  "eligibilities",
-                  index,
-                  "licenseNumber",
-                  e.target.value
-                )
-              }
-            />
+              <SmallInput
+                label={index === 0 ? "Exam Date" : ""}
+                type="date"
+                value={item.examDate}
+                disabled={disabled}
+                onChange={(e) =>
+                  updateList("eligibilities", index, "examDate", e.target.value)
+                }
+              />
 
-            <SmallInput
-              type="date"
-              value={item.validUntil}
-              disabled={disabled}
-              onChange={(e) =>
-                updateList("eligibilities", index, "validUntil", e.target.value)
-              }
-            />
-          </div>
-        ))}
+              <SmallInput
+                label={index === 0 ? "License Number" : ""}
+                placeholder="License Number"
+                value={item.licenseNumber}
+                disabled={disabled}
+                onChange={(e) =>
+                  updateList(
+                    "eligibilities",
+                    index,
+                    "licenseNumber",
+                    e.target.value
+                  )
+                }
+              />
+
+              <SmallInput
+                label={index === 0 ? "Valid Until" : ""}
+                type="date"
+                value={item.validUntil}
+                disabled={disabled}
+                onChange={(e) =>
+                  updateList(
+                    "eligibilities",
+                    index,
+                    "validUntil",
+                    e.target.value
+                  )
+                }
+              />
+            </div>
+          ))}
+        </div>
 
         {!disabled && (
-          <div className="flex gap-4">
+          <div className="flex gap-4 pt-1">
             <button
               type="button"
               onClick={() =>
@@ -1624,62 +1645,72 @@ function Eligibility({ data, onChange, onBack, onNext, disabled = false }) {
         )}
       </div>
 
-      <div className="space-y-4">
-        <h2 className="text-xl font-bold uppercase text-blue-900">
-          Work Experience
-        </h2>
+      <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-bold text-blue-950">Work Experience</h2>
 
-        {eligibility.workExperiences.map((item, index) => (
-          <div key={index} className="grid grid-cols-1 gap-4 md:grid-cols-5">
-            <SmallInput
-              placeholder="Position"
-              value={item.position}
-              disabled={disabled}
-              onChange={(e) =>
-                updateList("workExperiences", index, "position", e.target.value)
-              }
-            />
+        <div className="space-y-3">
+          {eligibility.workExperiences.map((item, index) => (
+            <div key={index} className="grid grid-cols-1 gap-4 md:grid-cols-5">
+              <SmallInput
+                label={index === 0 ? "Position" : ""}
+                placeholder="Position"
+                value={item.position}
+                disabled={disabled}
+                onChange={(e) =>
+                  updateList(
+                    "workExperiences",
+                    index,
+                    "position",
+                    e.target.value
+                  )
+                }
+              />
 
-            <SmallInput
-              placeholder="Agency"
-              value={item.agency}
-              disabled={disabled}
-              onChange={(e) =>
-                updateList("workExperiences", index, "agency", e.target.value)
-              }
-            />
+              <SmallInput
+                label={index === 0 ? "Agency" : ""}
+                placeholder="Agency"
+                value={item.agency}
+                disabled={disabled}
+                onChange={(e) =>
+                  updateList("workExperiences", index, "agency", e.target.value)
+                }
+              />
 
-            <SmallInput
-              placeholder="Status"
-              value={item.status}
-              disabled={disabled}
-              onChange={(e) =>
-                updateList("workExperiences", index, "status", e.target.value)
-              }
-            />
+              <SmallInput
+                label={index === 0 ? "Status" : ""}
+                placeholder="Status"
+                value={item.status}
+                disabled={disabled}
+                onChange={(e) =>
+                  updateList("workExperiences", index, "status", e.target.value)
+                }
+              />
 
-            <SmallInput
-              type="month"
-              value={item.from || item.fromYear}
-              disabled={disabled}
-              onChange={(e) =>
-                updateList("workExperiences", index, "from", e.target.value)
-              }
-            />
+              <SmallInput
+                label={index === 0 ? "From" : ""}
+                type="month"
+                value={item.from || item.fromYear}
+                disabled={disabled}
+                onChange={(e) =>
+                  updateList("workExperiences", index, "from", e.target.value)
+                }
+              />
 
-            <SmallInput
-              placeholder="To / Present"
-              value={item.toYear}
-              disabled={disabled}
-              onChange={(e) =>
-                updateList("workExperiences", index, "toYear", e.target.value)
-              }
-            />
-          </div>
-        ))}
+              <SmallInput
+                label={index === 0 ? "To / Present" : ""}
+                placeholder="To / Present"
+                value={item.toYear}
+                disabled={disabled}
+                onChange={(e) =>
+                  updateList("workExperiences", index, "toYear", e.target.value)
+                }
+              />
+            </div>
+          ))}
+        </div>
 
         {!disabled && (
-          <div className="flex gap-4">
+          <div className="flex gap-4 pt-1">
             <button
               type="button"
               onClick={() =>
@@ -1792,60 +1823,77 @@ function LearningDevelopment({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
-      <div className="space-y-4">
-        {learning.trainings.map((item, index) => (
-          <div
-            key={index}
-            className="grid grid-cols-1 gap-4 md:grid-cols-[1.4fr_2fr_0.7fr_1.4fr]"
-          >
-            <SmallInput
-              placeholder="Title"
-              value={item.title}
-              disabled={disabled}
-              onChange={(e) => updateTraining(index, "title", e.target.value)}
-            />
+      <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-bold text-blue-950">
+          Trainings / Seminars
+        </h2>
 
-            <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-3">
+          {learning.trainings.map((item, index) => (
+            <div
+              key={index}
+              className="grid grid-cols-1 gap-4 md:grid-cols-[1.4fr_2fr_0.7fr_1.4fr]"
+            >
               <SmallInput
-                type="date"
-                value={item.fromDate}
+                label={index === 0 ? "Title" : ""}
+                placeholder="Title"
+                value={item.title}
                 disabled={disabled}
-                onChange={(e) =>
-                  updateTraining(index, "fromDate", e.target.value)
-                }
+                onChange={(e) => updateTraining(index, "title", e.target.value)}
+              />
+
+              <div>
+                {index === 0 && (
+                  <label className="mb-1 block text-sm font-medium text-slate-600">
+                    Inclusive Dates
+                  </label>
+                )}
+
+                <div className="grid grid-cols-2 gap-2">
+                  <SmallInput
+                    type="date"
+                    value={item.fromDate}
+                    disabled={disabled}
+                    onChange={(e) =>
+                      updateTraining(index, "fromDate", e.target.value)
+                    }
+                  />
+
+                  <SmallInput
+                    type="date"
+                    value={item.toDate}
+                    disabled={disabled}
+                    onChange={(e) =>
+                      updateTraining(index, "toDate", e.target.value)
+                    }
+                  />
+                </div>
+              </div>
+
+              <SmallInput
+                label={index === 0 ? "Hours" : ""}
+                type="number"
+                placeholder="Hours"
+                value={item.hours}
+                disabled={disabled}
+                onChange={(e) => updateTraining(index, "hours", e.target.value)}
               />
 
               <SmallInput
-                type="date"
-                value={item.toDate}
+                label={index === 0 ? "Conducted / Sponsored By" : ""}
+                placeholder="Conducted / Sponsored By"
+                value={item.conductedBy}
                 disabled={disabled}
                 onChange={(e) =>
-                  updateTraining(index, "toDate", e.target.value)
+                  updateTraining(index, "conductedBy", e.target.value)
                 }
               />
             </div>
-
-            <SmallInput
-              type="number"
-              placeholder="Hours"
-              value={item.hours}
-              disabled={disabled}
-              onChange={(e) => updateTraining(index, "hours", e.target.value)}
-            />
-
-            <SmallInput
-              placeholder="Conducted / Sponsored By"
-              value={item.conductedBy}
-              disabled={disabled}
-              onChange={(e) =>
-                updateTraining(index, "conductedBy", e.target.value)
-              }
-            />
-          </div>
-        ))}
+          ))}
+        </div>
 
         {!disabled && (
-          <div className="flex gap-4">
+          <div className="flex gap-4 pt-1">
             <button
               type="button"
               onClick={addTraining}
@@ -2741,6 +2789,7 @@ function SelectBox({
 }
 
 function SmallInput({
+  label = "",
   value,
   disabled,
   onChange,
@@ -2748,13 +2797,21 @@ function SmallInput({
   type = "text",
 }) {
   return (
-    <input
-      type={type}
-      value={value || ""}
-      disabled={disabled}
-      onChange={onChange}
-      placeholder={placeholder}
-      className="h-11 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm text-slate-700 placeholder-slate-400 outline-none hover:border-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-600"
-    />
+    <div>
+      {label && (
+        <label className="mb-1 block text-sm font-medium text-slate-600">
+          {label}
+        </label>
+      )}
+
+      <input
+        type={type}
+        value={value || ""}
+        disabled={disabled}
+        onChange={onChange}
+        placeholder={placeholder}
+        className="h-11 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm text-slate-700 placeholder-slate-400 outline-none hover:border-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-600"
+      />
+    </div>
   );
 }

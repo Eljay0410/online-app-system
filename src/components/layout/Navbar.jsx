@@ -1,12 +1,10 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Menu,
   X,
   ChevronDown,
   User,
   LogOut,
-  LayoutDashboard,
-  Briefcase,
 } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
@@ -21,6 +19,9 @@ const Navbar = () => {
   const location = useLocation();
   const { user, logout } = useAuth();
 
+  const profileDropdownRef = useRef(null);
+  const mobileMenuRef = useRef(null);
+
   const [isOpen, setIsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
@@ -30,6 +31,36 @@ const Navbar = () => {
   const initial = (user?.firstName || user?.email || "U")
     .charAt(0)
     .toUpperCase();
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      const clickedProfileOutside =
+        profileDropdownRef.current &&
+        !profileDropdownRef.current.contains(event.target);
+
+      const clickedMobileOutside =
+        mobileMenuRef.current && !mobileMenuRef.current.contains(event.target);
+
+      if (clickedProfileOutside) {
+        setIsProfileOpen(false);
+      }
+
+      if (clickedMobileOutside) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  useEffect(() => {
+    setIsProfileOpen(false);
+    setIsOpen(false);
+  }, [location.pathname]);
 
   const handleLogout = async () => {
     try {
@@ -43,32 +74,6 @@ const Navbar = () => {
     setIsOpen(false);
     navigate("/login", { replace: true });
   };
-
-  const navLinks = [{ name: "Job Listings", path: "/", icon: Briefcase }];
-
-  if (isLoggedIn) {
-    if (role === "applicant") {
-      navLinks.push({
-        name: "My Applications",
-        path: "/applications",
-        icon: LayoutDashboard,
-      });
-    } else if (role === "admin") {
-      navLinks.push({
-        name: "Admin Dashboard",
-        path: "/admin",
-        icon: LayoutDashboard,
-      });
-    } else if (role === "superadmin") {
-      navLinks.push({
-        name: "Superadmin Dashboard",
-        path: "/superadmin",
-        icon: LayoutDashboard,
-      });
-    }
-  }
-
-  const isActive = (path) => location.pathname === path;
 
   return (
     <nav className="fixed left-0 top-0 z-50 h-[96px] w-full bg-[#0056b3] shadow-md">
@@ -91,32 +96,17 @@ const Navbar = () => {
           </p>
         </Link>
 
-        {/* Center Spacer */}
         <div className="hidden h-full flex-1 md:block" />
 
-        {/* Desktop Navigation */}
+        {/* Desktop Right Side */}
         <div className="hidden h-full items-center justify-end md:flex">
           <div className="flex h-full items-center gap-8 px-5">
-            {navLinks.map((link) => (
-              <Link
-                key={link.path}
-                to={link.path}
-                className={`text-[15px] font-semibold transition-colors duration-200 ${
-                  isActive(link.path)
-                    ? "text-white"
-                    : "text-white hover:text-black"
-                }`}
-              >
-                {link.name}
-              </Link>
-            ))}
-
             {!isLoggedIn && (
               <>
                 <Link
                   to="/about"
                   className={`text-[15px] font-semibold transition-colors duration-200 ${
-                    isActive("/about")
+                    location.pathname === "/about"
                       ? "text-white"
                       : "text-white hover:text-black"
                   }`}
@@ -127,7 +117,7 @@ const Navbar = () => {
                 <Link
                   to="/contact"
                   className={`text-[15px] font-semibold transition-colors duration-200 ${
-                    isActive("/contact")
+                    location.pathname === "/contact"
                       ? "text-white"
                       : "text-white hover:text-black"
                   }`}
@@ -138,10 +128,13 @@ const Navbar = () => {
             )}
 
             {isLoggedIn ? (
-              <div className="relative ml-2">
+              <div ref={profileDropdownRef} className="relative ml-2">
                 <button
                   type="button"
-                  onClick={() => setIsProfileOpen(!isProfileOpen)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setIsProfileOpen((current) => !current);
+                  }}
                   className="flex h-11 items-center gap-3 rounded-full bg-white/10 p-1.5 pr-4 transition hover:bg-white/20"
                 >
                   <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white font-bold text-[#0056b3] shadow-sm">
@@ -217,7 +210,7 @@ const Navbar = () => {
         </div>
 
         {/* Mobile Button */}
-        <div className="ml-auto flex items-center gap-2 px-3 md:hidden">
+        <div ref={mobileMenuRef} className="ml-auto flex items-center gap-2 px-3 md:hidden">
           {isLoggedIn && (
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 font-bold text-white">
               {initial}
@@ -226,7 +219,10 @@ const Navbar = () => {
 
           <button
             type="button"
-            onClick={() => setIsOpen(!isOpen)}
+            onClick={(event) => {
+              event.stopPropagation();
+              setIsOpen((current) => !current);
+            }}
             className="rounded-lg p-2 text-white transition hover:bg-white/10"
           >
             {isOpen ? <X size={28} /> : <Menu size={28} />}
@@ -238,51 +234,33 @@ const Navbar = () => {
       {isOpen && (
         <div className="border-t border-slate-100 bg-white md:hidden">
           <div className="space-y-4 px-4 py-6">
-            <div className="space-y-1">
-              {navLinks.map((link) => (
+            {!isLoggedIn && (
+              <div className="space-y-1">
                 <Link
-                  key={link.path}
-                  to={link.path}
+                  to="/about"
                   onClick={() => setIsOpen(false)}
                   className={`flex items-center gap-3 rounded-xl px-4 py-3 text-base font-semibold transition ${
-                    isActive(link.path)
+                    location.pathname === "/about"
                       ? "bg-blue-50 text-[#0056b3]"
                       : "text-slate-700 hover:bg-slate-50"
                   }`}
                 >
-                  <link.icon size={20} />
-                  {link.name}
+                  About
                 </Link>
-              ))}
 
-              {!isLoggedIn && (
-                <>
-                  <Link
-                    to="/about"
-                    onClick={() => setIsOpen(false)}
-                    className={`flex items-center gap-3 rounded-xl px-4 py-3 text-base font-semibold transition ${
-                      isActive("/about")
-                        ? "bg-blue-50 text-[#0056b3]"
-                        : "text-slate-700 hover:bg-slate-50"
-                    }`}
-                  >
-                    About
-                  </Link>
-
-                  <Link
-                    to="/contact"
-                    onClick={() => setIsOpen(false)}
-                    className={`flex items-center gap-3 rounded-xl px-4 py-3 text-base font-semibold transition ${
-                      isActive("/contact")
-                        ? "bg-blue-50 text-[#0056b3]"
-                        : "text-slate-700 hover:bg-slate-50"
-                    }`}
-                  >
-                    Contact
-                  </Link>
-                </>
-              )}
-            </div>
+                <Link
+                  to="/contact"
+                  onClick={() => setIsOpen(false)}
+                  className={`flex items-center gap-3 rounded-xl px-4 py-3 text-base font-semibold transition ${
+                    location.pathname === "/contact"
+                      ? "bg-blue-50 text-[#0056b3]"
+                      : "text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  Contact
+                </Link>
+              </div>
+            )}
 
             <div className="mx-4 h-px bg-slate-100" />
 
