@@ -14,7 +14,7 @@ import {
 import { normalizeEmail } from "../utils/formatters.js";
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const contactPattern = /^\+?[0-9\s().-]{7,20}$/;
+const contactPattern = /^09\d{9}$/;
 
 function normalizeRole(role) {
   const value = String(role || "applicant").toLowerCase();
@@ -24,14 +24,6 @@ function normalizeRole(role) {
   }
 
   return value;
-}
-
-function validatePassword(password) {
-  if (String(password || "").length < 8) {
-    return "Password must be at least 8 characters.";
-  }
-
-  return "";
 }
 
 function mapLoginUser(user) {
@@ -55,6 +47,42 @@ function mapLoginUser(user) {
   };
 }
 
+export async function checkEmail(req, res) {
+  const email = normalizeEmail(req.body?.email);
+
+  if (!email || !emailPattern.test(email)) {
+    return res.status(400).json({
+      success: false,
+      message: "Please enter a valid email address.",
+    });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT id, is_active, password_hash
+       FROM users
+       WHERE LOWER(email) = LOWER($1)
+       LIMIT 1`,
+      [email]
+    );
+
+    const user = result.rows[0];
+
+    return res.json({
+      success: true,
+      exists: Boolean(user),
+      hasPassword: Boolean(user?.password_hash),
+      isActive: Boolean(user?.is_active),
+    });
+  } catch (error) {
+    console.error("Email lookup error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to verify email.",
+    });
+  }
+}
+
 export async function registerApplicant(req, res) {
   const firstName = String(req.body?.firstName || "").trim();
   const middleName = String(req.body?.middleName || "").trim();
@@ -62,13 +90,12 @@ export async function registerApplicant(req, res) {
   const lastName = String(req.body?.lastName || "").trim();
   const contactNumber = String(req.body?.contactNumber || "").trim();
   const email = normalizeEmail(req.body?.email);
-  const password = String(req.body?.password || "");
 
-  if (!firstName || !lastName || !contactNumber || !email || !password) {
+  if (!firstName || !lastName || !contactNumber || !email) {
     return res.status(400).json({
       success: false,
       message:
-        "First name, last name, contact number, email, and password are required.",
+        "First name, last name, contact number, and email are required.",
     });
   }
 
@@ -89,15 +116,7 @@ export async function registerApplicant(req, res) {
   if (!contactPattern.test(contactNumber)) {
     return res.status(400).json({
       success: false,
-      message: "Please enter a valid contact number.",
-    });
-  }
-
-  const passwordError = validatePassword(password);
-  if (passwordError) {
-    return res.status(400).json({
-      success: false,
-      message: passwordError,
+      message: "Contact number must start with 09 and be 11 digits.",
     });
   }
 
@@ -122,7 +141,6 @@ export async function registerApplicant(req, res) {
       });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
     const inserted = await client.query(
       `INSERT INTO users (
          email,
@@ -142,7 +160,7 @@ export async function registerApplicant(req, res) {
          contact_number, role, uan, last_activation_sent_at`,
       [
         email,
-        passwordHash,
+        null,
         firstName,
         noMiddleName ? null : middleName,
         noMiddleName,
@@ -182,7 +200,7 @@ export async function registerApplicant(req, res) {
     activationPayload = await createActivationToken(
       client,
       user,
-      TOKEN_PURPOSES.EMAIL_VERIFICATION
+      TOKEN_PURPOSES.PASSWORD_RESET
     );
     createdUser = user;
 
@@ -214,7 +232,7 @@ export async function registerApplicant(req, res) {
       emailSent,
       message:
         emailMessage ||
-        "Account created. Please check your email to verify the account before logging in.",
+        "Account created. Please check your email to set your password and activate your account.",
     });
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
@@ -290,21 +308,21 @@ export async function login(req, res) {
       });
     }
 
-    if (user.is_active === false) {
-      return res.status(403).json({
-        success: false,
-        code: "EMAIL_NOT_VERIFIED",
-        message:
-          "Please verify your email before logging in. You can resend the verification email from the login page.",
-      });
-    }
-
     const passwordMatches = await bcrypt.compare(password, user.password_hash);
 
     if (!passwordMatches) {
       return res.status(401).json({
         success: false,
         message: "Invalid email or password.",
+      });
+    }
+
+    if (user.is_active === false) {
+      return res.status(403).json({
+        success: false,
+        code: "EMAIL_NOT_VERIFIED",
+        message:
+          "Please verify your email before logging in. You can resend the verification email from the login page.",
       });
     }
 
@@ -352,14 +370,15 @@ export async function resendActivationEmail(req, res) {
   const genericResponse = {
     success: true,
     message:
-      "If the account needs verification, a verification email will be sent.",
+      "If the account needs activation, an email will be sent.",
   };
   const client = await pool.connect();
 
   try {
     await client.query("BEGIN");
     const result = await client.query(
-      `SELECT id, email, uan, is_active, last_activation_sent_at
+      `SELECT id, email, uan, is_active, password_hash,
+              last_activation_sent_at, last_password_reset_sent_at
        FROM users
        WHERE LOWER(email) = LOWER($1)
        FOR UPDATE`,
@@ -373,11 +392,11 @@ export async function resendActivationEmail(req, res) {
       return res.json(genericResponse);
     }
 
-    const activation = await createActivationToken(
-      client,
-      user,
-      TOKEN_PURPOSES.EMAIL_VERIFICATION
-    );
+    const purpose = user.password_hash
+      ? TOKEN_PURPOSES.EMAIL_VERIFICATION
+      : TOKEN_PURPOSES.PASSWORD_RESET;
+
+    const activation = await createActivationToken(client, user, purpose);
     await client.query("COMMIT");
 
     if (activation.token && transporter) {
@@ -385,7 +404,7 @@ export async function resendActivationEmail(req, res) {
         user.email,
         user.uan,
         activation.token,
-        TOKEN_PURPOSES.EMAIL_VERIFICATION
+        purpose
       );
     }
 

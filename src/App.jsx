@@ -1,9 +1,5 @@
 import React from "react";
-import {
-  Navigate,
-  Route,
-  Routes,
-} from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 
 import Navbar from "./components/layout/Navbar";
 
@@ -18,7 +14,7 @@ import JobOpenings from "./features/jobs/JobOpenings";
 import JobDetails from "./features/jobs/JobDetails";
 
 import ApplicantDashboard from "./features/applicant/ApplicantDashboard";
-import ApplicantProfile from "./features/applicant/ApplicantProfile";
+import Profile from "./features/profile/Profile";
 
 import AdminDashboard from "./features/admin/AdminDashboard";
 import SuperAdminDashboard from "./features/admin/SuperAdminDashboard";
@@ -46,24 +42,41 @@ function App() {
       <Navbar />
 
       <Routes>
-        {/* Public Routes */}
         <Route path="/" element={<JobOpenings />} />
         <Route path="/jobs/:jobId" element={<JobDetails />} />
-        <Route path="/register" element={<GuestRoute><Register /></GuestRoute>} />
+        <Route
+          path="/register"
+          element={
+            <GuestRoute>
+              <Register />
+            </GuestRoute>
+          }
+        />
         <Route path="/activate" element={<ActivateAccount />} />
-        <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
+        <Route
+          path="/login"
+          element={
+            <GuestRoute>
+              <Login />
+            </GuestRoute>
+          }
+        />
         <Route path="/apply" element={<ApplicationForm />} />
 
-        {/* Redirects */}
         <Route path="/jobopenings" element={<RedirectToHome />} />
         <Route path="/jobs" element={<RedirectToHome />} />
         <Route path="/apply/jobs" element={<RedirectToHome />} />
         <Route path="/about" element={<RedirectToHome />} />
         <Route path="/hr" element={<Navigate to="/admin" replace />} />
-        <Route path="/applicantdashboard" element={<Navigate to="/applications" replace />} />
-        <Route path="/Applicantdashboard" element={<Navigate to="/applications" replace />} />
+        <Route
+          path="/applicantdashboard"
+          element={<Navigate to="/applications" replace />}
+        />
+        <Route
+          path="/Applicantdashboard"
+          element={<Navigate to="/applications" replace />}
+        />
 
-        {/* Applicant Protected Routes */}
         <Route
           path="/applications"
           element={
@@ -72,16 +85,16 @@ function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/profile"
           element={
-            <ProtectedRoute allowedRoles={["applicant"]}>
-              <ApplicantProfile />
+            <ProtectedRoute allowedRoles={["applicant", "admin", "superadmin"]}>
+              <Profile />
             </ProtectedRoute>
           }
         />
 
-        {/* Admin Protected Routes */}
         <Route
           path="/admin"
           element={
@@ -91,7 +104,6 @@ function App() {
           }
         />
 
-        {/* SuperAdmin Protected Routes */}
         <Route
           path="/superadmin"
           element={
@@ -101,7 +113,6 @@ function App() {
           }
         />
 
-        {/* Catch-all */}
         <Route path="*" element={<RedirectToHome />} />
       </Routes>
     </div>

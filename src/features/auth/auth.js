@@ -10,7 +10,7 @@ const AUTH_STORAGE_KEY = "oas_user";
 const AUTH_TOKEN_KEY = "oas_token";
 
 export const roleHomePaths = {
-  applicant: "/applications",
+  applicant: "/",
   admin: "/admin",
   superadmin: "/superadmin",
 };
@@ -125,10 +125,6 @@ export function getAuthenticatedHomePath(user) {
   if (!user) return "/login";
 
   const role = normalizeRole(user.role);
-
-  if (role === "applicant" && user.profileComplete === false) {
-    return "/profile";
-  }
 
   return getRoleHomePath(role);
 }

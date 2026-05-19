@@ -1,32 +1,17 @@
 import React, { useEffect, useRef, useState } from "react";
-import {
-  Menu,
-  X,
-  ChevronDown,
-  User,
-  LogOut,
-} from "lucide-react";
-import { Link, useNavigate, useLocation } from "react-router-dom";
-import {
-  useAuth,
-  normalizeRole,
-  getAuthenticatedHomePath,
-} from "../../features/auth/auth";
-import { apiRequest } from "../../lib/api";
+import { Menu, X } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
+import { useAuth, getAuthenticatedHomePath } from "../../features/auth/auth";
 
 const Navbar = () => {
-  const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
 
-  const profileDropdownRef = useRef(null);
   const mobileMenuRef = useRef(null);
 
   const [isOpen, setIsOpen] = useState(false);
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   const isLoggedIn = Boolean(user);
-  const role = normalizeRole(user?.role);
   const homePath = isLoggedIn ? getAuthenticatedHomePath(user) : "/";
   const initial = (user?.firstName || user?.email || "U")
     .charAt(0)
@@ -34,16 +19,8 @@ const Navbar = () => {
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      const clickedProfileOutside =
-        profileDropdownRef.current &&
-        !profileDropdownRef.current.contains(event.target);
-
       const clickedMobileOutside =
         mobileMenuRef.current && !mobileMenuRef.current.contains(event.target);
-
-      if (clickedProfileOutside) {
-        setIsProfileOpen(false);
-      }
 
       if (clickedMobileOutside) {
         setIsOpen(false);
@@ -58,25 +35,11 @@ const Navbar = () => {
   }, []);
 
   useEffect(() => {
-    setIsProfileOpen(false);
     setIsOpen(false);
   }, [location.pathname]);
 
-  const handleLogout = async () => {
-    try {
-      await apiRequest("/api/auth/logout", { method: "POST" });
-    } catch (error) {
-      console.error("Logout failed:", error);
-    }
-
-    logout();
-    setIsProfileOpen(false);
-    setIsOpen(false);
-    navigate("/login", { replace: true });
-  };
-
   return (
-    <nav className="fixed left-0 top-0 z-50 h-[96px] w-full bg-[#0056b3] shadow-md">
+    <nav className="fixed left-0 top-0 z-[60] h-[96px] w-full bg-[#0056b3] shadow-md">
       <div className="flex h-full w-full items-center">
         {/* Left Branding */}
         <Link
@@ -111,106 +74,34 @@ const Navbar = () => {
                       : "text-white hover:text-black"
                   }`}
                 >
-                  About
+                  Job Listing
                 </Link>
 
-                <Link
-                  to="/contact"
-                  className={`text-[15px] font-semibold transition-colors duration-200 ${
-                    location.pathname === "/contact"
-                      ? "text-white"
-                      : "text-white hover:text-black"
-                  }`}
-                >
-                  Contact
-                </Link>
+                <div className="ml-2 flex items-center gap-3">
+                  <Link
+                    to="/register"
+                    className="px-3 py-2 text-sm font-semibold text-white transition hover:text-black"
+                  >
+                    Register
+                  </Link>
+
+                  <Link
+                    to="/login"
+                    className="rounded-lg bg-white px-5 py-2.5 text-sm font-bold text-[#0056b3] shadow-lg transition hover:bg-blue-50"
+                  >
+                    Log in
+                  </Link>
+                </div>
               </>
-            )}
-
-            {isLoggedIn ? (
-              <div ref={profileDropdownRef} className="relative ml-2">
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setIsProfileOpen((current) => !current);
-                  }}
-                  className="flex h-11 items-center gap-3 rounded-full bg-white/10 p-1.5 pr-4 transition hover:bg-white/20"
-                >
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white font-bold text-[#0056b3] shadow-sm">
-                    {initial}
-                  </div>
-
-                  <span className="text-sm font-semibold text-white">
-                    Account
-                  </span>
-
-                  <ChevronDown
-                    size={16}
-                    className={`text-white/70 transition-transform duration-200 ${
-                      isProfileOpen ? "rotate-180" : ""
-                    }`}
-                  />
-                </button>
-
-                {isProfileOpen && (
-                  <div className="absolute right-0 mt-3 w-56 overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-black/5">
-                    <div className="border-b border-slate-100 bg-slate-50 px-4 py-3">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                        Signed in as
-                      </p>
-
-                      <p className="truncate text-sm font-bold text-slate-900">
-                        {user?.email}
-                      </p>
-                    </div>
-
-                    <div className="p-1.5">
-                      {role === "applicant" && (
-                        <Link
-                          to="/profile"
-                          onClick={() => setIsProfileOpen(false)}
-                          className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-700 transition hover:bg-blue-50 hover:text-[#0056b3]"
-                        >
-                          <User size={18} />
-                          My Profile
-                        </Link>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={handleLogout}
-                        className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-red-600 transition hover:bg-red-50"
-                      >
-                        <LogOut size={18} />
-                        Logout
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="ml-2 flex items-center gap-3">
-                <Link
-                  to="/register"
-                  className="px-3 py-2 text-sm font-semibold text-white transition hover:text-black"
-                >
-                  Register
-                </Link>
-
-                <Link
-                  to="/login"
-                  className="rounded-lg bg-white px-5 py-2.5 text-sm font-bold text-[#0056b3] shadow-lg transition hover:bg-blue-50"
-                >
-                  Log in
-                </Link>
-              </div>
             )}
           </div>
         </div>
 
         {/* Mobile Button */}
-        <div ref={mobileMenuRef} className="ml-auto flex items-center gap-2 px-3 md:hidden">
+        <div
+          ref={mobileMenuRef}
+          className="ml-auto flex items-center gap-2 px-3 md:hidden"
+        >
           {isLoggedIn && (
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 font-bold text-white">
               {initial}
@@ -231,81 +122,55 @@ const Navbar = () => {
       </div>
 
       {/* Mobile Menu */}
-      {isOpen && (
+      {isOpen && !isLoggedIn && (
         <div className="border-t border-slate-100 bg-white md:hidden">
           <div className="space-y-4 px-4 py-6">
-            {!isLoggedIn && (
-              <div className="space-y-1">
-                <Link
-                  to="/about"
-                  onClick={() => setIsOpen(false)}
-                  className={`flex items-center gap-3 rounded-xl px-4 py-3 text-base font-semibold transition ${
-                    location.pathname === "/about"
-                      ? "bg-blue-50 text-[#0056b3]"
-                      : "text-slate-700 hover:bg-slate-50"
-                  }`}
-                >
-                  About
-                </Link>
+            <div className="space-y-1">
+              <Link
+                to="/about"
+                onClick={() => setIsOpen(false)}
+                className={`flex items-center gap-3 rounded-xl px-4 py-3 text-base font-semibold transition ${
+                  location.pathname === "/about"
+                    ? "bg-blue-50 text-[#0056b3]"
+                    : "text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                About
+              </Link>
 
-                <Link
-                  to="/contact"
-                  onClick={() => setIsOpen(false)}
-                  className={`flex items-center gap-3 rounded-xl px-4 py-3 text-base font-semibold transition ${
-                    location.pathname === "/contact"
-                      ? "bg-blue-50 text-[#0056b3]"
-                      : "text-slate-700 hover:bg-slate-50"
-                  }`}
-                >
-                  Contact
-                </Link>
-              </div>
-            )}
+              <Link
+                to="/contact"
+                onClick={() => setIsOpen(false)}
+                className={`flex items-center gap-3 rounded-xl px-4 py-3 text-base font-semibold transition ${
+                  location.pathname === "/contact"
+                    ? "bg-blue-50 text-[#0056b3]"
+                    : "text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                Contact
+              </Link>
+            </div>
 
             <div className="mx-4 h-px bg-slate-100" />
 
             <div className="px-4">
-              {isLoggedIn ? (
-                <div className="space-y-3">
-                  {role === "applicant" && (
-                    <Link
-                      to="/profile"
-                      onClick={() => setIsOpen(false)}
-                      className="flex items-center gap-3 py-2 font-medium text-slate-700"
-                    >
-                      <User size={20} />
-                      My Profile
-                    </Link>
-                  )}
+              <div className="flex flex-col gap-3">
+                <Link
+                  to="/login"
+                  onClick={() => setIsOpen(false)}
+                  className="w-full rounded-xl border border-blue-200 bg-blue-50 py-3.5 text-center font-bold text-[#0056b3]"
+                >
+                  Log in
+                </Link>
 
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    className="flex w-full items-center gap-3 py-2 font-bold text-red-600"
-                  >
-                    <LogOut size={20} />
-                    Logout
-                  </button>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-3">
-                  <Link
-                    to="/login"
-                    onClick={() => setIsOpen(false)}
-                    className="w-full rounded-xl border border-blue-200 bg-blue-50 py-3.5 text-center font-bold text-[#0056b3]"
-                  >
-                    Log in
-                  </Link>
-
-                  <Link
-                    to="/register"
-                    onClick={() => setIsOpen(false)}
-                    className="w-full rounded-xl bg-[#0056b3] py-3.5 text-center font-bold text-white shadow-lg"
-                  >
-                    Register
-                  </Link>
-                </div>
-              )}
+                <Link
+                  to="/register"
+                  onClick={() => setIsOpen(false)}
+                  className="w-full rounded-xl bg-[#0056b3] py-3.5 text-center font-bold text-white shadow-lg"
+                >
+                  Register
+                </Link>
+              </div>
             </div>
           </div>
         </div>

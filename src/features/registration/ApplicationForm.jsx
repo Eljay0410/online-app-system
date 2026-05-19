@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
-  ArrowLeft,
   CheckCircle2,
   Copy,
   MailCheck,
@@ -13,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { apiRequest } from "../../lib/api";
+import BackButton from "../../components/ui/BackButton";
 const PersonalInfo = ({ data = {}, onChange, onNext }) => {
   const [errors, setErrors] = useState({});
 
@@ -264,10 +264,10 @@ const PersonalInfo = ({ data = {}, onChange, onNext }) => {
     if (!address.trim()) newErrors.address = "Address is required";
 
     if (!contactNumber.trim()) {
-      newErrors.contactNumber = "Contact number is required";
+      newErrors.contactNumber = "Contact number is required.";
     } else if (!/^09\d{9}$/.test(contactNumber)) {
       newErrors.contactNumber =
-        "Contact number must start with 09 and be exactly 11 digits";
+        "Contact number must start with 09 and be 11 digits.";
     }
 
     if (!emailAddress.trim()) {
@@ -1114,13 +1114,7 @@ const EducationalBackground = ({ data, onChange, onBack, onNext }) => {
       </div>
 
       <div className="flex justify-between items-center pt-6">
-        <button
-          type="button"
-          onClick={onBack}
-          className="px-6 py-2 border-2 border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50"
-        >
-          Back
-        </button>
+        <BackButton onClick={onBack} label="Back" />
 
         <button
           type="submit"
@@ -1567,13 +1561,7 @@ const Eligibility = ({ data, onChange, onBack, onNext }) => {
       </div>
 
       <div className="flex justify-between items-center pt-6">
-        <button
-          type="button"
-          onClick={onBack}
-          className="px-6 py-2 border-2 border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50"
-        >
-          Back
-        </button>
+        <BackButton onClick={onBack} label="Back" />
 
         <button
           type="submit"
@@ -1783,13 +1771,7 @@ const LearningDevelopment = ({ data, onChange, onBack, onNext }) => {
       </div>
 
       <div className="flex justify-between items-center pt-6">
-        <button
-          type="button"
-          onClick={onBack}
-          className="px-6 py-2 border-2 border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-all"
-        >
-          Back
-        </button>
+        <BackButton onClick={onBack} label="Back" />
 
         <button
           type="submit"
@@ -2366,13 +2348,7 @@ const Attachment = ({ data, onChange, onBack, onNext }) => {
       )}
 
       <div className="flex justify-between items-center pt-6">
-        <button
-          type="button"
-          onClick={onBack}
-          className="px-6 py-2 border-2 border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-all"
-        >
-          Back
-        </button>
+        <BackButton onClick={onBack} label="Back" />
 
         <button
           type="submit"
@@ -2853,19 +2829,11 @@ const Review = ({ data, onBack, onSubmit }) => {
       )}
 
       <div className="no-print flex flex-col gap-3 pt-6 sm:flex-row sm:items-center sm:justify-between">
-        <button
-          type="button"
+        <BackButton
           onClick={onBack}
           disabled={isLocked || isSubmitting}
-          className={`inline-flex items-center justify-center gap-2 rounded-lg border-2 px-5 py-2.5 text-sm font-bold transition-all ${
-            isLocked || isSubmitting
-              ? "cursor-not-allowed border-gray-300 text-gray-400"
-              : "border-slate-200 text-slate-600 hover:bg-slate-50"
-          }`}
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back
-        </button>
+          label="Back"
+        />
 
         <button
           type="button"

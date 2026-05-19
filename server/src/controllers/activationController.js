@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import bcrypt from "bcryptjs";
 import pool from "../config/db.js";
 import {
@@ -5,6 +6,12 @@ import {
   TOKEN_PURPOSES,
 } from "../services/activationService.js";
 import { revokeUserSessions } from "../services/sessionService.js";
+
+const legacyPlainTokenPattern = /^[a-f0-9]{64}$/i;
+
+function hashToken(token) {
+  return `sha256:${createHash("sha256").update(token).digest("hex")}`;
+}
 
 function tokenError(res, message) {
   return res.status(400).json({
@@ -14,6 +21,15 @@ function tokenError(res, message) {
 }
 
 async function getTokenForUpdate(client, token) {
+  const params = [hashToken(token)];
+  const legacyTokenWhere = legacyPlainTokenPattern.test(token)
+    ? " OR at.token = $2"
+    : "";
+
+  if (legacyTokenWhere) {
+    params.push(token);
+  }
+
   const tokenResult = await client.query(
     `SELECT
        at.id,
@@ -23,11 +39,11 @@ async function getTokenForUpdate(client, token) {
        at.used,
        at.revoked_at,
        u.is_active
-     FROM activation_tokens at
-     JOIN users u ON u.id = at.user_id
-     WHERE at.token = $1
-     FOR UPDATE`,
-    [token]
+      FROM activation_tokens at
+      JOIN users u ON u.id = at.user_id
+      WHERE at.token = $1${legacyTokenWhere}
+      FOR UPDATE`,
+    params
   );
 
   return tokenResult.rows[0] || null;
@@ -132,6 +148,8 @@ export async function activateAccount(req, res) {
     const purpose =
       activationToken.purpose || TOKEN_PURPOSES.EMAIL_VERIFICATION;
 
+    const wasInactive = activationToken.is_active === false;
+
     if (purpose === TOKEN_PURPOSES.PASSWORD_RESET) {
       if (!password || String(password).length < 8) {
         await client.query("ROLLBACK");
@@ -139,10 +157,21 @@ export async function activateAccount(req, res) {
       }
 
       const hash = await bcrypt.hash(String(password), 10);
+      const updateFields = [
+        "password_hash = $1",
+        "updated_at = NOW()",
+      ];
+
+      if (wasInactive) {
+        updateFields.push(
+          "is_active = TRUE",
+          "email_verified_at = COALESCE(email_verified_at, NOW())"
+        );
+      }
+
       await client.query(
         `UPDATE users
-         SET password_hash = $1,
-             updated_at = NOW()
+         SET ${updateFields.join(", ")}
          WHERE id = $2`,
         [hash, activationToken.user_id]
       );
@@ -176,7 +205,9 @@ export async function activateAccount(req, res) {
       purpose,
       message:
         purpose === TOKEN_PURPOSES.PASSWORD_RESET
-          ? "Password reset successfully."
+          ? wasInactive
+            ? "Account activated successfully."
+            : "Password reset successfully."
           : "Email verified successfully.",
     });
   } catch (err) {

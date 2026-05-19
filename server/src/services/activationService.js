@@ -1,4 +1,4 @@
-import { randomBytes } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { clientUrl } from "../config/env.js";
 import {
   MAIL_FROM_ADDRESS,
@@ -10,6 +10,10 @@ export const TOKEN_PURPOSES = {
   EMAIL_VERIFICATION: "email_verification",
   PASSWORD_RESET: "password_reset",
 };
+
+function hashToken(token) {
+  return `sha256:${createHash("sha256").update(token).digest("hex")}`;
+}
 
 function buildActivationEmail({ actionLink, intro, purpose, ttlHours, uan }) {
   const isReset = purpose === TOKEN_PURPOSES.PASSWORD_RESET;
@@ -216,6 +220,7 @@ export async function createActivationToken(
   );
 
   const token = randomBytes(32).toString("hex");
+  const storedToken = hashToken(token);
   const ttlHours = getTokenTtlHours(safePurpose);
   const expiresAt = new Date(Date.now() + ttlHours * 3600 * 1000);
 
@@ -223,7 +228,7 @@ export async function createActivationToken(
     `INSERT INTO activation_tokens
        (user_id, token, purpose, expires_at, used, created_at)
      VALUES ($1, $2, $3, $4, FALSE, NOW())`,
-    [user.id, token, safePurpose, expiresAt.toISOString()]
+    [user.id, storedToken, safePurpose, expiresAt.toISOString()]
   );
   await client.query(
     `UPDATE users SET ${getLastSentColumn(safePurpose)} = NOW() WHERE id = $1`,

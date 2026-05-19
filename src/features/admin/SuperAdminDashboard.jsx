@@ -2,44 +2,42 @@ import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   BriefcaseBusiness,
-  LayoutDashboard,
+  Eye,
+  EyeOff,
   Loader2,
-  PanelLeftClose,
-  PanelLeftOpen,
   Shield,
   Trash2,
-  UserCog,
-  UserPlus,
   Users,
   X,
 } from "lucide-react";
 import { apiRequest } from "../../lib/api";
+import SuperAdminSidebar from "../../components/layout/SuperAdminSidebar";
 
 const sumCounts = (items = []) =>
   items.reduce((total, item) => total + Number(item.count || 0), 0);
 
-const sidebarItems = [
-  {
-    id: "overview",
-    label: "Overview",
-    icon: LayoutDashboard,
+const pageMeta = {
+  dashboard: {
+    title: "System Overview",
+    description:
+      "Monitor system users, job postings, applications, and management accounts in one clean workspace.",
+    badge: "Secure Admin Workspace",
   },
-  {
-    id: "create-admin",
-    label: "Create Admin",
-    icon: UserPlus,
+  "create-admin": {
+    title: "Create Admin Account",
+    description:
+      "Add new office administrators with verified access to the online application system.",
+    badge: "Account Setup",
   },
-  {
-    id: "management-accounts",
-    label: "Management Accounts",
-    icon: UserCog,
+  "management-accounts": {
+    title: "Management Accounts",
+    description:
+      "Review admin and superadmin accounts, then remove inactive access when needed.",
+    badge: "User Control",
   },
-];
+};
 
 export default function SuperAdminDashboard() {
-  const [activeSection, setActiveSection] = useState("overview");
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-
   const [overview, setOverview] = useState({
     users: [],
     jobs: [],
@@ -65,6 +63,9 @@ export default function SuperAdminDashboard() {
   const [formError, setFormError] = useState("");
   const [deleteMessage, setDeleteMessage] = useState("");
   const [deleteError, setDeleteError] = useState("");
+
+  const [activeTab, setActiveTab] = useState("dashboard");
+  const [collapsed, setCollapsed] = useState(false);
 
   const loadDashboard = async () => {
     const [overviewResult, usersResult] = await Promise.all([
@@ -100,10 +101,14 @@ export default function SuperAdminDashboard() {
         setManagementUsers(usersResult.users || []);
       })
       .catch((err) => {
-        if (isMounted) setError(err.message);
+        if (isMounted) {
+          setError(err.message);
+        }
       })
       .finally(() => {
-        if (isMounted) setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       });
 
     return () => {
@@ -143,7 +148,7 @@ export default function SuperAdminDashboard() {
       });
 
       setFormMessage("Admin account created successfully.");
-      setActiveSection("management-accounts");
+      setActiveTab("management-accounts");
 
       await loadDashboard();
     } catch (err) {
@@ -202,209 +207,78 @@ export default function SuperAdminDashboard() {
     [overview]
   );
 
-  const activeSidebarLabel =
-    sidebarItems.find((item) => item.id === activeSection)?.label ||
-    "Superadmin Dashboard";
+  const contentPadding = collapsed ? "lg:pl-20" : "lg:pl-72";
+  const currentPage = pageMeta[activeTab] || pageMeta.dashboard;
 
   return (
-    <main className="min-h-screen bg-slate-50 pt-24">
-      <div className="flex min-h-[calc(100vh-96px)]">
-        <aside
-          className={`fixed left-0 top-24 z-30 hidden h-[calc(100vh-96px)] border-r border-slate-200 bg-white text-slate-900 shadow-sm transition-all duration-300 lg:block ${
-            isSidebarCollapsed ? "w-20" : "w-72"
-          }`}
-        >
-          <div className="flex h-full flex-col">
-            <div
-              className={`flex items-center border-b border-slate-200 py-5 ${
-                isSidebarCollapsed
-                  ? "justify-center px-3"
-                  : "justify-between px-5"
-              }`}
-            >
-              {!isSidebarCollapsed && (
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                    Superadmin Panel
-                  </p>
+    <main className={`min-h-screen bg-slate-100 pt-24 ${contentPadding}`}>
+      <SuperAdminSidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        collapsed={collapsed}
+        setCollapsed={setCollapsed}
+      />
 
-                  <h2 className="mt-2 truncate text-xl font-extrabold text-slate-950">
-                    OASys Dashboard
-                  </h2>
+      <section className="px-4 pb-10 pt-6 transition-all duration-300 sm:px-6 lg:px-8 lg:pt-8">
+        <div className="mx-auto max-w-7xl space-y-6">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+              {currentPage.eyebrow}
+            </p>
+            <h1 className="mt-2 text-2xl font-bold text-slate-900 sm:text-3xl">
+              {currentPage.title}
+            </h1>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+              {currentPage.description}
+            </p>
+          </div>
+
+          {isLoading && (
+            <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-5 text-slate-600 shadow-sm">
+              <Loader2 className="h-5 w-5 animate-spin text-blue-700" />
+              Loading system overview...
+            </div>
+          )}
+
+          {error && (
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm font-semibold text-red-700">
+              {error}
+            </div>
+          )}
+
+          {!isLoading && !error && (
+            <div className="space-y-6">
+              {deleteMessage && (
+                <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-700">
+                  {deleteMessage}
                 </div>
               )}
 
-              <button
-                type="button"
-                onClick={() => setIsSidebarCollapsed((current) => !current)}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700 transition hover:bg-[#0056b3] hover:text-white"
-                title={
-                  isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
-                }
-              >
-                {isSidebarCollapsed ? (
-                  <PanelLeftOpen size={20} />
-                ) : (
-                  <PanelLeftClose size={20} />
-                )}
-              </button>
+              {activeTab === "dashboard" && (
+                <OverviewDashboard overview={overview} totals={totals} />
+              )}
+
+              {activeTab === "create-admin" && (
+                <CreateAdminSection
+                  adminForm={adminForm}
+                  updateAdminForm={updateAdminForm}
+                  handleCreateAdmin={handleCreateAdmin}
+                  isCreating={isCreating}
+                  formError={formError}
+                  formMessage={formMessage}
+                />
+              )}
+
+              {activeTab === "management-accounts" && (
+                <ManagementAccountsSection
+                  managementUsers={managementUsers}
+                  onDeleteUser={openDeleteUserModal}
+                />
+              )}
             </div>
-
-            <nav className="flex-1 space-y-2 px-3 py-5">
-              {sidebarItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeSection === item.id;
-
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setActiveSection(item.id)}
-                    title={isSidebarCollapsed ? item.label : ""}
-                    className={`group flex w-full items-center rounded-xl py-3 text-left text-sm font-semibold transition ${
-                      isSidebarCollapsed
-                        ? "justify-center px-0"
-                        : "gap-3 px-4"
-                    } ${
-                      isActive
-                        ? "bg-[#0056b3] text-white shadow-md"
-                        : "text-slate-600 hover:bg-slate-100 hover:text-[#0056b3]"
-                    }`}
-                  >
-                    <Icon size={20} className="shrink-0" />
-
-                    {!isSidebarCollapsed && (
-                      <span className="truncate">{item.label}</span>
-                    )}
-                  </button>
-                );
-              })}
-            </nav>
-
-            {!isSidebarCollapsed && (
-              <div className="border-t border-slate-200 px-6 py-5 text-xs leading-5 text-slate-500">
-                Monitor users, job postings, applications, and admin accounts.
-              </div>
-            )}
-          </div>
-        </aside>
-
-        <section
-          className={`w-full px-4 pb-12 pt-8 transition-all duration-300 sm:px-6 lg:px-8 ${
-            isSidebarCollapsed ? "lg:ml-20" : "lg:ml-72"
-          }`}
-        >
-          <div className="mx-auto max-w-7xl space-y-6">
-            <div className="lg:hidden">
-              <div className="grid grid-cols-3 gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
-                {sidebarItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = activeSection === item.id;
-
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setActiveSection(item.id)}
-                      className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-xs font-semibold transition ${
-                        isActive
-                          ? "bg-[#0056b3] text-white"
-                          : "text-slate-600 hover:bg-slate-100"
-                      }`}
-                    >
-                      <Icon size={16} />
-                      <span className="hidden sm:inline">{item.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#0056b3]">
-                {activeSidebarLabel}
-              </p>
-
-              <h1 className="text-3xl font-bold text-slate-950">
-                Superadmin Dashboard
-              </h1>
-
-              <p className="text-sm text-slate-600">
-                System-wide monitoring for users, postings, applications, and
-                management accounts.
-              </p>
-            </div>
-
-            {isLoading && (
-              <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-4 text-slate-500 shadow-sm">
-                <Loader2 className="h-5 w-5 animate-spin" />
-                Loading system overview...
-              </div>
-            )}
-
-            {error && (
-              <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">
-                {error}
-              </div>
-            )}
-
-            {!isLoading && !error && (
-              <>
-                <div className="grid gap-4 sm:grid-cols-3">
-                  <DashboardCard
-                    icon={Users}
-                    label="Users"
-                    value={totals.users}
-                    iconClassName="text-blue-700"
-                  />
-
-                  <DashboardCard
-                    icon={BriefcaseBusiness}
-                    label="Job Postings"
-                    value={totals.jobs}
-                    iconClassName="text-blue-700"
-                  />
-
-                  <DashboardCard
-                    icon={Shield}
-                    label="Applications"
-                    value={totals.applications}
-                    iconClassName="text-green-700"
-                  />
-                </div>
-
-                {deleteMessage && (
-                  <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
-                    {deleteMessage}
-                  </div>
-                )}
-
-                {activeSection === "overview" && (
-                  <OverviewSection overview={overview} />
-                )}
-
-                {activeSection === "create-admin" && (
-                  <CreateAdminSection
-                    adminForm={adminForm}
-                    updateAdminForm={updateAdminForm}
-                    handleCreateAdmin={handleCreateAdmin}
-                    isCreating={isCreating}
-                    formError={formError}
-                    formMessage={formMessage}
-                  />
-                )}
-
-                {activeSection === "management-accounts" && (
-                  <ManagementAccountsSection
-                    managementUsers={managementUsers}
-                    onDeleteUser={openDeleteUserModal}
-                  />
-                )}
-              </>
-            )}
-          </div>
-        </section>
-      </div>
+          )}
+        </div>
+      </section>
 
       {userToDelete && (
         <DeleteUserModal
@@ -419,64 +293,109 @@ export default function SuperAdminDashboard() {
   );
 }
 
-function DashboardCard({
-  icon: Icon,
-  label,
-  value,
-  iconClassName = "text-blue-700",
-}) {
+function OverviewDashboard({ overview, totals }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <Icon className={`h-7 w-7 ${iconClassName}`} />
+    <>
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatCard
+          icon={<Users className="h-6 w-6" />}
+          label="Total Users"
+          value={totals.users}
+          description="All registered accounts"
+        />
 
-      <p className="mt-3 text-sm text-slate-500">{label}</p>
+        <StatCard
+          icon={<BriefcaseBusiness className="h-6 w-6" />}
+          label="Job Postings"
+          value={totals.jobs}
+          description="Created job opportunities"
+        />
 
-      <p className="text-3xl font-bold text-slate-900">{value}</p>
+        <StatCard
+          icon={<Shield className="h-6 w-6" />}
+          label="Applications"
+          value={totals.applications}
+          description="Submitted applications"
+        />
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-3">
+        <BreakdownCard
+          title="Users by Role"
+          items={overview.users}
+          labelKey="role"
+        />
+
+        <BreakdownCard
+          title="Jobs by Status"
+          items={overview.jobs}
+          labelKey="status"
+        />
+
+        <BreakdownCard
+          title="Applications by Status"
+          items={overview.applications}
+          labelKey="status"
+        />
+      </div>
+    </>
+  );
+}
+
+function StatCard({ icon, label, value, description }) {
+  return (
+    <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="flex items-start justify-between">
+        <div className="grid h-12 w-12 place-items-center rounded-2xl bg-blue-50 text-blue-700">
+          {icon}
+        </div>
+
+        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">
+          Live
+        </span>
+      </div>
+
+      <p className="mt-5 text-sm font-semibold text-slate-500">{label}</p>
+
+      <p className="mt-2 text-4xl font-bold tracking-tight text-slate-950">
+        {value}
+      </p>
+
+      <p className="mt-2 text-sm text-slate-500">{description}</p>
     </div>
   );
 }
 
-function OverviewSection({ overview }) {
-  const sections = [
-    ["Users by Role", overview.users, "role"],
-    ["Jobs by Status", overview.jobs, "status"],
-    ["Applications by Status", overview.applications, "status"],
-  ];
-
+function BreakdownCard({ title, items, labelKey }) {
   return (
-    <div className="grid gap-6 lg:grid-cols-3">
-      {sections.map(([title, items, labelKey]) => (
-        <section
-          key={title}
-          className="rounded-2xl border border-slate-200 bg-white shadow-sm"
-        >
-          <div className="border-b border-slate-200 px-5 py-4">
-            <h2 className="font-bold text-slate-900">{title}</h2>
-          </div>
+    <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+      <div className="border-b border-slate-200 px-6 py-5">
+        <h2 className="text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+          {title}
+        </h2>
+      </div>
 
-          <div className="divide-y divide-slate-100">
-            {items.length === 0 ? (
-              <p className="p-5 text-sm text-slate-500">No data yet.</p>
-            ) : (
-              items.map((item) => (
-                <div
-                  key={`${title}-${item[labelKey]}`}
-                  className="flex items-center justify-between px-5 py-4 text-sm"
-                >
-                  <span className="font-medium capitalize text-slate-700">
-                    {String(item[labelKey]).replaceAll("_", " ")}
-                  </span>
+      <div className="divide-y divide-slate-100">
+        {items.length === 0 ? (
+          <p className="p-6 text-sm text-slate-500">No data yet.</p>
+        ) : (
+          items.map((item) => (
+            <div
+              key={`${title}-${item[labelKey]}`}
+              className="flex items-center justify-between px-6 py-4"
+            >
+              <span className="font-semibold capitalize text-slate-700">
+                {String(item[labelKey]).replaceAll("_", " ")}
+              </span>
 
-                  <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
-                    {item.count}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        </section>
-      ))}
-    </div>
+              <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+                {item.count}
+              </span>
+            </div>
+          ))
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -488,17 +407,12 @@ function CreateAdminSection({
   formError,
   formMessage,
 }) {
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-5 py-4">
-        <div className="flex items-center gap-2">
-          <UserPlus className="h-5 w-5 text-blue-700" />
+    <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
 
-          <h2 className="font-bold text-slate-900">Create Admin Account</h2>
-        </div>
-      </div>
-
-      <form onSubmit={handleCreateAdmin} className="space-y-4 p-5">
+      <form onSubmit={handleCreateAdmin} className="space-y-4 p-6">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="text-sm font-medium text-slate-600">
@@ -545,14 +459,32 @@ function CreateAdminSection({
             Temporary Password
           </label>
 
-          <input
-            type="password"
-            value={adminForm.password}
-            onChange={(event) =>
-              updateAdminForm("password", event.target.value)
-            }
-            className="mt-1 h-11 w-full rounded-xl border border-slate-300 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          <div className="relative mt-1">
+            <input
+              type={isPasswordVisible ? "text" : "password"}
+              value={adminForm.password}
+              onChange={(event) =>
+                updateAdminForm("password", event.target.value)
+              }
+              className="h-11 w-full rounded-xl border border-slate-300 px-3 pr-12 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            />
+
+            <button
+              type="button"
+              onClick={() => setIsPasswordVisible((current) => !current)}
+              className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-500 transition hover:text-blue-700"
+              aria-label={
+                isPasswordVisible ? "Hide password" : "Show password"
+              }
+              title={isPasswordVisible ? "Hide password" : "Show password"}
+            >
+              {isPasswordVisible ? (
+                <EyeOff className="h-5 w-5" />
+              ) : (
+                <Eye className="h-5 w-5" />
+              )}
+            </button>
+          </div>
         </div>
 
         {formError && (
@@ -570,7 +502,7 @@ function CreateAdminSection({
         <button
           type="submit"
           disabled={isCreating}
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#0056b3] px-5 text-sm font-bold text-white hover:bg-[#003a78] disabled:cursor-not-allowed disabled:opacity-70"
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-blue-700 px-5 text-sm font-bold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-70"
         >
           {isCreating && <Loader2 className="h-4 w-4 animate-spin" />}
           Create Admin
@@ -582,26 +514,18 @@ function CreateAdminSection({
 
 function ManagementAccountsSection({ managementUsers, onDeleteUser }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-5 py-4">
-        <h2 className="font-bold text-slate-900">Management Accounts</h2>
-
-        <p className="mt-1 text-sm text-slate-500">
-          List of admin and management accounts in the system. Remove resigned
-          or inactive users when needed.
-        </p>
-      </div>
+    <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
 
       <div className="divide-y divide-slate-100">
         {managementUsers.length === 0 ? (
-          <p className="p-5 text-sm text-slate-500">
+          <p className="p-6 text-sm text-slate-500">
             No management accounts yet.
           </p>
         ) : (
           managementUsers.map((user) => (
             <div
               key={user.id}
-              className="flex flex-col gap-3 px-5 py-4 text-sm lg:flex-row lg:items-center lg:justify-between"
+              className="flex flex-col gap-3 px-6 py-4 text-sm lg:flex-row lg:items-center lg:justify-between"
             >
               <div>
                 <p className="font-semibold text-slate-900">
@@ -639,7 +563,7 @@ function DeleteUserModal({ user, error, isDeleting, onClose, onConfirm }) {
     [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4">
       <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
           <div className="flex items-start gap-3">

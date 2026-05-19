@@ -14,15 +14,20 @@ function getAuthToken() {
 export async function apiRequest(path, options = {}) {
   let response;
   const authToken = getAuthToken();
+  const hasBody = options.body !== undefined && options.body !== null;
+  const isFormData =
+    typeof FormData !== "undefined" && options.body instanceof FormData;
+  const headers = {
+    Accept: "application/json",
+    ...(hasBody && !isFormData ? { "Content-Type": "application/json" } : {}),
+    ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+    ...options.headers,
+  };
 
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
-      headers: {
-        "Content-Type": "application/json",
-        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
-        ...options.headers,
-      },
       ...options,
+      headers,
     });
   } catch {
     throw new Error(

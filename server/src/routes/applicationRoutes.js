@@ -9,6 +9,7 @@ import {
   updateApplicationStatus,
 } from "../controllers/applicationController.js";
 import { requireAuth, requireRoles } from "../middleware/auth.js";
+import { authenticatedWriteLimiter } from "../middleware/rateLimit.js";
 
 const router = Router();
 
@@ -22,6 +23,7 @@ router.get(
 router.patch(
   "/admin/applications/:id/status",
   requireAuth,
+  authenticatedWriteLimiter,
   requireRoles("admin"),
   updateApplicationStatus
 );
@@ -43,6 +45,7 @@ router.get(
 router.put(
   "/applicant/profile",
   requireAuth,
+  authenticatedWriteLimiter,
   requireRoles("applicant"),
   saveApplicantProfile
 );
@@ -50,6 +53,7 @@ router.put(
 router.post(
   "/applications",
   requireAuth,
+  authenticatedWriteLimiter,
   requireRoles("applicant"),
   applyToJob
 );
@@ -57,6 +61,7 @@ router.post(
 router.post(
   "/submit-application",
   requireAuth,
+  authenticatedWriteLimiter,
   requireRoles("applicant"),
   submitApplication
 );

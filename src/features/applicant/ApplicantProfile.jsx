@@ -1,10 +1,8 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import {
   AlertTriangle,
-  ArrowLeft,
   CheckCircle2,
   ChevronDown,
   Copy,
@@ -16,6 +14,7 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react";
+import BackButton from "../../components/ui/BackButton";
 import { getStoredUser, storeUser } from "../auth/auth";
 
 const emptyText = "N/A";
@@ -323,7 +322,7 @@ export default function ApplicantProfile() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 pb-10 pt-24 font-['Poppins']">
+    <div className="min-h-screen bg-slate-50 px-4 pb-8 pt-28 font-['Poppins']">
       <style>
         {`
           @media print {
@@ -354,25 +353,26 @@ export default function ApplicantProfile() {
       </style>
 
       <div className="mx-auto max-w-6xl">
-        <Link
-          to="/applicantdashboard"
-          className="no-print mb-5 inline-flex items-center text-xs font-semibold text-blue-700 hover:text-blue-900"
-        >
-          ← Back to Dashboard
-        </Link>
-
-        <ProfileHeader
-          initials={initials}
-          fullName={fullName || "Raymond S Bautista"}
-          status={profile.accountDetails.accountStatus}
-          applicantNumber={profile.accountDetails.applicantNumber}
+        <BackButton
+          to="/"
+          ariaLabel="Back to job listings"
+          className="no-print mt-1 mb-4"
         />
 
-        <div className="no-print mx-auto mt-6 grid max-w-6xl grid-cols-2 gap-4 rounded-2xl bg-white p-2 shadow-sm ring-1 ring-slate-200">
+        <div className="mb-4">
+          <h1 className="text-2xl font-bold text-slate-950">
+            Applicant Profile
+          </h1>
+          <p className="mt-1 text-sm text-slate-600">
+            Profile and application details
+          </p>
+        </div>
+
+        <div className="no-print mx-auto mt-4 grid max-w-6xl grid-cols-2 gap-3 rounded-2xl bg-white p-1.5 shadow-sm ring-1 ring-slate-200">
           <button
             type="button"
             onClick={() => setActiveTab("application")}
-            className={`rounded-xl py-3 text-base font-semibold transition ${
+            className={`rounded-xl py-2.5 text-sm font-semibold transition ${
               activeTab === "application"
                 ? "bg-[#0056b3] text-white shadow-md"
                 : "bg-transparent text-slate-700 hover:bg-slate-100"
@@ -384,7 +384,7 @@ export default function ApplicantProfile() {
           <button
             type="button"
             onClick={() => setActiveTab("information")}
-            className={`rounded-xl py-3 text-base font-semibold transition ${
+            className={`rounded-xl py-2.5 text-sm font-semibold transition ${
               activeTab === "information"
                 ? "bg-[#0056b3] text-white shadow-md"
                 : "bg-transparent text-slate-700 hover:bg-slate-100"
@@ -403,7 +403,7 @@ export default function ApplicantProfile() {
         )}
 
         {activeTab === "information" && (
-          <div className="mt-5 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 md:p-8">
+          <div className="mt-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 md:p-6">
             <div className="no-print mb-5 flex justify-end">
               {!isEditing ? (
                 <button
@@ -561,26 +561,25 @@ function RenderStepContent({
 function ProfileHeader({ initials, fullName, status, applicantNumber }) {
   return (
     <div className="mx-auto w-full max-w-6xl overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-      <div className="relative min-h-[150px] bg-gradient-to-r from-[#0056b3] via-[#0056b3] to-[#003a78] px-6 py-6 md:px-10">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.22),transparent_35%)]" />
+      <div className="relative min-h-[132px] bg-[#244a96] px-6 py-5 md:px-10">
 
-        <div className="relative flex flex-col items-center gap-5 text-center md:flex-row md:text-left">
-          <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full border-[6px] border-white bg-blue-100 shadow-lg">
-            <span className="text-xl font-extrabold text-blue-700">
+        <div className="relative flex flex-col items-center gap-4 text-center md:flex-row md:text-left">
+          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border-[4px] border-white bg-blue-100 shadow-lg">
+            <span className="text-lg font-extrabold text-blue-700">
               {initials}
             </span>
           </div>
 
           <div className="min-w-0 flex-1 text-white">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/75">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/75">
               Applicant Profile
             </p>
 
-            <h1 className="mt-2 text-2xl font-extrabold md:text-3xl">
+            <h1 className="mt-2 text-xl font-extrabold md:text-2xl">
               {fullName}
             </h1>
 
-            <p className="mt-1 text-sm text-white/80">
+            <p className="mt-1 text-xs text-white/80">
               Profile and Application Form
             </p>
           </div>
@@ -606,12 +605,12 @@ function ApplicationList({
   withdrawApplication,
 }) {
   return (
-    <div className="mt-5 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+    <div className="mt-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         {applications.map((application) => (
           <div
             key={application.id}
-            className="relative grid grid-cols-1 border-b border-slate-200 px-5 py-5 last:border-b-0 md:grid-cols-[1fr_280px]"
+            className="relative grid grid-cols-1 border-b border-slate-200 px-4 py-4 last:border-b-0 md:grid-cols-[1fr_260px]"
           >
             <div>
               <h3 className="text-lg font-semibold text-slate-800">
@@ -629,7 +628,7 @@ function ApplicationList({
               <button
                 type="button"
                 onClick={() => toggleApplicationDropdown(application.id)}
-                className="mt-1 flex w-full items-center justify-between rounded-xl bg-slate-50 px-4 py-2.5 text-left text-base font-semibold text-slate-700 hover:bg-slate-100"
+                className="mt-1 flex w-full items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100"
               >
                 {application.status}
                 <ChevronDown size={18} />
@@ -940,9 +939,10 @@ function PersonalInfo({ data = {}, onChange, onNext, disabled = false }) {
     if (!personal.address.trim()) newErrors.address = "Address required";
 
     if (!personal.contactNumber.trim()) {
-      newErrors.contactNumber = "Contact number required";
+      newErrors.contactNumber = "Contact number is required.";
     } else if (!/^09\d{9}$/.test(personal.contactNumber)) {
-      newErrors.contactNumber = "Must start with 09 and be 11 digits";
+      newErrors.contactNumber =
+        "Contact number must start with 09 and be 11 digits.";
     }
 
     if (!personal.emailAddress.trim()) {
@@ -1055,6 +1055,10 @@ function PersonalInfo({ data = {}, onChange, onNext, disabled = false }) {
             value={personal.contactNumber}
             disabled={disabled}
             error={errors.contactNumber}
+            type="tel"
+            inputMode="numeric"
+            maxLength={11}
+            placeholder="09XXXXXXXXX"
             onChange={(value) => updateField("contactNumber", value)}
           />
         </div>
@@ -2556,19 +2560,11 @@ function Review({ data, onBack, onSubmit }) {
       )}
 
       <div className="no-print flex flex-col gap-3 pt-6 sm:flex-row sm:items-center sm:justify-between">
-        <button
-          type="button"
+        <BackButton
           onClick={onBack}
           disabled={isLocked || isSubmitting}
-          className={`inline-flex items-center justify-center gap-2 rounded-lg border-2 px-5 py-2.5 text-sm font-bold transition-all ${
-            isLocked || isSubmitting
-              ? "cursor-not-allowed border-gray-300 text-gray-400"
-              : "border-slate-200 text-slate-600 hover:bg-slate-50"
-          }`}
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back
-        </button>
+          label="Back"
+        />
 
         <button
           type="button"
@@ -2696,14 +2692,11 @@ function ReviewSection({ title, children }) {
 function StepFooter({ onBack, disabledBack = false, onNextSubmit = false }) {
   return (
     <div className="flex items-center justify-between pt-6">
-      <button
-        type="button"
+      <BackButton
         onClick={onBack}
         disabled={disabledBack}
-        className="rounded-xl border-2 border-slate-200 bg-white px-6 py-2 font-bold text-slate-600 transition-all hover:bg-slate-50 disabled:opacity-40"
-      >
-        Back
-      </button>
+        label="Back"
+      />
 
       <button
         type={onNextSubmit ? "submit" : "button"}
@@ -2722,6 +2715,9 @@ function InputBox({
   disabled,
   required = false,
   type = "text",
+  inputMode,
+  maxLength,
+  placeholder,
   error,
 }) {
   return (
@@ -2737,7 +2733,9 @@ function InputBox({
         value={value || ""}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={label}
+        inputMode={inputMode}
+        maxLength={maxLength}
+        placeholder={placeholder || label}
         max={
           type === "date" ? new Date().toISOString().split("T")[0] : undefined
         }

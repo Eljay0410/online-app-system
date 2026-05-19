@@ -1,10 +1,17 @@
 import { getUserBySessionToken } from "../services/sessionService.js";
 
-function readBearerToken(req) {
-  const header = String(req.headers.authorization || "");
-  const [scheme, token] = header.split(" ");
+const sessionTokenPattern = /^[a-f0-9]{64}$/i;
 
-  if (scheme?.toLowerCase() !== "bearer" || !token) {
+function readBearerToken(req) {
+  const header = String(req.headers.authorization || "").trim();
+  const [scheme, token, extra] = header.split(/\s+/);
+
+  if (
+    scheme?.toLowerCase() !== "bearer" ||
+    !token ||
+    extra ||
+    !sessionTokenPattern.test(token)
+  ) {
     return "";
   }
 
@@ -50,6 +57,13 @@ export function requireRoles(...allowedRoles) {
 
   return (req, res, next) => {
     const role = normalizeRole(req.user?.role);
+
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: "Please log in to continue.",
+      });
+    }
 
     if (!allowed.includes(role)) {
       return res.status(403).json({

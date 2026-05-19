@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
-  ArrowLeft,
   CalendarDays,
   Loader2,
   MapPin,
   UserRoundPlus,
 } from "lucide-react";
 import { apiRequest } from "../../lib/api";
+import BackButton from "../../components/ui/BackButton";
 import { getAuthenticatedHomePath, normalizeRole, useAuth } from "../auth/auth";
 
 const formatDate = (value) =>
@@ -70,13 +70,7 @@ export default function JobDetails() {
   return (
     <main className="min-h-screen bg-slate-50 px-4 pb-10 pt-24 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-4xl space-y-6">
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 text-sm font-medium text-[#0056b3]"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to job listings
-        </Link>
+        <BackButton to="/" label="Back to job listings" />
 
         {message && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
