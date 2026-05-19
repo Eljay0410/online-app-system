@@ -266,20 +266,18 @@ export default function Login() {
                       <button
                         type="button"
                         onClick={() => setShowPassword((current) => !current)}
-                        className={`ml-2 inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-full border px-3 text-[11px] font-bold transition-all duration-200 ${
+                        className={`ml-2 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-base transition-all duration-200 ${
                           showPassword
-                            ? "border-blue-200 bg-blue-50 text-[#0056b3] hover:bg-blue-100"
-                            : "border-slate-200 bg-slate-50 text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-[#0056b3]"
+                            ? "bg-blue-50 text-[#0056b3] hover:bg-blue-100"
+                            : "bg-slate-50 text-slate-600 hover:bg-blue-50 hover:text-[#0056b3]"
                         }`}
                         aria-label={
                           showPassword ? "Hide password" : "Show password"
                         }
                         aria-pressed={showPassword}
+                        title={showPassword ? "Hide password" : "Show password"}
                       >
-                        <span className="text-sm leading-none">
-                          {showPassword ? "👀" : "🙈"}
-                        </span>
-                        <span>{showPassword ? "Hide" : "Show"}</span>
+                        {showPassword ? "👀" : "🙈"}
                       </button>
                     }
                   />
