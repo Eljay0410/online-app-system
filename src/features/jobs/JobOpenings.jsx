@@ -33,6 +33,7 @@ export default function JobOpenings() {
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [promptJob, setPromptJob] = useState(null);
+  const [promptAction, setPromptAction] = useState("apply");
   const [collapsed, setCollapsed] = useState(false);
 
   const isApplicant = user && normalizeRole(user.role) === "applicant";
@@ -94,6 +95,7 @@ export default function JobOpenings() {
 
   const handleApply = (job) => {
     if (!user) {
+      setPromptAction("apply");
       setPromptJob(job);
       return;
     }
@@ -103,7 +105,22 @@ export default function JobOpenings() {
       return;
     }
 
-    navigate(`/profile?jobId=${job.id}`);
+    navigate(`/jobs/${job.id}`);
+  };
+
+  const handleViewDetails = (job) => {
+    if (!user) {
+      setPromptAction("view");
+      setPromptJob(job);
+      return;
+    }
+
+    if (normalizeRole(user.role) !== "applicant") {
+      navigate(getAuthenticatedHomePath(user));
+      return;
+    }
+
+    navigate(`/jobs/${job.id}`);
   };
 
   return (
@@ -259,12 +276,13 @@ export default function JobOpenings() {
                 </div>
 
                 <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-                  <Link
-                    to={`/jobs/${job.id}`}
+                  <button
+                    type="button"
+                    onClick={() => handleViewDetails(job)}
                     className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-slate-300 px-4 font-semibold text-slate-700 transition hover:bg-slate-50"
                   >
                     View details
-                  </Link>
+                  </button>
 
                   <button
                     type="button"
@@ -285,12 +303,14 @@ export default function JobOpenings() {
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-4 sm:items-center">
           <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
             <h3 className="text-lg font-semibold text-slate-900">
-              Continue your application
+              {promptAction === "view"
+                ? "Login to view the description"
+                : "Continue your application"}
             </h3>
 
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Register or log in first, then complete your profile before
-              applying to {promptJob.title}.
+              Login or sign up first to {promptAction === "view" ? "view" : "apply to"}{" "}
+              {promptJob.title}.
             </p>
 
             <div className="mt-5 flex flex-col gap-2 sm:flex-row">
@@ -299,12 +319,12 @@ export default function JobOpenings() {
                 className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-[#0056b3] px-4 font-semibold text-white transition hover:bg-[#003a78]"
                 onClick={() => setPromptJob(null)}
               >
-                Register
+                Sign Up
               </Link>
 
               <Link
                 to={`/login?next=${encodeURIComponent(
-                  `/profile?jobId=${promptJob.id}`
+                  `/jobs/${promptJob.id}`
                 )}`}
                 className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-slate-300 px-4 font-semibold text-slate-700 transition hover:bg-slate-50"
                 onClick={() => setPromptJob(null)}

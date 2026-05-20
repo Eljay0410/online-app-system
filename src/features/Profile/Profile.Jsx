@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Lock, Mail, Pencil, Save, ShieldCheck, User } from "lucide-react";
+import { Lock, Mail, Pencil, User } from "lucide-react";
 import { normalizeRole, useAuth } from "../auth/auth";
-import ApplicantProfile from "../applicant/ApplicantProfile";
 import SuperAdminSidebar from "../../components/layout/SuperAdminSidebar";
 import { apiRequest } from "../../lib/api";
 
@@ -17,6 +16,9 @@ const emptyAccountForm = {
   confirmPassword: "",
 };
 
+const primaryButtonClass =
+  "inline-flex h-9 items-center justify-center rounded-lg bg-blue-700 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-70";
+
 export default function Profile() {
   const { user, updateUser } = useAuth();
 
@@ -30,8 +32,6 @@ export default function Profile() {
   const [passwordNotice, setPasswordNotice] = useState(null);
   const [isSavingAccount, setIsSavingAccount] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
-  const [showApplicantProfileEditor, setShowApplicantProfileEditor] =
-    useState(false);
 
   useEffect(() => {
     setForm((current) => ({
@@ -325,9 +325,8 @@ export default function Profile() {
               type="button"
               onClick={handleSaveAccount}
               disabled={isSavingAccount}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-blue-700 px-5 text-sm font-bold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-70"
+              className={primaryButtonClass}
             >
-              <Save className="h-4 w-4" />
               {isSavingAccount ? "Saving..." : "Save Changes"}
             </button>
           </div>
@@ -386,9 +385,8 @@ export default function Profile() {
               type="button"
               onClick={handleChangePassword}
               disabled={isChangingPassword}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-blue-700 px-5 text-sm font-bold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-70"
+              className={primaryButtonClass}
             >
-              <ShieldCheck className="h-4 w-4" />
               {isChangingPassword ? "Changing..." : "Change Password"}
             </button>
           </div>
@@ -457,36 +455,6 @@ export default function Profile() {
               <InfoItem label="Member Since" value={memberSince} />
             </div>
           </section>
-
-          {isApplicant && (
-            <section className="oas-panel">
-              <div className="oas-panel-header flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="oas-panel-title">Applicant Profile</h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Application details and requirements
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setShowApplicantProfileEditor((current) => !current)
-                  }
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-blue-700 px-5 text-sm font-bold text-white transition hover:bg-blue-800"
-                >
-                  <Pencil className="h-4 w-4" />
-                  {showApplicantProfileEditor ? "Hide Form" : "Update Form"}
-                </button>
-              </div>
-
-              {showApplicantProfileEditor && (
-                <div className="p-4 md:p-6">
-                  <ApplicantProfile embedded />
-                </div>
-              )}
-            </section>
-          )}
 
           {accountSections}
         </div>

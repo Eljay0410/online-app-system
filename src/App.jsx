@@ -13,6 +13,8 @@ import JobOpenings from "./features/jobs/JobOpenings";
 import JobDetails from "./features/jobs/JobDetails";
 
 import ApplicantDashboard from "./features/applicant/ApplicantDashboard";
+import ApplicantInformation from "./features/applicant/ApplicantInformation";
+import ApplicantDocuments from "./features/applicant/ApplicantDocuments";
 import Profile from "./features/Profile/Profile";
 
 import AdminDashboard from "./features/admin/AdminDashboard";
@@ -60,7 +62,10 @@ function App() {
             </GuestRoute>
           }
         />
-        <Route path="/apply" element={<Navigate to="/profile" replace />} />
+        <Route
+          path="/apply"
+          element={<Navigate to="/applicant-information" replace />}
+        />
 
         <Route path="/jobopenings" element={<RedirectToHome />} />
         <Route path="/jobs" element={<RedirectToHome />} />
@@ -81,6 +86,24 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["applicant"]}>
               <ApplicantDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/applicant-information"
+          element={
+            <ProtectedRoute allowedRoles={["applicant"]}>
+              <ApplicantInformation />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/requirements"
+          element={
+            <ProtectedRoute allowedRoles={["applicant"]}>
+              <ApplicantDocuments />
             </ProtectedRoute>
           }
         />

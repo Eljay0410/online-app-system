@@ -60,6 +60,8 @@ export async function listAdminApplications(_req, res) {
         u.last_name,
         jo.title AS job_title,
         jo.location AS job_location,
+        jo.district AS job_district,
+        jo.barangay AS job_barangay,
         jo.deadline AS job_deadline
       FROM job_applications ja
       JOIN users u ON u.id = ja.user_id
@@ -129,6 +131,8 @@ export async function updateApplicationStatus(req, res) {
          u.last_name,
          jo.title AS job_title,
          jo.location AS job_location,
+         jo.district AS job_district,
+         jo.barangay AS job_barangay,
          jo.deadline AS job_deadline
        FROM updated ja
        JOIN users u ON u.id = ja.user_id
@@ -185,6 +189,8 @@ export async function listApplicantApplications(req, res) {
          u.last_name,
          jo.title AS job_title,
          jo.location AS job_location,
+         jo.district AS job_district,
+         jo.barangay AS job_barangay,
          jo.deadline AS job_deadline
        FROM job_applications ja
        JOIN users u ON u.id = ja.user_id
@@ -355,6 +361,8 @@ export async function applyToJob(req, res) {
         last_name: user.last_name,
         job_title: job.title,
         job_location: job.location,
+        job_district: job.district,
+        job_barangay: job.barangay,
         job_deadline: job.deadline,
       }),
     });
@@ -413,6 +421,8 @@ export async function submitApplication(req, res) {
         last_name: user.last_name,
         job_title: job.title,
         job_location: job.location,
+        job_district: job.district,
+        job_barangay: job.barangay,
         job_deadline: job.deadline,
       });
     }

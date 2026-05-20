@@ -23,6 +23,8 @@ function buildJobFilters(query = {}, { publicOnly = false } = {}) {
   const values = [];
   const q = normalizeSearch(query.q || query.search);
   const location = normalizeSearch(query.location || query.school);
+  const district = normalizeSearch(query.district);
+  const barangay = normalizeSearch(query.barangay);
 
   if (publicOnly) {
     conditions.push("status = 'open'");
@@ -46,7 +48,19 @@ function buildJobFilters(query = {}, { publicOnly = false } = {}) {
 
   if (location) {
     values.push(`%${location.toLowerCase()}%`);
-    conditions.push(`LOWER(location) LIKE $${values.length}`);
+    conditions.push(
+      `(LOWER(location) LIKE $${values.length} OR LOWER(district) LIKE $${values.length} OR LOWER(barangay) LIKE $${values.length})`
+    );
+  }
+
+  if (district) {
+    values.push(district.toLowerCase());
+    conditions.push(`LOWER(district) = $${values.length}`);
+  }
+
+  if (barangay) {
+    values.push(barangay.toLowerCase());
+    conditions.push(`LOWER(barangay) = $${values.length}`);
   }
 
   return {
@@ -65,7 +79,7 @@ export async function listOpenJobOpenings(req, res) {
     values.push(limit);
 
     const result = await pool.query(
-      `SELECT id, title, location, vacancy, deadline, status, description, created_at, updated_at
+      `SELECT id, title, location, district, barangay, vacancy, deadline, status, description, created_at, updated_at
        FROM job_openings
        ${where}
        ORDER BY deadline ASC, created_at DESC
@@ -86,7 +100,7 @@ export async function listOpenJobOpenings(req, res) {
 export async function getJobOpening(req, res) {
   try {
     const result = await pool.query(
-      `SELECT id, title, location, vacancy, deadline, status, description, created_at, updated_at
+      `SELECT id, title, location, district, barangay, vacancy, deadline, status, description, created_at, updated_at
        FROM job_openings
        WHERE id = $1
          AND status = 'open'
@@ -125,7 +139,7 @@ export async function listAdminJobOpenings(req, res) {
     values.push(limit);
 
     const result = await pool.query(
-      `SELECT id, title, location, vacancy, deadline, status, description, created_at, updated_at
+      `SELECT id, title, location, district, barangay, vacancy, deadline, status, description, created_at, updated_at
        FROM job_openings
        ${where}
        ORDER BY created_at DESC
@@ -173,16 +187,20 @@ export async function deleteJobOpening(req, res) {
 
 export async function createJobOpening(req, res) {
   const title = String(req.body?.title || "").trim();
-  const location = String(req.body?.location || "").trim();
+  const district = String(req.body?.district || "").trim();
+  const barangay = String(req.body?.barangay || "").trim();
+  const location = String(
+    req.body?.location || [barangay, district].filter(Boolean).join(", ")
+  ).trim();
   const vacancy = Number.parseInt(req.body?.vacancy || "1", 10);
   const deadline = String(req.body?.deadline || "").trim();
   const status = String(req.body?.status || "open").toLowerCase();
   const description = String(req.body?.description || "").trim();
 
-  if (!title || !location || !deadline) {
+  if (!title || !district || !barangay || !deadline) {
     return res.status(400).json({
       success: false,
-      message: "Title, school/location, and expiration date are required.",
+      message: "Title, district, barangay, and expiration date are required.",
     });
   }
 
@@ -210,12 +228,14 @@ export async function createJobOpening(req, res) {
   try {
     const result = await pool.query(
       `INSERT INTO job_openings
-        (title, location, vacancy, deadline, status, description, created_by, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
-       RETURNING id, title, location, vacancy, deadline, status, description, created_at, updated_at`,
+        (title, location, district, barangay, vacancy, deadline, status, description, created_by, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
+       RETURNING id, title, location, district, barangay, vacancy, deadline, status, description, created_at, updated_at`,
       [
         title,
         location,
+        district,
+        barangay,
         vacancy,
         deadline,
         status,
@@ -247,6 +267,14 @@ export async function updateJobOpening(req, res) {
       req.body?.location === undefined
         ? undefined
         : String(req.body.location || "").trim(),
+    district:
+      req.body?.district === undefined
+        ? undefined
+        : String(req.body.district || "").trim(),
+    barangay:
+      req.body?.barangay === undefined
+        ? undefined
+        : String(req.body.barangay || "").trim(),
     vacancy:
       req.body?.vacancy === undefined
         ? undefined
@@ -292,18 +320,22 @@ export async function updateJobOpening(req, res) {
     const result = await pool.query(
       `UPDATE job_openings
        SET title = COALESCE($2, title),
-           location = COALESCE($3, location),
-           vacancy = COALESCE($4, vacancy),
-           deadline = COALESCE($5, deadline),
-           status = COALESCE($6, status),
-           description = COALESCE($7, description),
-           updated_at = NOW()
-       WHERE id = $1
-       RETURNING id, title, location, vacancy, deadline, status, description, created_at, updated_at`,
+            location = COALESCE($3, location),
+            district = COALESCE($4, district),
+            barangay = COALESCE($5, barangay),
+            vacancy = COALESCE($6, vacancy),
+            deadline = COALESCE($7, deadline),
+            status = COALESCE($8, status),
+            description = COALESCE($9, description),
+            updated_at = NOW()
+        WHERE id = $1
+        RETURNING id, title, location, district, barangay, vacancy, deadline, status, description, created_at, updated_at`,
       [
         req.params.id,
         updates.title || null,
         updates.location || null,
+        updates.district || null,
+        updates.barangay || null,
         updates.vacancy ?? null,
         updates.deadline || null,
         updates.status || null,

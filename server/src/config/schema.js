@@ -48,6 +48,12 @@ export async function ensureDatabaseSchema() {
   `);
 
   await pool.query(`
+    ALTER TABLE job_openings
+      ADD COLUMN IF NOT EXISTS district VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS barangay VARCHAR(120);
+  `);
+
+  await pool.query(`
     ALTER TABLE job_applications
       ADD COLUMN IF NOT EXISTS review_notes TEXT;
   `);

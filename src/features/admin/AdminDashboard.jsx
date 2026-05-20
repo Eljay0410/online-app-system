@@ -17,10 +17,13 @@ import {
 } from "lucide-react";
 import { apiRequest } from "../../lib/api";
 import SuperAdminSidebar from "../../components/layout/SuperAdminSidebar";
+import { sjdmDistricts } from "../../lib/sjdmLocations";
 
 const emptyJob = {
   title: "",
   location: "",
+  district: "",
+  barangay: "",
   vacancy: 1,
   deadline: "",
   status: "open",
@@ -177,6 +180,7 @@ export default function AdminDashboard() {
         method: "POST",
         body: JSON.stringify({
           ...form,
+          location: [form.barangay, form.district].filter(Boolean).join(", "),
           vacancy: Number(form.vacancy),
         }),
       });
@@ -572,6 +576,11 @@ function DashboardCard({
 }
 
 function PostJobSection({ form, handleFormChange, createJob, isSaving }) {
+  const selectedDistrict = sjdmDistricts.find(
+    (district) => district.name === form.district
+  );
+  const barangays = selectedDistrict?.barangays || [];
+
   return (
     <section className="oas-panel p-6">
       <div className="mb-5 flex items-center gap-2">
@@ -589,13 +598,41 @@ function PostJobSection({ form, handleFormChange, createJob, isSaving }) {
           required
         />
 
-        <input
-          value={form.location}
-          onChange={(event) => handleFormChange("location", event.target.value)}
-          placeholder="School / location"
-          className="h-11 rounded-xl border border-slate-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          required
-        />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <select
+            value={form.district}
+            onChange={(event) => {
+              handleFormChange("district", event.target.value);
+              handleFormChange("barangay", "");
+            }}
+            className="h-11 rounded-xl border border-slate-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            required
+          >
+            <option value="">Select district</option>
+            {sjdmDistricts.map((district) => (
+              <option key={district.name} value={district.name}>
+                {district.name}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={form.barangay}
+            onChange={(event) =>
+              handleFormChange("barangay", event.target.value)
+            }
+            disabled={!form.district}
+            className="h-11 rounded-xl border border-slate-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
+            required
+          >
+            <option value="">Select barangay</option>
+            {barangays.map((barangay) => (
+              <option key={barangay} value={barangay}>
+                {barangay}
+              </option>
+            ))}
+          </select>
+        </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <input

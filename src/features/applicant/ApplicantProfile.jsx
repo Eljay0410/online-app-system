@@ -2,7 +2,6 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CheckCircle2, Edit3, Save, X } from "lucide-react";
 import BackButton from "../../components/ui/BackButton";
 import { apiRequest } from "../../lib/api";
 import { getStoredUser, storeUser, useAuth } from "../auth/auth";
@@ -108,14 +107,30 @@ const steps = [
   { id: 5, title: "ATTACHMENT", key: "jobPosition" },
 ];
 
-export default function ApplicantProfile({ embedded = false }) {
+const primaryButtonClass =
+  "inline-flex h-9 items-center justify-center rounded-lg bg-[#0056b3] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#003a78] disabled:cursor-not-allowed disabled:opacity-70";
+
+const secondaryButtonClass =
+  "inline-flex h-9 items-center justify-center rounded-lg bg-slate-100 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-200";
+
+export default function ApplicantProfile({
+  embedded = false,
+  mode = "full",
+  autoEdit = false,
+}) {
   const { updateUser } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState(defaultProfile);
   const [formData, setFormData] = useState(defaultProfile);
-  const [currentStep, setCurrentStep] = useState(1);
-  const [isEditing, setIsEditing] = useState(false);
+  const [currentStep, setCurrentStep] = useState(mode === "documents" ? 5 : 1);
+  const [isEditing, setIsEditing] = useState(autoEdit);
   const [isSaving, setIsSaving] = useState(false);
+  const visibleSteps =
+    mode === "information"
+      ? steps.filter((step) => step.id < 5)
+      : mode === "documents"
+      ? steps.filter((step) => step.id === 5)
+      : steps;
 
   useEffect(() => {
     let isMounted = true;
@@ -246,31 +261,32 @@ export default function ApplicantProfile({ embedded = false }) {
     setIsEditing(false);
   };
 
-  const handleSave = async () => {
+  const handleSave = async (profileOverride) => {
     if (isSaving) return;
     setIsSaving(true);
+    const sourceProfile = profileOverride || formData;
 
     const completedAt = new Date().toISOString();
     const finalProfile = {
-      ...formData,
+      ...sourceProfile,
       applicationDetails: {
-        ...(formData.applicationDetails || {}),
+        ...(sourceProfile.applicationDetails || {}),
         completedAt,
       },
       personalInfo: {
-        ...formData.personalInfo,
-        soloParentIdNumber: formData.personalInfo.isSoloParent
-          ? formData.personalInfo.soloParentIdNumber
+        ...sourceProfile.personalInfo,
+        soloParentIdNumber: sourceProfile.personalInfo.isSoloParent
+          ? sourceProfile.personalInfo.soloParentIdNumber
           : "",
-        pwdIdNumber: formData.personalInfo.isPwd
-          ? formData.personalInfo.pwdIdNumber
+        pwdIdNumber: sourceProfile.personalInfo.isPwd
+          ? sourceProfile.personalInfo.pwdIdNumber
           : "",
       },
       jobPosition: {
-        ...formData.jobPosition,
+        ...sourceProfile.jobPosition,
         files: {
           ...defaultFiles,
-          ...(formData.jobPosition.files || {}),
+          ...(sourceProfile.jobPosition.files || {}),
         },
       },
     };
@@ -303,8 +319,11 @@ export default function ApplicantProfile({ embedded = false }) {
       const storedUser = getStoredUser?.();
       const userPatch = {
         firstName: merged.personalInfo.firstName,
+        middleName: merged.personalInfo.middleName,
+        noMiddleName: Boolean(merged.personalInfo.noMiddleName),
         lastName: merged.personalInfo.lastName,
         email: merged.personalInfo.emailAddress,
+        contactNumber: merged.personalInfo.contactNumber,
         profileComplete: Boolean(result.profileComplete),
         uan: result.uan || storedUser?.uan,
       };
@@ -317,7 +336,9 @@ export default function ApplicantProfile({ embedded = false }) {
       }
 
       updateUser?.(userPatch);
-      setIsEditing(false);
+      if (!autoEdit) {
+        setIsEditing(false);
+      }
     } catch (error) {
       console.error("Failed to save applicant profile:", error);
     } finally {
@@ -326,8 +347,10 @@ export default function ApplicantProfile({ embedded = false }) {
   };
 
   const handleStepBack = () => {
-    if (currentStep > 1) {
-      setCurrentStep((prev) => Math.max(1, prev - 1));
+    const currentIndex = visibleSteps.findIndex((step) => step.id === currentStep);
+
+    if (currentIndex > 0) {
+      setCurrentStep(visibleSteps[currentIndex - 1].id);
       return;
     }
 
@@ -382,27 +405,18 @@ export default function ApplicantProfile({ embedded = false }) {
               status={profile.accountDetails.accountStatus}
               applicantNumber={profile.accountDetails.applicantNumber}
             />
-
-            <div className="mb-4 mt-6">
-              <h1 className="oas-page-title">
-                Applicant Profile
-              </h1>
-              <p className="oas-page-description">
-                Profile details and requirements
-              </p>
-            </div>
           </>
         )}
 
         <div className="mt-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 md:p-6">
+            {!autoEdit && (
             <div className="no-print mb-5 flex justify-end">
               {!isEditing ? (
                 <button
                   type="button"
                   onClick={handleEdit}
-                  className="inline-flex items-center gap-2 rounded-xl bg-[#0056b3] px-7 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
+                  className={primaryButtonClass}
                 >
-                  <Edit3 size={16} />
                   Update
                 </button>
               ) : (
@@ -410,34 +424,41 @@ export default function ApplicantProfile({ embedded = false }) {
                   <button
                     type="button"
                     onClick={handleCancel}
-                    className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-200"
+                    className={secondaryButtonClass}
                   >
-                    <X size={16} />
                     Cancel
                   </button>
 
                   <button
                     type="button"
-                    onClick={handleSave}
+                    onClick={() => handleSave()}
                     disabled={isSaving}
-                    className="inline-flex items-center gap-2 rounded-xl bg-[#0056b3] px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
+                    className={primaryButtonClass}
                   >
-                    <Save size={16} />
                     {isSaving ? "Saving..." : "Save"}
                   </button>
                 </div>
               )}
             </div>
+            )}
 
-            <div className="grid grid-cols-1 gap-8 lg:grid-cols-[300px_1fr]">
-              <VerticalStepper
-                steps={steps}
-                currentStep={currentStep}
-                setCurrentStep={setCurrentStep}
-              />
+            <div
+              className={
+                mode === "documents"
+                  ? "grid grid-cols-1"
+                  : "grid grid-cols-1 gap-8 lg:grid-cols-[300px_1fr]"
+              }
+            >
+              {mode !== "documents" && (
+                <VerticalStepper
+                  steps={visibleSteps}
+                  currentStep={currentStep}
+                  setCurrentStep={setCurrentStep}
+                />
+              )}
 
               <div className="min-h-[540px] rounded-2xl bg-slate-50 p-6 ring-1 ring-slate-200 md:p-10">
-                {currentStep > 1 && (
+                {visibleSteps.findIndex((step) => step.id === currentStep) > 0 && (
                   <BackButton
                     onClick={handleStepBack}
                     className="mb-4"
@@ -446,7 +467,7 @@ export default function ApplicantProfile({ embedded = false }) {
                 )}
 
                 <h2 className="oas-page-title mb-8 uppercase text-[#003a78]">
-                  {steps.find((s) => s.id === currentStep)?.title}
+                  {visibleSteps.find((s) => s.id === currentStep)?.title}
                 </h2>
 
                 <RenderStepContent
@@ -455,6 +476,9 @@ export default function ApplicantProfile({ embedded = false }) {
                   formData={formData}
                   updateFormData={updateFormData}
                   isEditing={isEditing}
+                  onSave={handleSave}
+                  isSaving={isSaving}
+                  steps={visibleSteps}
                 />
               </div>
             </div>
@@ -470,7 +494,19 @@ function RenderStepContent({
   formData,
   updateFormData,
   isEditing,
+  onSave,
+  isSaving,
+  steps,
 }) {
+  const currentIndex = steps.findIndex((step) => step.id === currentStep);
+  const nextStep = steps[currentIndex + 1]?.id;
+  const footerLabel = nextStep ? "Next Step" : "Save Changes";
+  const saveWithSection = (section, data) =>
+    onSave?.({
+      ...formData,
+      [section]: data,
+    });
+
   switch (currentStep) {
     case 1:
       return (
@@ -480,8 +516,13 @@ function RenderStepContent({
           onChange={(data) => updateFormData("personalInfo", data)}
           onNext={(data) => {
             updateFormData("personalInfo", data);
-            setCurrentStep(2);
+            if (nextStep) {
+              setCurrentStep(nextStep);
+            } else {
+              saveWithSection("personalInfo", data);
+            }
           }}
+          footerLabel={footerLabel}
         />
       );
 
@@ -493,8 +534,13 @@ function RenderStepContent({
           onChange={(data) => updateFormData("educationalBackground", data)}
           onNext={(data) => {
             updateFormData("educationalBackground", data);
-            setCurrentStep(3);
+            if (nextStep) {
+              setCurrentStep(nextStep);
+            } else {
+              saveWithSection("educationalBackground", data);
+            }
           }}
+          footerLabel={footerLabel}
         />
       );
 
@@ -506,8 +552,13 @@ function RenderStepContent({
           onChange={(data) => updateFormData("eligibility", data)}
           onNext={(data) => {
             updateFormData("eligibility", data);
-            setCurrentStep(4);
+            if (nextStep) {
+              setCurrentStep(nextStep);
+            } else {
+              saveWithSection("eligibility", data);
+            }
           }}
+          footerLabel={footerLabel}
         />
       );
 
@@ -519,8 +570,13 @@ function RenderStepContent({
           onChange={(data) => updateFormData("learningDevelopment", data)}
           onNext={(data) => {
             updateFormData("learningDevelopment", data);
-            setCurrentStep(5);
+            if (nextStep) {
+              setCurrentStep(nextStep);
+            } else {
+              saveWithSection("learningDevelopment", data);
+            }
           }}
+          footerLabel={footerLabel}
         />
       );
 
@@ -531,7 +587,7 @@ function RenderStepContent({
           disabled={!isEditing}
           onChange={(data) => updateFormData("jobPosition", data)}
           onNext={(data) => updateFormData("jobPosition", data)}
-          onSave={handleSave}
+          onSave={(data) => saveWithSection("jobPosition", data)}
           isSaving={isSaving}
         />
       );
@@ -554,17 +610,9 @@ function ProfileHeader({ initials, fullName, status, applicantNumber }) {
           </div>
 
           <div className="min-w-0 flex-1 text-white">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/75">
-              Applicant Profile
-            </p>
-
             <h1 className="mt-2 text-xl font-extrabold md:text-2xl">
               {fullName}
             </h1>
-
-            <p className="mt-1 text-xs text-white/80">
-              Profile details and uploads
-            </p>
           </div>
 
           <div className="grid w-full max-w-sm gap-2 md:w-72">
@@ -599,14 +647,14 @@ function VerticalStepper({ steps, currentStep, setCurrentStep }) {
                   key={step.id}
                   type="button"
                   onClick={() => setCurrentStep(step.id)}
-                  className={`relative flex w-full items-center gap-4 rounded-xl px-3 py-3 text-left transition ${
+                  className={`relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition ${
                     isActive
                       ? "bg-slate-50 shadow-sm ring-1 ring-slate-200"
                       : "hover:bg-slate-50"
                   }`}
                 >
                   <span
-                    className={`relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold transition ${
+                    className={`relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold transition ${
                       isDone
                         ? "border-green-500 bg-green-500 text-white"
                         : isActive
@@ -614,7 +662,7 @@ function VerticalStepper({ steps, currentStep, setCurrentStep }) {
                         : "border-slate-300 bg-white text-slate-500"
                     }`}
                   >
-                    {isDone ? <CheckCircle2 size={20} /> : step.id}
+                    {step.id}
                   </span>
 
                   <span className="min-w-0">
@@ -689,7 +737,13 @@ function mergeProfile(baseProfile, parsedProfile) {
 
 /* ================= PERSONAL INFO ================= */
 
-function PersonalInfo({ data = {}, onChange, onNext, disabled = false }) {
+function PersonalInfo({
+  data = {},
+  onChange,
+  onNext,
+  disabled = false,
+  footerLabel = "Next Step",
+}) {
   const [errors, setErrors] = useState({});
   const [personal, setPersonal] = useState({
     firstName: data.firstName || "",
@@ -1205,14 +1259,20 @@ function PersonalInfo({ data = {}, onChange, onNext, disabled = false }) {
         </div>
       </div>
 
-      <StepFooter onNextSubmit />
+      <StepFooter onNextSubmit label={footerLabel} />
     </form>
   );
 }
 
 /* ================= EDUCATION ================= */
 
-function EducationalBackground({ data, onChange, onNext, disabled = false }) {
+function EducationalBackground({
+  data,
+  onChange,
+  onNext,
+  disabled = false,
+  footerLabel = "Next Step",
+}) {
   const [education, setEducation] = useState({
     bachelors: data?.bachelors || [
       { school: "", course: "", year: "", award: "" },
@@ -1295,7 +1355,7 @@ function EducationalBackground({ data, onChange, onNext, disabled = false }) {
         onRemove={() => removeItem("postGraduate")}
       />
 
-      <StepFooter onNextSubmit />
+      <StepFooter onNextSubmit label={footerLabel} />
     </form>
   );
 }
@@ -1386,7 +1446,13 @@ function EducationGroup({
 
 /* ================= ELIGIBILITY ================= */
 
-function Eligibility({ data, onChange, onNext, disabled = false }) {
+function Eligibility({
+  data,
+  onChange,
+  onNext,
+  disabled = false,
+  footerLabel = "Next Step",
+}) {
   const [eligibility, setEligibility] = useState({
     eligibilities: data?.eligibilities || [
       {
@@ -1667,14 +1733,20 @@ function Eligibility({ data, onChange, onNext, disabled = false }) {
         )}
       </div>
 
-      <StepFooter onNextSubmit />
+      <StepFooter onNextSubmit label={footerLabel} />
     </form>
   );
 }
 
 /* ================= LEARNING DEVELOPMENT ================= */
 
-function LearningDevelopment({ data, onChange, onNext, disabled = false }) {
+function LearningDevelopment({
+  data,
+  onChange,
+  onNext,
+  disabled = false,
+  footerLabel = "Next Step",
+}) {
   const [learning, setLearning] = useState({
     trainings: data?.trainings || [
       {
@@ -1836,7 +1908,7 @@ function LearningDevelopment({ data, onChange, onNext, disabled = false }) {
         )}
       </div>
 
-      <StepFooter onNextSubmit />
+      <StepFooter onNextSubmit label={footerLabel} />
     </form>
   );
 }
@@ -1966,21 +2038,30 @@ function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false
 
   const handleFileChange = (field, file) => {
     if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      window.alert("Please upload a file smaller than 5 MB.");
+      return;
+    }
 
-    const safeFile = {
-      name: file.name,
-      size: file.size,
-      type: file.type,
-      lastModified: file.lastModified,
+    const reader = new FileReader();
+    reader.onload = () => {
+      const safeFile = {
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        lastModified: file.lastModified,
+        dataUrl: reader.result,
+      };
+
+      sync({
+        ...job,
+        files: {
+          ...job.files,
+          [field]: safeFile,
+        },
+      });
     };
-
-    sync({
-      ...job,
-      files: {
-        ...job.files,
-        [field]: safeFile,
-      },
-    });
+    reader.readAsDataURL(file);
   };
 
   const handleRemoveFile = (field) => {
@@ -2010,7 +2091,7 @@ function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false
   const handleSubmit = (e) => {
     e.preventDefault();
     onNext?.(job);
-    onSave?.();
+    onSave?.(job);
   };
 
   return (
@@ -2116,7 +2197,7 @@ function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false
           <button
             type="submit"
             disabled={isSaving}
-            className="rounded-xl bg-[#0056b3] px-6 py-2 font-bold text-white transition hover:bg-[#003a78] disabled:cursor-not-allowed disabled:opacity-70"
+            className={primaryButtonClass}
           >
             {isSaving ? "Saving..." : "Save Profile"}
           </button>
@@ -2157,23 +2238,36 @@ function FileUpload({
           >
             {!file ? (
               <span className="text-sm text-slate-500">
-                Click to upload file
+                Upload document
               </span>
             ) : (
               <span className="px-2 text-center text-sm font-medium text-green-600">
-                Uploaded: {file.name}
+                {file.name}
               </span>
             )}
           </label>
 
           {file && (
-            <button
-              type="button"
-              onClick={() => onRemoveFile(field)}
-              className="text-sm font-semibold text-red-600 hover:underline"
-            >
-              Remove Attachment
-            </button>
+            <div className="flex flex-wrap gap-3 text-sm">
+              {file.dataUrl && (
+                <a
+                  href={file.dataUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-semibold text-blue-700 hover:underline"
+                >
+                  View document
+                </a>
+              )}
+
+              <button
+                type="button"
+                onClick={() => onRemoveFile(field)}
+                className="font-semibold text-red-600 hover:underline"
+              >
+                Remove
+              </button>
+            </div>
           )}
         </>
       )}
@@ -2183,14 +2277,14 @@ function FileUpload({
 
 /* ================= SMALL COMPONENTS ================= */
 
-function StepFooter({ onNextSubmit = false }) {
+function StepFooter({ onNextSubmit = false, label = "Next Step" }) {
   return (
     <div className="flex items-center justify-end pt-6">
       <button
         type={onNextSubmit ? "submit" : "button"}
-        className="rounded-xl bg-[#0056b3] px-6 py-2 font-bold text-white transition hover:bg-[#003a78]"
+        className={primaryButtonClass}
       >
-        Next Step
+        {label}
       </button>
     </div>
   );

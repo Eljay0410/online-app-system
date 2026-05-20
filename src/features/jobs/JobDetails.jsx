@@ -71,7 +71,7 @@ export default function JobDetails() {
     }
 
     if (user.profileComplete === false) {
-      navigate("/profile");
+      navigate(`/applicant-information?jobId=${jobId}`);
       return;
     }
 
@@ -184,10 +184,10 @@ export default function JobDetails() {
                 className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-[#0056b3] px-4 font-semibold text-white transition hover:bg-[#003a78]"
                 onClick={() => setShowPrompt(false)}
               >
-                Register
+                Sign Up
               </Link>
               <Link
-                to={`/login?next=${encodeURIComponent(`/profile?jobId=${jobId}`)}`}
+                to={`/login?next=${encodeURIComponent(`/jobs/${jobId}`)}`}
                 className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-slate-300 px-4 font-semibold text-slate-700 transition hover:bg-slate-50"
                 onClick={() => setShowPrompt(false)}
               >

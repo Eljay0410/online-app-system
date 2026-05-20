@@ -44,7 +44,7 @@ const Navbar = () => {
         {/* Left Branding */}
         <Link
           to={homePath}
-          className="flex h-full w-[300px] shrink-0 flex-col justify-center px-3 leading-tight sm:w-[360px] md:w-[420px]"
+          className="flex h-full w-[300px] shrink-0 flex-col justify-center pl-6 pr-3 leading-tight sm:w-[360px] sm:pl-8 md:w-[420px] lg:pl-10"
         >
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/70 sm:text-[11px]">
             Department of Education
@@ -63,7 +63,7 @@ const Navbar = () => {
 
         {/* Desktop Right Side */}
         <div className="hidden h-full items-center justify-end md:flex">
-          <div className="flex h-full items-center gap-8 px-5">
+          <div className="flex h-full items-center gap-10 px-8">
             {!isLoggedIn && (
               <>
                 <Link
@@ -77,7 +77,7 @@ const Navbar = () => {
                   Job Listing
                 </Link>
 
-                <div className="ml-2 flex items-center gap-3">
+                <div className="ml-4 flex items-center gap-4">
                   <Link
                     to="/register"
                     className="px-3 py-2 text-sm font-semibold text-white transition hover:text-black"

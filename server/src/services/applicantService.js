@@ -217,7 +217,7 @@ export async function createJobApplicationFromProfile(
   }
 
   const jobResult = await client.query(
-    `SELECT id, title, location, vacancy, deadline, status, description
+    `SELECT id, title, location, district, barangay, vacancy, deadline, status, description
      FROM job_openings
      WHERE id = $1
      LIMIT 1`,
@@ -285,6 +285,8 @@ export async function createJobApplicationFromProfile(
           id: job.id,
           title: job.title,
           location: job.location,
+          district: job.district,
+          barangay: job.barangay,
           deadline: job.deadline,
         },
         submittedAt: new Date().toISOString(),

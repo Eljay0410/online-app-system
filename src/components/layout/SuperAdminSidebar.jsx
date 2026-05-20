@@ -8,6 +8,7 @@ import {
   User,
   UserCog,
   UserPlus,
+  Users,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -32,6 +33,20 @@ const roleNavItems = {
       mobileLabel: "Apps",
       icon: ClipboardList,
       path: "/applications",
+    },
+    {
+      id: "applicant-info",
+      label: "Applicant Information",
+      mobileLabel: "Info",
+      icon: UserCog,
+      path: "/applicant-information",
+    },
+    {
+      id: "documents",
+      label: "Requirements / Documents",
+      mobileLabel: "Docs",
+      icon: ClipboardList,
+      path: "/requirements",
     },
   ],
   admin: [
@@ -72,15 +87,15 @@ const roleNavItems = {
       path: "/superadmin",
     },
     {
-      id: "create-admin",
-      label: "Create Admin",
-      mobileLabel: "Create",
-      icon: UserPlus,
+      id: "user-management",
+      label: "User Management",
+      mobileLabel: "Users",
+      icon: Users,
       path: "/superadmin",
     },
     {
-      id: "management-accounts",
-      label: "Management Accounts",
+      id: "office-management",
+      label: "Office Management",
       mobileLabel: "Accounts",
       icon: UserCog,
       path: "/superadmin",
@@ -165,11 +180,11 @@ export default function SuperAdminSidebar({
                   type="button"
                   onClick={() => selectItem(item)}
                   title={collapsed ? item.label : ""}
-                  className={`group flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all duration-200 ${
+                  className={`group flex w-full items-center gap-4 rounded-2xl py-3 text-left transition-all duration-200 ${
                     isActive
                       ? "bg-blue-700 text-white shadow-sm"
                       : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
-                  } ${collapsed ? "justify-center px-0" : ""}`}
+                  } ${collapsed ? "justify-center px-0" : "px-5"}`}
                 >
                   <Icon
                     className={`h-5 w-5 shrink-0 ${
@@ -194,12 +209,12 @@ export default function SuperAdminSidebar({
               type="button"
               onClick={() => navigate("/profile")}
               title={collapsed ? "Profile" : ""}
-              className={`group flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all duration-200 ${
+              className={`group flex w-full items-center gap-4 rounded-2xl py-3 text-left transition-all duration-200 ${
                 isProfileActive
                   ? "bg-blue-700 text-white shadow-sm"
                   : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
               } ${
-                collapsed ? "justify-center px-0" : ""
+                collapsed ? "justify-center px-0" : "px-5"
               }`}
             >
               <User
@@ -219,8 +234,8 @@ export default function SuperAdminSidebar({
               type="button"
               onClick={handleLogout}
               title={collapsed ? "Logout" : ""}
-              className={`group flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-red-600 transition-all duration-200 hover:bg-red-50 ${
-                collapsed ? "justify-center px-0" : ""
+              className={`group flex w-full items-center gap-4 rounded-2xl py-3 text-left text-red-600 transition-all duration-200 hover:bg-red-50 ${
+                collapsed ? "justify-center px-0" : "px-5"
               }`}
             >
               <LogOut className="h-5 w-5 shrink-0" />
