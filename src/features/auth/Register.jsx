@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { apiRequest } from "../../lib/api";
 import BackButton from "../../components/ui/BackButton";
 import imageSample from "../../assets/imagesample.svg";
+import { useToast } from "../../components/ui/toastContext";
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const contactPattern = /^09\d{9}$/;
@@ -11,6 +12,7 @@ const contactPattern = /^09\d{9}$/;
 export default function Register() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { showToast } = useToast();
   const prefilledEmail =
     typeof location.state?.email === "string" ? location.state.email : "";
 
@@ -25,7 +27,6 @@ export default function Register() {
 
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [message, setMessage] = useState("");
   const [success, setSuccess] = useState(false);
 
   const setField = (field, value) => {
@@ -66,9 +67,14 @@ export default function Register() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    setMessage("");
 
-    if (!validate()) return;
+    if (!validate()) {
+      showToast({
+        type: "warning",
+        message: "Please complete the highlighted registration fields.",
+      });
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -82,10 +88,12 @@ export default function Register() {
       });
 
       setSuccess(true);
-      setMessage(
-        result.message ||
-          "Account created. Please verify your email before logging in."
-      );
+      showToast({
+        type: "success",
+        message:
+          result.message ||
+          "Account created. Please verify your email before logging in.",
+      });
     } catch (error) {
       const errorMessage = error.message || "Failed to create account.";
 
@@ -98,10 +106,11 @@ export default function Register() {
           ...current,
           email: errorMessage,
         }));
-        setMessage("");
       } else {
-        setMessage(errorMessage);
+        setErrors({});
       }
+
+      showToast({ type: "error", message: errorMessage });
     } finally {
       setIsSubmitting(false);
     }
@@ -138,18 +147,6 @@ export default function Register() {
                   </p>
                 </div>
               </div>
-
-              {message && (
-                <div
-                  className={`mt-5 rounded-lg border px-3 py-2 text-[12px] font-medium ${
-                    success
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                      : "border-amber-200 bg-amber-50 text-amber-800"
-                  }`}
-                >
-                  {message}
-                </div>
-              )}
 
               {!success ? (
                 <form
@@ -260,7 +257,6 @@ export default function Register() {
                     type="button"
                     onClick={() => {
                       setSuccess(false);
-                      setMessage("");
                     }}
                     className="inline-flex h-[44px] w-full items-center justify-center rounded-lg bg-slate-100 text-[14px] font-semibold text-slate-700 transition hover:bg-slate-200"
                   >

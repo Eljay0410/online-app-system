@@ -8,10 +8,12 @@ import {
 } from "lucide-react";
 import { apiRequest } from "../../lib/api";
 import BackButton from "../../components/ui/BackButton";
+import { useToast } from "../../components/ui/toastContext";
 
 export default function ActivateAccount() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { showToast } = useToast();
   const token = useMemo(() => searchParams.get("token") || "", [searchParams]);
   const [purpose, setPurpose] = useState("");
   const [alreadyActive, setAlreadyActive] = useState(false);
@@ -23,14 +25,13 @@ export default function ActivateAccount() {
   const [isLoading, setIsLoading] = useState(Boolean(token));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDone, setIsDone] = useState(false);
-  const [message, setMessage] = useState("");
 
   useEffect(() => {
     let isMounted = true;
 
     async function loadToken() {
       if (!token) {
-        setErrors({ form: "Missing activation token." });
+        showToast({ type: "error", message: "Missing activation token." });
         setIsLoading(false);
         return;
       }
@@ -42,7 +43,10 @@ export default function ActivateAccount() {
         setAlreadyActive(Boolean(result.alreadyActive));
       } catch (error) {
         if (!isMounted) return;
-        setErrors({ form: error.message || "Invalid or expired link." });
+        showToast({
+          type: "error",
+          message: error.message || "Invalid or expired link.",
+        });
       } finally {
         if (isMounted) setIsLoading(false);
       }
@@ -53,7 +57,7 @@ export default function ActivateAccount() {
     return () => {
       isMounted = false;
     };
-  }, [token]);
+  }, [token, showToast]);
 
   const validate = () => {
     const next = {};
@@ -80,11 +84,18 @@ export default function ActivateAccount() {
     return Object.keys(next).length === 0;
   };
 
+  const isAccountSetup = purpose === "password_reset" && !alreadyActive;
+
   const handleSubmit = async (event) => {
     event.preventDefault();
-    setMessage("");
 
-    if (!validate()) return;
+    if (!validate()) {
+      showToast({
+        type: "warning",
+        message: "Please complete the highlighted activation fields.",
+      });
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -98,9 +109,21 @@ export default function ActivateAccount() {
       });
 
       setIsDone(true);
+      showToast({
+        type: "success",
+        message:
+          purpose === "password_reset"
+            ? isAccountSetup
+              ? "Account activated."
+              : "Password updated."
+            : "Email verified.",
+      });
       window.setTimeout(() => navigate("/login", { replace: true }), 1600);
     } catch (error) {
-      setErrors({ form: error.message || "Verification failed." });
+      showToast({
+        type: "error",
+        message: error.message || "Verification failed.",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -116,8 +139,6 @@ export default function ActivateAccount() {
       </main>
     );
   }
-
-  const isAccountSetup = purpose === "password_reset" && !alreadyActive;
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4 pt-24 pb-8">
@@ -233,18 +254,6 @@ export default function ActivateAccount() {
                     }
                   />
                 </>
-              )}
-
-              {errors.form && (
-                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  {errors.form}
-                </div>
-              )}
-
-              {message && (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                  {message}
-                </div>
               )}
 
               <button

@@ -3,6 +3,7 @@ import { Lock, Mail, Pencil, User } from "lucide-react";
 import { normalizeRole, useAuth } from "../auth/auth";
 import SuperAdminSidebar from "../../components/layout/SuperAdminSidebar";
 import { apiRequest } from "../../lib/api";
+import { useToast } from "../../components/ui/toastContext";
 
 const emptyAccountForm = {
   firstName: "",
@@ -21,6 +22,7 @@ const primaryButtonClass =
 
 export default function Profile() {
   const { user, updateUser } = useAuth();
+  const { showToast } = useToast();
 
   const [collapsed, setCollapsed] = useState(false);
 
@@ -28,10 +30,9 @@ export default function Profile() {
   const isApplicant = role === "applicant";
 
   const [form, setForm] = useState(emptyAccountForm);
-  const [accountNotice, setAccountNotice] = useState(null);
-  const [passwordNotice, setPasswordNotice] = useState(null);
   const [isSavingAccount, setIsSavingAccount] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [uan, setUan] = useState("");
 
   useEffect(() => {
     setForm((current) => ({
@@ -55,6 +56,53 @@ export default function Profile() {
     user?.email,
     user?.contactNumber,
   ]);
+
+  useEffect(() => {
+    if (!isApplicant) return;
+
+    const normalizeUan = (value) => String(value || "").trim().toUpperCase();
+
+    if (user?.uan) {
+      setUan(normalizeUan(user.uan));
+      return;
+    }
+
+    try {
+      const fullProfileRaw = localStorage.getItem("applicantFullProfile");
+      if (fullProfileRaw) {
+        const fullProfile = JSON.parse(fullProfileRaw);
+        if (fullProfile?.uan) {
+          setUan(normalizeUan(fullProfile.uan));
+          return;
+        }
+      }
+
+      const profileRaw = localStorage.getItem("applicantProfile");
+      if (profileRaw) {
+        const profile = JSON.parse(profileRaw);
+        if (profile?.uan) {
+          setUan(normalizeUan(profile.uan));
+          return;
+        }
+      }
+    } catch (error) {
+      console.error("Failed to read cached UAN:", error);
+    }
+
+    const loadUan = async () => {
+      try {
+        const result = await apiRequest("/api/applicant/profile");
+        const fetchedUan = result?.profile?.uan || result?.user?.uan;
+        if (fetchedUan) {
+          setUan(normalizeUan(fetchedUan));
+        }
+      } catch (error) {
+        console.error("Failed to load UAN:", error);
+      }
+    };
+
+    loadUan();
+  }, [isApplicant, user?.uan]);
 
   const summaryFirstName = form.firstName || user?.firstName;
   const summaryLastName = form.lastName || user?.lastName;
@@ -80,10 +128,9 @@ export default function Profile() {
       ? "Administrator"
       : "Applicant";
 
+  const uanDisplay = uan ? uan : "Not assigned";
+
   const contentPadding = collapsed ? "lg:pl-20" : "lg:pl-72";
-  const accountStatus = user?.isActive === false ? "Inactive" : "Active";
-  const accountStatusClass =
-    user?.isActive === false ? "text-red-600" : "text-green-600";
   const memberSince = formatDate(user?.createdAt) || "Not available";
 
   const updateField = (field, value) => {
@@ -156,13 +203,35 @@ export default function Profile() {
   const handleSaveAccount = async () => {
     if (isSavingAccount) return;
 
-    setAccountNotice(null);
-
     if (!form.firstName.trim() || !form.lastName.trim() || !form.email.trim()) {
-      setAccountNotice({
+      showToast({
         type: "error",
-        text: "First name, last name, and email address are required.",
+        message: "First name, last name, and email address are required.",
       });
+      return;
+    }
+
+    const payload = {
+      firstName: form.firstName.trim(),
+      middleName: form.noMiddleName ? "" : form.middleName.trim(),
+      noMiddleName: Boolean(form.noMiddleName),
+      lastName: form.lastName.trim(),
+      email: form.email.trim(),
+      contactNumber: form.contactNumber.trim(),
+    };
+    const currentPayload = {
+      firstName: String(user?.firstName || "").trim(),
+      middleName: user?.noMiddleName
+        ? ""
+        : String(user?.middleName || "").trim(),
+      noMiddleName: Boolean(user?.noMiddleName),
+      lastName: String(user?.lastName || "").trim(),
+      email: String(user?.email || "").trim(),
+      contactNumber: String(user?.contactNumber || "").trim(),
+    };
+
+    if (JSON.stringify(payload) === JSON.stringify(currentPayload)) {
+      showToast({ type: "info", message: "No changes were made." });
       return;
     }
 
@@ -171,26 +240,19 @@ export default function Profile() {
     try {
       const result = await apiRequest("/api/auth/profile", {
         method: "PATCH",
-        body: JSON.stringify({
-          firstName: form.firstName,
-          middleName: form.middleName,
-          noMiddleName: form.noMiddleName,
-          lastName: form.lastName,
-          email: form.email,
-          contactNumber: form.contactNumber,
-        }),
+        body: JSON.stringify(payload),
       });
 
       updateUser?.(result.user);
       syncApplicantStorage(result.user);
-      setAccountNotice({
+      showToast({
         type: "success",
-        text: result.message || "Account details updated.",
+        message: result.message || "Account details updated.",
       });
     } catch (error) {
-      setAccountNotice({
+      showToast({
         type: "error",
-        text: error.message || "Failed to update account details.",
+        message: error.message || "Failed to update account details.",
       });
     } finally {
       setIsSavingAccount(false);
@@ -200,24 +262,22 @@ export default function Profile() {
   const handleChangePassword = async () => {
     if (isChangingPassword) return;
 
-    setPasswordNotice(null);
-
     if (
       !form.currentPassword ||
       !form.newPassword ||
       !form.confirmPassword
     ) {
-      setPasswordNotice({
+      showToast({
         type: "error",
-        text: "Current password, new password, and confirmation are required.",
+        message: "Current password, new password, and confirmation are required.",
       });
       return;
     }
 
     if (form.newPassword !== form.confirmPassword) {
-      setPasswordNotice({
+      showToast({
         type: "error",
-        text: "New password and confirmation do not match.",
+        message: "New password and confirmation do not match.",
       });
       return;
     }
@@ -240,14 +300,14 @@ export default function Profile() {
         newPassword: "",
         confirmPassword: "",
       }));
-      setPasswordNotice({
+      showToast({
         type: "success",
-        text: result.message || "Password changed successfully.",
+        message: result.message || "Password changed successfully.",
       });
     } catch (error) {
-      setPasswordNotice({
+      showToast({
         type: "error",
-        text: error.message || "Failed to change password.",
+        message: error.message || "Failed to change password.",
       });
     } finally {
       setIsChangingPassword(false);
@@ -265,14 +325,6 @@ export default function Profile() {
         </div>
 
         <div className="grid gap-5 p-6 md:grid-cols-2">
-          {accountNotice && (
-            <Notice
-              type={accountNotice.type}
-              text={accountNotice.text}
-              className="md:col-span-2"
-            />
-          )}
-
           <InputField
             label="First Name"
             required
@@ -342,14 +394,6 @@ export default function Profile() {
         </div>
 
         <div className="grid gap-5 p-6 md:grid-cols-2">
-          {passwordNotice && (
-            <Notice
-              type={passwordNotice.type}
-              text={passwordNotice.text}
-              className="md:col-span-2"
-            />
-          )}
-
           <div className="md:col-span-2">
             <InputField
               label="Current Password"
@@ -432,6 +476,17 @@ export default function Profile() {
                   <span className="mt-2 inline-flex rounded bg-white/20 px-2 py-1 text-[11px] font-bold uppercase tracking-wide">
                     {roleLabel}
                   </span>
+
+                  {isApplicant && (
+                    <div className="mt-3 px-3 py-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/70">
+                      UAN
+                    </p>
+                    <p className="mt-1 break-all text-lg font-extrabold tracking-[0.2em] text-white md:text-xl">
+                      {uanDisplay}
+                    </p>
+                  </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -446,11 +501,7 @@ export default function Profile() {
                 label="Mobile Number"
                 value={form.contactNumber || "No number provided"}
               />
-              <InfoItem
-                label="Account Status"
-                value={accountStatus}
-                valueClassName={accountStatusClass}
-              />
+              {isApplicant && <InfoItem label="UAN" value={uanDisplay} />}
               <InfoItem label="Account Type" value={roleLabel} />
               <InfoItem label="Member Since" value={memberSince} />
             </div>
@@ -470,22 +521,6 @@ function InfoItem({ label, value, valueClassName = "text-slate-900" }) {
         {label}
       </p>
       <p className={`mt-1 text-sm font-semibold ${valueClassName}`}>{value}</p>
-    </div>
-  );
-}
-
-function Notice({ type, text, className = "" }) {
-  const isError = type === "error";
-
-  return (
-    <div
-      className={`rounded-lg border px-4 py-3 text-sm font-medium ${
-        isError
-          ? "border-red-200 bg-red-50 text-red-700"
-          : "border-green-200 bg-green-50 text-green-700"
-      } ${className}`}
-    >
-      {text}
     </div>
   );
 }

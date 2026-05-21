@@ -5,9 +5,26 @@ import { apiRequest } from "../../lib/api";
 import BackButton from "../../components/ui/BackButton";
 import { getAuthenticatedHomePath, normalizeRole, useAuth } from "./auth";
 import imageSample from "../../assets/imagesample.svg";
+import { useToast } from "../../components/ui/toastContext";
 
 const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 const guestRoutes = ["/login", "/register", "/activate"];
+
+function canUseNextPath(user, nextRoute) {
+  if (!nextRoute || guestRoutes.includes(nextRoute)) return false;
+
+  const role = normalizeRole(user?.role);
+
+  if (role === "superadmin") {
+    return nextRoute === "/superadmin" || nextRoute === "/profile";
+  }
+
+  if (role === "admin") {
+    return nextRoute === "/admin" || nextRoute === "/profile";
+  }
+
+  return role === "applicant";
+}
 
 function getSafeNextPath(nextPath) {
   if (!nextPath) return "";
@@ -28,6 +45,7 @@ function getSafeNextPath(nextPath) {
 export default function Login() {
   const navigate = useNavigate();
   const { login } = useAuth();
+  const { showToast } = useToast();
   const [searchParams] = useSearchParams();
 
   const [step, setStep] = useState("email");
@@ -36,7 +54,6 @@ export default function Login() {
 
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
-  const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [resendKind, setResendKind] = useState("verify");
 
@@ -72,14 +89,12 @@ export default function Login() {
 
   const resetFeedback = () => {
     setErrors({});
-    setMessage("");
   };
 
   const goToStep = (nextStep) => {
     setStep(nextStep);
     setShowPassword(false);
     setErrors({});
-    setMessage("");
 
     if (nextStep !== "resend") {
       setResendKind("verify");
@@ -102,7 +117,13 @@ export default function Login() {
     event.preventDefault();
     resetFeedback();
 
-    if (!validateEmailOnly()) return;
+    if (!validateEmailOnly()) {
+      showToast({
+        type: "warning",
+        message: "Please enter a valid email address.",
+      });
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -121,32 +142,39 @@ export default function Login() {
         if (!result.hasPassword) {
           setResendKind("setup");
           goToStep("resend");
-          setMessage(
-            "Finish setting up your account by creating a password. We'll email you the setup link."
-          );
+          showToast({
+            type: "info",
+            message:
+              "Finish setting up your account by creating a password. We'll email you the setup link.",
+          });
           return;
         }
 
         setResendKind("verify");
         goToStep("resend");
-        setMessage(
-          "Please verify your email before logging in. You can resend the verification link below."
-        );
+        showToast({
+          type: "warning",
+          message:
+            "Please verify your email before logging in. You can resend the verification link below.",
+        });
         return;
       }
 
       if (!result.hasPassword) {
         goToStep("forgot");
-        setMessage(
-          "This account does not have a password yet. Use the setup link below to continue."
-        );
+        showToast({
+          type: "info",
+          message:
+            "This account does not have a password yet. Use the setup link below to continue.",
+        });
         return;
       }
 
       goToStep("password");
     } catch (err) {
-      setErrors({
-        form: err.message || "Could not verify the email address.",
+      showToast({
+        type: "error",
+        message: err.message || "Could not verify the email address.",
       });
     } finally {
       setIsSubmitting(false);
@@ -155,9 +183,14 @@ export default function Login() {
 
   const handleLogin = async (event) => {
     event.preventDefault();
-    setMessage("");
 
-    if (!validateLogin()) return;
+    if (!validateLogin()) {
+      showToast({
+        type: "warning",
+        message: "Please complete the highlighted login fields.",
+      });
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -172,10 +205,9 @@ export default function Login() {
       const user = result.user;
       const safeNextPath = getSafeNextPath(searchParams.get("next"));
       const nextRoute = safeNextPath.split("?")[0];
-      const isGuestRoute = guestRoutes.includes(nextRoute);
 
       navigate(
-        safeNextPath && !isGuestRoute
+        canUseNextPath(user, nextRoute)
           ? safeNextPath
           : getAuthenticatedHomePath(user),
         { replace: true }
@@ -187,7 +219,10 @@ export default function Login() {
       if (normalizedMessage.includes("verify")) {
         setResendKind("verify");
         goToStep("resend");
-        setMessage(errorMessage);
+        showToast({
+          type: "warning",
+          message: errorMessage || "Please verify your email before logging in.",
+        });
         return;
       }
 
@@ -196,12 +231,16 @@ export default function Login() {
         normalizedMessage.includes("reset")
       ) {
         goToStep("forgot");
-        setMessage(errorMessage);
+        showToast({
+          type: "warning",
+          message: errorMessage || "Please reset your password to continue.",
+        });
         return;
       }
 
-      setErrors({
-        form: errorMessage || "Login failed. Please try again.",
+      showToast({
+        type: "error",
+        message: errorMessage || "Login failed. Please try again.",
       });
     } finally {
       setIsSubmitting(false);
@@ -210,9 +249,14 @@ export default function Login() {
 
   const handleForgotPassword = async (event) => {
     event.preventDefault();
-    setMessage("");
 
-    if (!validateEmailOnly()) return;
+    if (!validateEmailOnly()) {
+      showToast({
+        type: "warning",
+        message: "Please enter a valid email address.",
+      });
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -222,10 +266,14 @@ export default function Login() {
         body: JSON.stringify({ email }),
       });
 
-      setMessage(result.message || "Password reset instructions were sent.");
+      showToast({
+        type: "success",
+        message: result.message || "Password reset instructions were sent.",
+      });
     } catch (err) {
-      setErrors({
-        form: err.message || "Could not process password reset.",
+      showToast({
+        type: "error",
+        message: err.message || "Could not process password reset.",
       });
     } finally {
       setIsSubmitting(false);
@@ -234,9 +282,14 @@ export default function Login() {
 
   const handleResendActivation = async (event) => {
     event.preventDefault();
-    setMessage("");
 
-    if (!validateEmailOnly()) return;
+    if (!validateEmailOnly()) {
+      showToast({
+        type: "warning",
+        message: "Please enter a valid email address.",
+      });
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -246,10 +299,14 @@ export default function Login() {
         body: JSON.stringify({ email }),
       });
 
-      setMessage(result.message || "Verification email was sent.");
+      showToast({
+        type: "success",
+        message: result.message || "Verification email was sent.",
+      });
     } catch (err) {
-      setErrors({
-        form: err.message || "Could not resend verification email.",
+      showToast({
+        type: "error",
+        message: err.message || "Could not resend verification email.",
       });
     } finally {
       setIsSubmitting(false);
@@ -328,12 +385,6 @@ export default function Login() {
                 </div>
               </div>
 
-              {message && (
-                <div className="mt-5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[12px] font-medium text-emerald-700">
-                  {message}
-                </div>
-              )}
-
               <form
                 onSubmit={submitHandler}
                 className="mt-7 space-y-4"
@@ -382,12 +433,6 @@ export default function Login() {
                       </button>
                     }
                   />
-                )}
-
-                {errors.form && (
-                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
-                    {errors.form}
-                  </div>
                 )}
 
                 {step === "password" && (

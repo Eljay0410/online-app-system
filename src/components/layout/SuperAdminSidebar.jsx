@@ -7,7 +7,6 @@ import {
   LogOut,
   User,
   UserCog,
-  UserPlus,
   Users,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -51,17 +50,17 @@ const roleNavItems = {
   ],
   admin: [
     {
-      id: "post-job",
-      label: "Post Job Opening",
-      mobileLabel: "Post",
-      icon: UserPlus,
+      id: "job-posting",
+      label: "Manage Job Openings",
+      mobileLabel: "Manage",
+      icon: Briefcase,
       path: "/admin",
     },
     {
-      id: "job-posting",
-      label: "Job Posting",
-      mobileLabel: "Posts",
-      icon: Briefcase,
+      id: "positions",
+      label: "Positions",
+      mobileLabel: "Positions",
+      icon: ClipboardList,
       path: "/admin",
     },
     {
@@ -98,6 +97,13 @@ const roleNavItems = {
       label: "Office Management",
       mobileLabel: "Accounts",
       icon: UserCog,
+      path: "/superadmin",
+    },
+    {
+      id: "job-listing",
+      label: "Job Listing",
+      mobileLabel: "Jobs",
+      icon: Briefcase,
       path: "/superadmin",
     },
   ],

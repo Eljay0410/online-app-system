@@ -18,8 +18,7 @@ export default function ApplicantDocuments() {
       <section className="px-4 pb-10 pt-6 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-6xl">
           <header className="mb-5">
-            <p className="oas-page-kicker">Requirements</p>
-            <h1 className="oas-page-title mt-2">Requirements / Documents</h1>
+            <h1 className="oas-page-title">Requirements / Documents</h1>
             <p className="oas-page-description">
               Upload, replace, view, or remove your application documents anytime.
             </p>

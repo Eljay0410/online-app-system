@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import BackButton from "../../components/ui/BackButton";
 import { apiRequest } from "../../lib/api";
+import { useToast } from "../../components/ui/toastContext";
 import { getStoredUser, storeUser, useAuth } from "../auth/auth";
 
 const defaultFiles = {
@@ -91,6 +92,7 @@ const defaultProfile = {
     positionCategory: "",
     positionType: "",
     jobOpeningId: "",
+    requirements: [],
     files: defaultFiles,
   },
   accountDetails: {
@@ -107,6 +109,155 @@ const steps = [
   { id: 5, title: "ATTACHMENT", key: "jobPosition" },
 ];
 
+const normalizeNationalityChoice = (value) =>
+  value === "Others" ? "Foreigner" : value;
+
+const requiresNationalityDetail = (value) =>
+  value === "Dual Citizen" || value === "Foreigner";
+
+const trimValue = (value) => String(value || "").trim();
+
+function normalizePersonalInfo(personal = {}) {
+  const noMiddleName = Boolean(personal.noMiddleName);
+  const nationality = normalizeNationalityChoice(trimValue(personal.nationality));
+  const religion = trimValue(personal.religion);
+  const hasEthnicGroup = Boolean(personal.hasEthnicGroup);
+  const hasDisability = Boolean(personal.hasDisability);
+  const isSoloParent = Boolean(personal.isSoloParent);
+  const isPwd = Boolean(personal.isPwd);
+
+  return {
+    ...personal,
+    firstName: trimValue(personal.firstName),
+    noMiddleName,
+    middleName: noMiddleName ? "" : trimValue(personal.middleName),
+    lastName: trimValue(personal.lastName),
+    suffix: trimValue(personal.suffix),
+    address: trimValue(personal.address),
+    contactNumber: trimValue(personal.contactNumber),
+    emailAddress: trimValue(personal.emailAddress),
+    dob: trimValue(personal.dob),
+    age: personal.age || "",
+    sex: trimValue(personal.sex),
+    civilStatus: trimValue(personal.civilStatus),
+    nationality,
+    nationalityInput: requiresNationalityDetail(nationality)
+      ? trimValue(personal.nationalityInput)
+      : "",
+    religion,
+    religionInput: religion === "Others" ? trimValue(personal.religionInput) : "",
+    hasEthnicGroup,
+    ethnicGroup: hasEthnicGroup ? trimValue(personal.ethnicGroup) : "",
+    hasDisability,
+    disability: hasDisability ? trimValue(personal.disability) : "",
+    isSoloParent,
+    soloParentIdNumber: isSoloParent ? trimValue(personal.soloParentIdNumber) : "",
+    isPwd,
+    pwdIdNumber: isPwd ? trimValue(personal.pwdIdNumber) : "",
+  };
+}
+
+function validatePersonalInfoData(personal = {}) {
+  const normalized = normalizePersonalInfo(personal);
+  const newErrors = {};
+
+  if (!normalized.firstName) newErrors.firstName = "First name required";
+  if (!normalized.noMiddleName && !normalized.middleName) {
+    newErrors.middleName = "Middle name required";
+  }
+  if (!normalized.lastName) newErrors.lastName = "Last name required";
+  if (!normalized.address) newErrors.address = "Address required";
+
+  if (!normalized.contactNumber) {
+    newErrors.contactNumber = "Contact number is required.";
+  } else if (!/^09\d{9}$/.test(normalized.contactNumber)) {
+    newErrors.contactNumber =
+      "Contact number must start with 09 and be 11 digits.";
+  }
+
+  if (!normalized.emailAddress) {
+    newErrors.emailAddress = "Email required";
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized.emailAddress)) {
+    newErrors.emailAddress = "Invalid email";
+  }
+
+  if (!normalized.dob) newErrors.dob = "Date of birth required";
+  if (!normalized.sex) newErrors.sex = "Sex required";
+  if (!normalized.civilStatus) newErrors.civilStatus = "Civil status required";
+  if (!normalized.nationality) newErrors.nationality = "Nationality required";
+  if (requiresNationalityDetail(normalized.nationality) && !normalized.nationalityInput) {
+    newErrors.nationalityInput = "Please specify nationality";
+  }
+  if (!normalized.religion) newErrors.religion = "Religion required";
+  if (normalized.religion === "Others" && !normalized.religionInput) {
+    newErrors.religionInput = "Please specify religion";
+  }
+  if (normalized.hasEthnicGroup && !normalized.ethnicGroup) {
+    newErrors.ethnicGroup = "Ethnic group required";
+  }
+  if (normalized.hasDisability && !normalized.disability) {
+    newErrors.disability = "Disability details required";
+  }
+  if (normalized.isSoloParent && !normalized.soloParentIdNumber) {
+    newErrors.soloParentIdNumber = "Solo Parent ID number required";
+  }
+  if (normalized.isPwd && !normalized.pwdIdNumber) {
+    newErrors.pwdIdNumber = "PWD ID number required";
+  }
+
+  return newErrors;
+}
+
+function normalizeProfileForSave(profile = {}) {
+  const merged = mergeProfile(defaultProfile, profile || {});
+  const applicationDetails = {
+    ...(merged.applicationDetails || {}),
+  };
+  delete applicationDetails.completedAt;
+
+  return {
+    ...merged,
+    applicationDetails,
+    personalInfo: normalizePersonalInfo(merged.personalInfo),
+    jobPosition: {
+      ...merged.jobPosition,
+      requirements: merged.jobPosition?.requirements || [],
+      files: {
+        ...defaultFiles,
+        ...(merged.jobPosition?.files || {}),
+      },
+    },
+  };
+}
+
+function mapJobOpeningToJobPosition(job = {}, existingFiles = {}) {
+  const requirementFiles = Object.fromEntries(
+    (job.requirements || []).map((requirement) => [
+      requirement.field,
+      existingFiles?.[requirement.field] || null,
+    ])
+  );
+
+  return {
+    positionCategory: job.positionCategory || "",
+    positionType: job.title || "",
+    jobOpeningId: job.id || "",
+    requirements: job.requirements || [],
+    files: {
+      ...defaultFiles,
+      ...requirementFiles,
+      ...existingFiles,
+    },
+  };
+}
+
+function hasProfileChanges(nextProfile, currentProfile) {
+  return (
+    JSON.stringify(normalizeProfileForSave(nextProfile)) !==
+    JSON.stringify(normalizeProfileForSave(currentProfile))
+  );
+}
+
 const primaryButtonClass =
   "inline-flex h-9 items-center justify-center rounded-lg bg-[#0056b3] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#003a78] disabled:cursor-not-allowed disabled:opacity-70";
 
@@ -118,13 +269,17 @@ export default function ApplicantProfile({
   mode = "full",
   autoEdit = false,
 }) {
-  const { updateUser } = useAuth();
+  const { updateUser, user } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
   const [profile, setProfile] = useState(defaultProfile);
   const [formData, setFormData] = useState(defaultProfile);
   const [currentStep, setCurrentStep] = useState(mode === "documents" ? 5 : 1);
   const [isEditing, setIsEditing] = useState(autoEdit);
   const [isSaving, setIsSaving] = useState(false);
+  const [personalErrors, setPersonalErrors] = useState({});
+  const flatInformationLayout = embedded && mode === "information";
   const visibleSteps =
     mode === "information"
       ? steps.filter((step) => step.id < 5)
@@ -209,13 +364,21 @@ export default function ApplicantProfile({
         const result = await apiRequest("/api/applicant/profile");
         if (!isMounted) return;
 
-        const serverData = result.profile?.data || {};
-        const merged = mergeProfile(accountPrefill, serverData);
+        const profilePayload = result.profile || {};
+        const serverData = profilePayload.data || {};
+        const merged = mergeProfile(accountPrefill, {
+          ...serverData,
+          uan: profilePayload.uan,
+        });
         setProfile(merged);
         setFormData(merged);
 
         localStorage.setItem("applicantFullProfile", JSON.stringify(merged));
-      } catch (error) {
+
+        if (result.user) {
+          updateUser?.(result.user);
+        }
+      } catch {
         hydrateFromStorage();
       }
     };
@@ -226,6 +389,35 @@ export default function ApplicantProfile({
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const routeJobId = params.get("jobId");
+
+    if (!routeJobId) return;
+
+    let isMounted = true;
+
+    apiRequest(`/api/job-openings/${routeJobId}`)
+      .then((result) => {
+        if (!isMounted || !result.job) return;
+
+        setFormData((current) => ({
+          ...current,
+          jobPosition: mapJobOpeningToJobPosition(
+            result.job,
+            current.jobPosition?.files || {}
+          ),
+        }));
+      })
+      .catch((error) => {
+        console.error("Failed to load selected job opening:", error);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [location.search]);
 
   const fullName = useMemo(() => {
     return [
@@ -244,6 +436,22 @@ export default function ApplicantProfile({
     return `${first}${last}`.toUpperCase();
   }, [profile]);
 
+  const headerEmail = useMemo(() => {
+    return profile.personalInfo.emailAddress || user?.email || "";
+  }, [profile, user]);
+
+  const roleLabel = useMemo(() => {
+    const roleValue = user?.role || "applicant";
+    if (roleValue === "superadmin") return "Super Admin";
+    return `${roleValue.charAt(0).toUpperCase()}${roleValue.slice(1)}`;
+  }, [user]);
+
+  const uanDisplay = useMemo(() => {
+    const raw = user?.uan || profile?.uan || "";
+    const cleaned = String(raw || "").trim();
+    return cleaned ? cleaned.toUpperCase() : "Not assigned";
+  }, [user, profile]);
+
   const updateFormData = (section, data) => {
     setFormData((prev) => ({
       ...prev,
@@ -253,41 +461,53 @@ export default function ApplicantProfile({
 
   const handleEdit = () => {
     setFormData(profile);
+    setPersonalErrors({});
     setIsEditing(true);
   };
 
   const handleCancel = () => {
     setFormData(profile);
+    setPersonalErrors({});
     setIsEditing(false);
   };
 
   const handleSave = async (profileOverride) => {
-    if (isSaving) return;
-    setIsSaving(true);
+    if (isSaving) return false;
+
     const sourceProfile = profileOverride || formData;
+    const nextPersonalErrors = validatePersonalInfoData(
+      sourceProfile.personalInfo
+    );
+
+    if (Object.keys(nextPersonalErrors).length > 0) {
+      setPersonalErrors(nextPersonalErrors);
+      setCurrentStep(1);
+      showToast({
+        type: "error",
+        message: "Please fix the Personal Information fields before saving.",
+      });
+      return false;
+    }
+
+    setPersonalErrors({});
+
+    if (!hasProfileChanges(sourceProfile, profile)) {
+      showToast({
+        type: "info",
+        message: "No changes to save.",
+      });
+      return false;
+    }
+
+    setIsSaving(true);
+    const normalizedProfile = normalizeProfileForSave(sourceProfile);
 
     const completedAt = new Date().toISOString();
     const finalProfile = {
-      ...sourceProfile,
+      ...normalizedProfile,
       applicationDetails: {
-        ...(sourceProfile.applicationDetails || {}),
+        ...(normalizedProfile.applicationDetails || {}),
         completedAt,
-      },
-      personalInfo: {
-        ...sourceProfile.personalInfo,
-        soloParentIdNumber: sourceProfile.personalInfo.isSoloParent
-          ? sourceProfile.personalInfo.soloParentIdNumber
-          : "",
-        pwdIdNumber: sourceProfile.personalInfo.isPwd
-          ? sourceProfile.personalInfo.pwdIdNumber
-          : "",
-      },
-      jobPosition: {
-        ...sourceProfile.jobPosition,
-        files: {
-          ...defaultFiles,
-          ...(sourceProfile.jobPosition.files || {}),
-        },
       },
     };
 
@@ -299,20 +519,27 @@ export default function ApplicantProfile({
 
       const savedData = result.profile?.data || finalProfile;
       const merged = mergeProfile(defaultProfile, savedData);
+      const mergedWithUan = {
+        ...merged,
+        uan: result.uan || merged.uan,
+      };
 
-      setProfile(merged);
-      setFormData(merged);
+      setProfile(mergedWithUan);
+      setFormData(mergedWithUan);
 
-      localStorage.setItem("applicantFullProfile", JSON.stringify(merged));
+      localStorage.setItem(
+        "applicantFullProfile",
+        JSON.stringify(mergedWithUan)
+      );
       localStorage.setItem(
         "applicantProfile",
         JSON.stringify({
-          ...merged.personalInfo,
-          email: merged.personalInfo.emailAddress,
-          phone: merged.personalInfo.contactNumber,
-          birthDate: merged.personalInfo.dob,
-          applicantNumber: merged.accountDetails.applicantNumber,
-          accountStatus: merged.accountDetails.accountStatus,
+          ...mergedWithUan.personalInfo,
+          email: mergedWithUan.personalInfo.emailAddress,
+          phone: mergedWithUan.personalInfo.contactNumber,
+          birthDate: mergedWithUan.personalInfo.dob,
+          applicantNumber: mergedWithUan.accountDetails.applicantNumber,
+          accountStatus: mergedWithUan.accountDetails.accountStatus,
         })
       );
 
@@ -336,18 +563,31 @@ export default function ApplicantProfile({
       }
 
       updateUser?.(userPatch);
+      showToast({
+        type: "success",
+        message: "Profile changes saved.",
+      });
       if (!autoEdit) {
         setIsEditing(false);
       }
+      return true;
     } catch (error) {
       console.error("Failed to save applicant profile:", error);
+      showToast({
+        type: "error",
+        message: error.message || "Failed to save applicant profile.",
+      });
+      return false;
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleStepBack = () => {
-    const currentIndex = visibleSteps.findIndex((step) => step.id === currentStep);
+    const activeStep = visibleSteps.some((step) => step.id === currentStep)
+      ? currentStep
+      : visibleSteps[0]?.id || 1;
+    const currentIndex = visibleSteps.findIndex((step) => step.id === activeStep);
 
     if (currentIndex > 0) {
       setCurrentStep(visibleSteps[currentIndex - 1].id);
@@ -358,6 +598,10 @@ export default function ApplicantProfile({
       navigate(-1);
     }
   };
+
+  const activeStep = visibleSteps.some((step) => step.id === currentStep)
+    ? currentStep
+    : visibleSteps[0]?.id || 1;
 
   return (
     <div
@@ -398,18 +642,24 @@ export default function ApplicantProfile({
 
       <div className="mx-auto max-w-6xl">
         {!embedded && (
-          <>
-            <ProfileHeader
-              initials={initials}
-              fullName={fullName || "Applicant"}
-              status={profile.accountDetails.accountStatus}
-              applicantNumber={profile.accountDetails.applicantNumber}
-            />
-          </>
+          <ProfileHeader
+            initials={initials}
+            fullName={fullName || "Applicant"}
+            applicantNumber={profile.accountDetails.applicantNumber}
+            email={headerEmail}
+            role={roleLabel}
+            uan={uanDisplay}
+          />
         )}
 
-        <div className="mt-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 md:p-6">
-            {!autoEdit && (
+        <div
+          className={
+            flatInformationLayout
+              ? "mt-0"
+              : "mt-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 md:p-6"
+          }
+        >
+          {!autoEdit && (
             <div className="no-print mb-5 flex justify-end">
               {!isEditing ? (
                 <button
@@ -440,48 +690,57 @@ export default function ApplicantProfile({
                 </div>
               )}
             </div>
+          )}
+
+          <div
+            className={
+              mode === "documents"
+                ? "grid grid-cols-1"
+                : "grid grid-cols-1 gap-8 lg:grid-cols-[300px_1fr]"
+            }
+          >
+            {mode !== "documents" && (
+              <VerticalStepper
+                steps={visibleSteps}
+                currentStep={activeStep}
+                setCurrentStep={setCurrentStep}
+              />
             )}
 
             <div
               className={
-                mode === "documents"
-                  ? "grid grid-cols-1"
-                  : "grid grid-cols-1 gap-8 lg:grid-cols-[300px_1fr]"
+                flatInformationLayout
+                  ? "min-h-[540px] rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 md:p-8"
+                  : "min-h-[540px] rounded-2xl bg-slate-50 p-6 ring-1 ring-slate-200 md:p-10"
               }
             >
-              {mode !== "documents" && (
-                <VerticalStepper
-                  steps={visibleSteps}
-                  currentStep={currentStep}
-                  setCurrentStep={setCurrentStep}
+              {visibleSteps.findIndex((step) => step.id === activeStep) > 0 && (
+                <BackButton
+                  onClick={handleStepBack}
+                  className="mb-4"
+                  ariaLabel="Go back"
                 />
               )}
 
-              <div className="min-h-[540px] rounded-2xl bg-slate-50 p-6 ring-1 ring-slate-200 md:p-10">
-                {visibleSteps.findIndex((step) => step.id === currentStep) > 0 && (
-                  <BackButton
-                    onClick={handleStepBack}
-                    className="mb-4"
-                    ariaLabel="Go back"
-                  />
-                )}
+              <h2 className="oas-page-title mb-8 uppercase text-[#003a78]">
+                {visibleSteps.find((s) => s.id === activeStep)?.title}
+              </h2>
 
-                <h2 className="oas-page-title mb-8 uppercase text-[#003a78]">
-                  {visibleSteps.find((s) => s.id === currentStep)?.title}
-                </h2>
-
-                <RenderStepContent
-                  currentStep={currentStep}
-                  setCurrentStep={setCurrentStep}
-                  formData={formData}
-                  updateFormData={updateFormData}
-                  isEditing={isEditing}
-                  onSave={handleSave}
-                  isSaving={isSaving}
-                  steps={visibleSteps}
-                />
-              </div>
+              <RenderStepContent
+                currentStep={activeStep}
+                setCurrentStep={setCurrentStep}
+                formData={formData}
+                updateFormData={updateFormData}
+                isEditing={isEditing}
+                onSave={handleSave}
+                isSaving={isSaving}
+                steps={visibleSteps}
+                flatSections={flatInformationLayout}
+                personalErrors={personalErrors}
+                setPersonalErrors={setPersonalErrors}
+              />
             </div>
+          </div>
         </div>
       </div>
     </div>
@@ -497,6 +756,9 @@ function RenderStepContent({
   onSave,
   isSaving,
   steps,
+  flatSections = false,
+  personalErrors = {},
+  setPersonalErrors,
 }) {
   const currentIndex = steps.findIndex((step) => step.id === currentStep);
   const nextStep = steps[currentIndex + 1]?.id;
@@ -513,6 +775,9 @@ function RenderStepContent({
         <PersonalInfo
           data={formData.personalInfo}
           disabled={!isEditing}
+          isSaving={isSaving}
+          validationErrors={personalErrors}
+          onValidationErrorsChange={setPersonalErrors}
           onChange={(data) => updateFormData("personalInfo", data)}
           onNext={(data) => {
             updateFormData("personalInfo", data);
@@ -531,6 +796,8 @@ function RenderStepContent({
         <EducationalBackground
           data={formData.educationalBackground}
           disabled={!isEditing}
+          isSaving={isSaving}
+          flatSections={flatSections}
           onChange={(data) => updateFormData("educationalBackground", data)}
           onNext={(data) => {
             updateFormData("educationalBackground", data);
@@ -549,6 +816,8 @@ function RenderStepContent({
         <Eligibility
           data={formData.eligibility}
           disabled={!isEditing}
+          isSaving={isSaving}
+          flatSections={flatSections}
           onChange={(data) => updateFormData("eligibility", data)}
           onNext={(data) => {
             updateFormData("eligibility", data);
@@ -567,6 +836,8 @@ function RenderStepContent({
         <LearningDevelopment
           data={formData.learningDevelopment}
           disabled={!isEditing}
+          isSaving={isSaving}
+          flatSections={flatSections}
           onChange={(data) => updateFormData("learningDevelopment", data)}
           onNext={(data) => {
             updateFormData("learningDevelopment", data);
@@ -597,11 +868,17 @@ function RenderStepContent({
   }
 }
 
-function ProfileHeader({ initials, fullName, status, applicantNumber }) {
+function ProfileHeader({
+  initials,
+  fullName,
+  applicantNumber,
+  email,
+  role,
+  uan,
+}) {
   return (
     <div className="mx-auto w-full max-w-6xl overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
       <div className="relative min-h-[132px] bg-slate-900 px-6 py-5 md:px-10">
-
         <div className="relative flex flex-col items-center gap-4 text-center md:flex-row md:text-left">
           <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border-[4px] border-white bg-slate-100 shadow-lg">
             <span className="text-lg font-extrabold text-slate-700">
@@ -613,13 +890,30 @@ function ProfileHeader({ initials, fullName, status, applicantNumber }) {
             <h1 className="mt-2 text-xl font-extrabold md:text-2xl">
               {fullName}
             </h1>
+
+            {email && (
+              <p className="mt-1 text-sm font-medium text-slate-200">
+                {email}
+              </p>
+            )}
+
+            {role && (
+              <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">
+                {role}
+              </p>
+            )}
+
+            <div className="mt-3 rounded-xl bg-white/10 px-4 py-3 text-center md:text-left">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-300">
+                UAN
+              </p>
+              <p className="mt-2 break-all text-2xl font-extrabold tracking-[0.22em] text-white md:text-3xl">
+                {uan}
+              </p>
+            </div>
           </div>
 
           <div className="grid w-full max-w-sm gap-2 md:w-72">
-            <div className="rounded-full bg-white/95 px-4 py-2 text-center text-xs font-bold text-green-700 shadow-sm">
-              {status}
-            </div>
-
             <div className="rounded-full bg-white/95 px-4 py-2 text-center text-xs font-bold text-slate-700 shadow-sm">
               {applicantNumber}
             </div>
@@ -742,9 +1036,12 @@ function PersonalInfo({
   onChange,
   onNext,
   disabled = false,
+  isSaving = false,
+  validationErrors = {},
+  onValidationErrorsChange,
   footerLabel = "Next Step",
 }) {
-  const [errors, setErrors] = useState({});
+  const errors = validationErrors || {};
   const [personal, setPersonal] = useState({
     firstName: data.firstName || "",
     noMiddleName: data.noMiddleName ?? false,
@@ -758,7 +1055,7 @@ function PersonalInfo({
     age: data.age || "",
     sex: data.sex || "",
     civilStatus: data.civilStatus || "",
-    nationality: data.nationality || "",
+    nationality: normalizeNationalityChoice(data.nationality || ""),
     nationalityInput: data.nationalityInput || "",
     religion: data.religion || "",
     religionInput: data.religionInput || "",
@@ -786,7 +1083,7 @@ function PersonalInfo({
       age: data.age || "",
       sex: data.sex || "",
       civilStatus: data.civilStatus || "",
-      nationality: data.nationality || "",
+      nationality: normalizeNationalityChoice(data.nationality || ""),
       nationalityInput: data.nationalityInput || "",
       religion: data.religion || "",
       religionInput: data.religionInput || "",
@@ -898,57 +1195,44 @@ function PersonalInfo({
     setPersonal(updated);
     onChange?.(updated);
 
-    if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: "" }));
+    const clearFields = [field];
+
+    if (field === "nationality") {
+      clearFields.push("nationalityInput");
     }
 
-    if (field === "isSoloParent" && errors.soloParentIdNumber) {
-      setErrors((prev) => ({ ...prev, soloParentIdNumber: "" }));
+    if (field === "religion") {
+      clearFields.push("religionInput");
     }
 
-    if (field === "isPwd" && errors.pwdIdNumber) {
-      setErrors((prev) => ({ ...prev, pwdIdNumber: "" }));
+    if (field === "hasEthnicGroup") {
+      clearFields.push("ethnicGroup");
+    }
+
+    if (field === "hasDisability") {
+      clearFields.push("disability");
+    }
+
+    if (field === "isSoloParent") {
+      clearFields.push("soloParentIdNumber");
+    }
+
+    if (field === "isPwd") {
+      clearFields.push("pwdIdNumber");
+    }
+
+    if (clearFields.some((key) => errors[key])) {
+      const nextErrors = { ...errors };
+      clearFields.forEach((key) => {
+        delete nextErrors[key];
+      });
+      onValidationErrorsChange?.(nextErrors);
     }
   };
 
   const validateForm = () => {
-    const newErrors = {};
-
-    if (!personal.firstName.trim()) newErrors.firstName = "First name required";
-    if (!personal.noMiddleName && !personal.middleName.trim()) {
-      newErrors.middleName = "Middle name required";
-    }
-    if (!personal.lastName.trim()) newErrors.lastName = "Last name required";
-    if (!personal.address.trim()) newErrors.address = "Address required";
-
-    if (!personal.contactNumber.trim()) {
-      newErrors.contactNumber = "Contact number is required.";
-    } else if (!/^09\d{9}$/.test(personal.contactNumber)) {
-      newErrors.contactNumber =
-        "Contact number must start with 09 and be 11 digits.";
-    }
-
-    if (!personal.emailAddress.trim()) {
-      newErrors.emailAddress = "Email required";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(personal.emailAddress)) {
-      newErrors.emailAddress = "Invalid email";
-    }
-
-    if (!personal.dob) newErrors.dob = "Date of birth required";
-    if (!personal.sex) newErrors.sex = "Sex required";
-    if (!personal.civilStatus) newErrors.civilStatus = "Civil status required";
-    if (!personal.nationality) newErrors.nationality = "Nationality required";
-    if (!personal.religion) newErrors.religion = "Religion required";
-
-    if (personal.isSoloParent && !personal.soloParentIdNumber.trim()) {
-      newErrors.soloParentIdNumber = "Solo Parent ID number required";
-    }
-
-    if (personal.isPwd && !personal.pwdIdNumber.trim()) {
-      newErrors.pwdIdNumber = "PWD ID number required";
-    }
-
-    setErrors(newErrors);
+    const newErrors = validatePersonalInfoData(personal);
+    onValidationErrorsChange?.(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
@@ -960,6 +1244,10 @@ function PersonalInfo({
     onNext?.({
       ...personal,
       middleName: personal.noMiddleName ? "" : personal.middleName,
+      nationalityInput: requiresNationalityDetail(personal.nationality)
+        ? personal.nationalityInput
+        : "",
+      religionInput: personal.religion === "Others" ? personal.religionInput : "",
       ethnicGroup: personal.hasEthnicGroup ? personal.ethnicGroup : "",
       disability: personal.hasDisability ? personal.disability : "",
       soloParentIdNumber: personal.isSoloParent
@@ -1101,19 +1389,25 @@ function PersonalInfo({
             value={personal.nationality}
             disabled={disabled}
             error={errors.nationality}
-            options={["", "Filipino", "Dual Citizen", "Others"]}
+            options={["", "Filipino", "Dual Citizen", "Foreigner"]}
             onChange={(value) => updateField("nationality", value)}
           />
 
-          {(personal.nationality === "Dual Citizen" ||
-            personal.nationality === "Others") && (
+          {requiresNationalityDetail(personal.nationality) && (
             <input
               value={personal.nationalityInput}
               disabled={disabled}
               onChange={(e) => updateField("nationalityInput", e.target.value)}
               placeholder="Specify nationality"
-              className="mt-2 h-11 w-full rounded-xl border border-slate-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
+              className={`mt-2 h-11 w-full rounded-xl border px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 ${
+                errors.nationalityInput ? "border-red-500" : "border-slate-300"
+              }`}
             />
+          )}
+          {errors.nationalityInput && (
+            <p className="mt-1 text-xs text-red-500">
+              {errors.nationalityInput}
+            </p>
           )}
         </div>
 
@@ -1134,8 +1428,15 @@ function PersonalInfo({
               disabled={disabled}
               onChange={(e) => updateField("religionInput", e.target.value)}
               placeholder="Specify religion"
-              className="mt-2 h-11 w-full rounded-xl border border-slate-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
+              className={`mt-2 h-11 w-full rounded-xl border px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 ${
+                errors.religionInput ? "border-red-500" : "border-slate-300"
+              }`}
             />
+          )}
+          {errors.religionInput && (
+            <p className="mt-1 text-xs text-red-500">
+              {errors.religionInput}
+            </p>
           )}
         </div>
 
@@ -1155,6 +1456,7 @@ function PersonalInfo({
             <SelectBox
               value={personal.ethnicGroup}
               disabled={disabled}
+              error={errors.ethnicGroup}
               options={["", ...ethnicGroupOptions]}
               onChange={(value) => updateField("ethnicGroup", value)}
             />
@@ -1179,8 +1481,13 @@ function PersonalInfo({
               disabled={disabled}
               onChange={(e) => updateField("disability", e.target.value)}
               placeholder="Specify disability"
-              className="h-11 w-full rounded-xl border border-slate-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
+              className={`h-11 w-full rounded-xl border px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 ${
+                errors.disability ? "border-red-500" : "border-slate-300"
+              }`}
             />
+          )}
+          {errors.disability && (
+            <p className="mt-1 text-xs text-red-500">{errors.disability}</p>
           )}
         </div>
 
@@ -1259,7 +1566,7 @@ function PersonalInfo({
         </div>
       </div>
 
-      <StepFooter onNextSubmit label={footerLabel} />
+      <StepFooter onNextSubmit label={footerLabel} disabled={isSaving} />
     </form>
   );
 }
@@ -1271,6 +1578,8 @@ function EducationalBackground({
   onChange,
   onNext,
   disabled = false,
+  isSaving = false,
+  flatSections = false,
   footerLabel = "Next Step",
 }) {
   const [education, setEducation] = useState({
@@ -1340,6 +1649,7 @@ function EducationalBackground({
         rows={education.bachelors}
         listName="bachelors"
         disabled={disabled}
+        flat={flatSections}
         onChange={handleChange}
         onAdd={() => addItem("bachelors")}
         onRemove={() => removeItem("bachelors")}
@@ -1350,12 +1660,13 @@ function EducationalBackground({
         rows={education.postGraduate}
         listName="postGraduate"
         disabled={disabled}
+        flat={flatSections}
         onChange={handleChange}
         onAdd={() => addItem("postGraduate")}
         onRemove={() => removeItem("postGraduate")}
       />
 
-      <StepFooter onNextSubmit label={footerLabel} />
+      <StepFooter onNextSubmit label={footerLabel} disabled={isSaving} />
     </form>
   );
 }
@@ -1365,12 +1676,19 @@ function EducationGroup({
   rows,
   listName,
   disabled,
+  flat = false,
   onChange,
   onAdd,
   onRemove,
 }) {
   return (
-    <div className="oas-panel space-y-4 p-5">
+    <div
+      className={
+        flat
+          ? "space-y-4 border-t border-slate-200 pt-6 first:border-t-0 first:pt-0"
+          : "oas-panel space-y-4 p-5"
+      }
+    >
       <h2 className="oas-panel-title">{title}</h2>
 
       <div className="space-y-3">
@@ -1451,6 +1769,8 @@ function Eligibility({
   onChange,
   onNext,
   disabled = false,
+  isSaving = false,
+  flatSections = false,
   footerLabel = "Next Step",
 }) {
   const [eligibility, setEligibility] = useState({
@@ -1534,9 +1854,13 @@ function Eligibility({
     onNext?.(eligibility);
   };
 
+  const sectionClassName = flatSections
+    ? "space-y-4 border-t border-slate-200 pt-6 first:border-t-0 first:pt-0"
+    : "oas-panel space-y-4 p-5";
+
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
-      <div className="oas-panel space-y-4 p-5">
+      <div className={sectionClassName}>
         <h2 className="oas-panel-title">
           Eligibility Records
         </h2>
@@ -1638,7 +1962,7 @@ function Eligibility({
         )}
       </div>
 
-      <div className="oas-panel space-y-4 p-5">
+      <div className={sectionClassName}>
         <h2 className="oas-panel-title">Work Experience</h2>
 
         <div className="space-y-3">
@@ -1733,7 +2057,7 @@ function Eligibility({
         )}
       </div>
 
-      <StepFooter onNextSubmit label={footerLabel} />
+      <StepFooter onNextSubmit label={footerLabel} disabled={isSaving} />
     </form>
   );
 }
@@ -1745,6 +2069,8 @@ function LearningDevelopment({
   onChange,
   onNext,
   disabled = false,
+  isSaving = false,
+  flatSections = false,
   footerLabel = "Next Step",
 }) {
   const [learning, setLearning] = useState({
@@ -1816,7 +2142,11 @@ function LearningDevelopment({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
-      <div className="oas-panel space-y-4 p-5">
+      <div
+        className={
+          flatSections ? "space-y-4" : "oas-panel space-y-4 p-5"
+        }
+      >
         <h2 className="oas-panel-title">
           Trainings / Seminars
         </h2>
@@ -1908,7 +2238,7 @@ function LearningDevelopment({
         )}
       </div>
 
-      <StepFooter onNextSubmit label={footerLabel} />
+      <StepFooter onNextSubmit label={footerLabel} disabled={isSaving} />
     </form>
   );
 }
@@ -1916,6 +2246,7 @@ function LearningDevelopment({
 /* ================= ATTACHMENT ================= */
 
 function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false }) {
+  const { showToast } = useToast();
   const teachingPositions = [
     "Teacher I",
     "Teacher II",
@@ -1996,6 +2327,7 @@ function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false
     positionCategory: data?.positionCategory || "",
     positionType: data?.positionType || "",
     jobOpeningId: data?.jobOpeningId || "",
+    requirements: data?.requirements || [],
     files: {
       ...defaultFiles,
       ...(data?.files || {}),
@@ -2007,6 +2339,7 @@ function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false
       positionCategory: data?.positionCategory || "",
       positionType: data?.positionType || "",
       jobOpeningId: data?.jobOpeningId || "",
+      requirements: data?.requirements || [],
       files: {
         ...defaultFiles,
         ...(data?.files || {}),
@@ -2024,6 +2357,7 @@ function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false
       ...job,
       positionCategory: value,
       positionType: "",
+      requirements: [],
       files: { ...defaultFiles },
     });
   };
@@ -2032,6 +2366,7 @@ function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false
     sync({
       ...job,
       positionType: value,
+      requirements: [],
       files: { ...defaultFiles },
     });
   };
@@ -2039,7 +2374,10 @@ function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false
   const handleFileChange = (field, file) => {
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
-      window.alert("Please upload a file smaller than 5 MB.");
+      showToast({
+        type: "warning",
+        message: "Please upload a file smaller than 5 MB.",
+      });
       return;
     }
 
@@ -2078,13 +2416,20 @@ function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false
     job.positionCategory === "Teaching" ||
     job.positionCategory === "Non-Teaching";
 
+  const customUploadRequirements = Array.isArray(job.requirements)
+    ? job.requirements
+    : [];
+
   const showAttachments =
-    job.positionCategory === "Non-Teaching"
+    customUploadRequirements.length > 0 ||
+    (job.positionCategory === "Non-Teaching"
       ? job.positionType !== ""
-      : teacherPromotionPositions.includes(job.positionType);
+      : teacherPromotionPositions.includes(job.positionType));
 
   const currentUploadRequirements =
-    job.positionCategory === "Non-Teaching"
+    customUploadRequirements.length > 0
+      ? customUploadRequirements
+      : job.positionCategory === "Non-Teaching"
       ? nonTeachingUploadRequirements
       : teacherUploadRequirements;
 
@@ -2181,6 +2526,7 @@ function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false
               <FileUpload
                 key={requirement.field}
                 label={requirement.label}
+                description={requirement.description}
                 field={requirement.field}
                 file={job.files?.[requirement.field]}
                 disabled={disabled}
@@ -2209,6 +2555,7 @@ function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false
 
 function FileUpload({
   label,
+  description,
   field,
   file,
   disabled,
@@ -2217,7 +2564,14 @@ function FileUpload({
 }) {
   return (
     <div className="space-y-2">
-      <label className="block text-sm font-medium text-slate-700">{label}</label>
+      <div>
+        <label className="block text-sm font-medium text-slate-700">
+          {label}
+        </label>
+        {description && (
+          <p className="mt-1 text-xs text-slate-500">{description}</p>
+        )}
+      </div>
 
       {disabled ? (
         <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
@@ -2277,14 +2631,19 @@ function FileUpload({
 
 /* ================= SMALL COMPONENTS ================= */
 
-function StepFooter({ onNextSubmit = false, label = "Next Step" }) {
+function StepFooter({
+  onNextSubmit = false,
+  label = "Next Step",
+  disabled = false,
+}) {
   return (
     <div className="flex items-center justify-end pt-6">
       <button
         type={onNextSubmit ? "submit" : "button"}
+        disabled={disabled}
         className={primaryButtonClass}
       >
-        {label}
+        {disabled && label === "Save Changes" ? "Saving..." : label}
       </button>
     </div>
   );

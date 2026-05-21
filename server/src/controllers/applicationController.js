@@ -62,7 +62,10 @@ export async function listAdminApplications(_req, res) {
         jo.location AS job_location,
         jo.district AS job_district,
         jo.barangay AS job_barangay,
-        jo.deadline AS job_deadline
+        jo.deadline AS job_deadline,
+        jo.deadline_time AS job_deadline_time,
+        jo.position_category AS job_position_category,
+        jo.requirements AS job_requirements
       FROM job_applications ja
       JOIN users u ON u.id = ja.user_id
       LEFT JOIN job_openings jo ON jo.id = ja.job_opening_id
@@ -130,10 +133,13 @@ export async function updateApplicationStatus(req, res) {
          u.first_name,
          u.last_name,
          jo.title AS job_title,
-         jo.location AS job_location,
-         jo.district AS job_district,
-         jo.barangay AS job_barangay,
-         jo.deadline AS job_deadline
+        jo.location AS job_location,
+        jo.district AS job_district,
+        jo.barangay AS job_barangay,
+        jo.deadline AS job_deadline,
+        jo.deadline_time AS job_deadline_time,
+        jo.position_category AS job_position_category,
+        jo.requirements AS job_requirements
        FROM updated ja
        JOIN users u ON u.id = ja.user_id
        LEFT JOIN job_openings jo ON jo.id = ja.job_opening_id`,
@@ -188,10 +194,13 @@ export async function listApplicantApplications(req, res) {
          u.first_name,
          u.last_name,
          jo.title AS job_title,
-         jo.location AS job_location,
-         jo.district AS job_district,
-         jo.barangay AS job_barangay,
-         jo.deadline AS job_deadline
+        jo.location AS job_location,
+        jo.district AS job_district,
+        jo.barangay AS job_barangay,
+        jo.deadline AS job_deadline,
+        jo.deadline_time AS job_deadline_time,
+        jo.position_category AS job_position_category,
+        jo.requirements AS job_requirements
        FROM job_applications ja
        JOIN users u ON u.id = ja.user_id
        LEFT JOIN job_openings jo ON jo.id = ja.job_opening_id
@@ -364,6 +373,9 @@ export async function applyToJob(req, res) {
         job_district: job.district,
         job_barangay: job.barangay,
         job_deadline: job.deadline,
+        job_deadline_time: job.deadline_time,
+        job_position_category: job.position_category,
+        job_requirements: job.requirements,
       }),
     });
   } catch (error) {
@@ -424,6 +436,9 @@ export async function submitApplication(req, res) {
         job_district: job.district,
         job_barangay: job.barangay,
         job_deadline: job.deadline,
+        job_deadline_time: job.deadline_time,
+        job_position_category: job.position_category,
+        job_requirements: job.requirements,
       });
     }
 

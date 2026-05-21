@@ -18,8 +18,7 @@ export default function ApplicantInformation() {
       <section className="px-4 pb-10 pt-6 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-6xl">
           <header className="mb-5">
-            <p className="oas-page-kicker">Applicant</p>
-            <h1 className="oas-page-title mt-2">Applicant Information</h1>
+            <h1 className="oas-page-title">Applicant Information</h1>
             <p className="oas-page-description">
               Update your personal, education, eligibility, and training details.
             </p>

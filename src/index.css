@@ -75,6 +75,67 @@ textarea {
   color: #0f172a;
 }
 
+.oas-action-button {
+  display: inline-flex;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 0.5rem;
+  background: #0056b3;
+  padding: 0 0.875rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1rem;
+  color: #ffffff;
+  transition: background-color 150ms ease, opacity 150ms ease;
+}
+
+.oas-action-button:hover {
+  background: #003a78;
+}
+
+.oas-action-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.oas-danger-button {
+  display: inline-flex;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 0.5rem;
+  background: #dc2626;
+  padding: 0 0.875rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1rem;
+  color: #ffffff;
+  transition: background-color 150ms ease, opacity 150ms ease;
+}
+
+.oas-danger-button:hover {
+  background: #b91c1c;
+}
+
+.oas-danger-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+button,
+a[class*="inline-flex"],
+a[class*="rounded"][class*="px"] {
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0 !important;
+  line-height: 1rem !important;
+}
+
 [class*="rounded-2xl"][class*="border-slate-200"][class*="bg-white"][class*="shadow-sm"],
 [class*="rounded-[28px]"][class*="border-slate-200"][class*="bg-white"][class*="shadow-sm"] {
   border-radius: 0.75rem;

@@ -217,7 +217,9 @@ export async function createJobApplicationFromProfile(
   }
 
   const jobResult = await client.query(
-    `SELECT id, title, location, district, barangay, vacancy, deadline, status, description
+    `SELECT id, title, location, district, barangay, vacancy, deadline,
+       deadline_time, position_id, position_category, requirements, status, description,
+       deadline + COALESCE(deadline_time, TIME '23:59') AS deadline_at
      FROM job_openings
      WHERE id = $1
      LIMIT 1`,
@@ -232,12 +234,26 @@ export async function createJobApplicationFromProfile(
     throw error;
   }
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const deadline = job.deadline ? new Date(job.deadline) : null;
+  const deadline = job.deadline_at ? new Date(job.deadline_at) : null;
 
-  if (job.status !== "open" || (deadline && deadline < today)) {
+  if (job.status !== "open" || (deadline && deadline < new Date())) {
     const error = new Error("This job opening is no longer accepting applications.");
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const jobRequirements = Array.isArray(job.requirements) ? job.requirements : [];
+  const jobPosition = profile.data?.jobPosition || {};
+  const uploadedFiles = jobPosition.files || {};
+  const hasSelectedJobUploads = String(jobPosition.jobOpeningId || "") === String(job.id);
+  const missingRequirements = jobRequirements.filter(
+    (requirement) => requirement.required !== false && !uploadedFiles[requirement.field]
+  );
+
+  if (jobRequirements.length > 0 && (!hasSelectedJobUploads || missingRequirements.length > 0)) {
+    const error = new Error(
+      "Please upload the requirements for this job opening before applying."
+    );
     error.statusCode = 409;
     throw error;
   }
@@ -288,6 +304,10 @@ export async function createJobApplicationFromProfile(
           district: job.district,
           barangay: job.barangay,
           deadline: job.deadline,
+          deadlineTime: job.deadline_time,
+          positionId: job.position_id,
+          positionCategory: job.position_category,
+          requirements: job.requirements || [],
         },
         submittedAt: new Date().toISOString(),
       },

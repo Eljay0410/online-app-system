@@ -2,13 +2,37 @@ export function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
 }
 
+function getDatePart(value) {
+  if (!value) return "";
+  if (typeof value === "string") return value.slice(0, 10);
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+  return String(value).slice(0, 10);
+}
+
+function getTimePart(value) {
+  if (!value) return "23:59";
+  return String(value).slice(0, 5);
+}
+
+function getDeadlineAt(row) {
+  if (row.deadline_at) return new Date(row.deadline_at);
+
+  const datePart = getDatePart(row.deadline);
+  const timePart = getTimePart(row.deadline_time);
+
+  if (!datePart) return null;
+
+  const deadlineAt = new Date(`${datePart}T${timePart}:00`);
+  return Number.isNaN(deadlineAt.getTime()) ? null : deadlineAt;
+}
+
 export function mapJobOpening(row) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const deadline = row.deadline ? new Date(row.deadline) : null;
+  const deadlineAt = getDeadlineAt(row);
   const storedStatus = row.status || "open";
   const status =
-    storedStatus === "open" && deadline && deadline < today
+    storedStatus === "open" && deadlineAt && deadlineAt < new Date()
       ? "expired"
       : storedStatus;
 
@@ -20,10 +44,26 @@ export function mapJobOpening(row) {
     barangay: row.barangay || "",
     vacancy: row.vacancy,
     deadline: row.deadline,
+    deadlineTime: getTimePart(row.deadline_time),
+    deadlineAt: deadlineAt ? deadlineAt.toISOString() : null,
     expirationDate: row.deadline,
+    positionId: row.position_id || null,
+    positionCategory: row.position_category || "",
     status,
     description: row.description || "",
+    requirements: Array.isArray(row.requirements) ? row.requirements : [],
     postedAt: row.created_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function mapJobPosition(row) {
+  return {
+    id: row.id,
+    category: row.category || "",
+    title: row.title || "",
+    requirements: Array.isArray(row.requirements) ? row.requirements : [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -104,6 +144,13 @@ export function mapApplication(row) {
     jobDistrict: row.job_district || job.district || "",
     jobBarangay: row.job_barangay || job.barangay || "",
     jobDeadline: row.job_deadline || job.deadline || null,
+    jobDeadlineTime: getTimePart(row.job_deadline_time || job.deadlineTime),
+    jobPositionCategory:
+      row.job_position_category || job.positionCategory || job.position_category || "",
+    jobRequirements:
+      (Array.isArray(row.job_requirements) && row.job_requirements) ||
+      (Array.isArray(job.requirements) && job.requirements) ||
+      [],
     reviewNotes: row.review_notes || data.reviewNotes || "",
     raw: data,
   };

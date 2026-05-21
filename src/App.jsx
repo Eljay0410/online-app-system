@@ -7,7 +7,11 @@ import Register from "./features/auth/Register";
 import ActivateAccount from "./features/auth/ActivateAccount";
 import Login from "./features/auth/Login";
 import ProtectedRoute from "./features/auth/ProtectedRoute";
-import { getAuthenticatedHomePath, useAuth } from "./features/auth/auth";
+import {
+  getAuthenticatedHomePath,
+  normalizeRole,
+  useAuth,
+} from "./features/auth/auth";
 
 import JobOpenings from "./features/jobs/JobOpenings";
 import JobDetails from "./features/jobs/JobDetails";
@@ -23,6 +27,30 @@ import SuperAdminDashboard from "./features/admin/SuperAdminDashboard";
 function RedirectToHome() {
   const { user } = useAuth();
   return <Navigate to={user ? getAuthenticatedHomePath(user) : "/"} replace />;
+}
+
+function HomeRoute() {
+  const { user, loading } = useAuth();
+
+  if (loading) return null;
+
+  if (user && normalizeRole(user.role) !== "applicant") {
+    return <Navigate to={getAuthenticatedHomePath(user)} replace />;
+  }
+
+  return <JobOpenings />;
+}
+
+function PublicJobDetailsRoute() {
+  const { user, loading } = useAuth();
+
+  if (loading) return null;
+
+  if (user && normalizeRole(user.role) !== "applicant") {
+    return <Navigate to={getAuthenticatedHomePath(user)} replace />;
+  }
+
+  return <JobDetails />;
 }
 
 function GuestRoute({ children }) {
@@ -43,8 +71,8 @@ function App() {
       <Navbar />
 
       <Routes>
-        <Route path="/" element={<JobOpenings />} />
-        <Route path="/jobs/:jobId" element={<JobDetails />} />
+        <Route path="/" element={<HomeRoute />} />
+        <Route path="/jobs/:jobId" element={<PublicJobDetailsRoute />} />
         <Route
           path="/register"
           element={

@@ -1,16 +1,19 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   BriefcaseBusiness,
   CalendarDays,
-  Filter,
   Loader2,
   MapPin,
   Search,
+  X,
 } from "lucide-react";
 import { apiRequest } from "../../lib/api";
 import { getAuthenticatedHomePath, normalizeRole, useAuth } from "../auth/auth";
 import SuperAdminSidebar from "../../components/layout/SuperAdminSidebar";
+import FilterIcon from "../../components/ui/FilterIcon";
+import { findSjdmSchool, sjdmDistricts } from "../../lib/sjdmLocations";
+import { useToast } from "../../components/ui/toastContext";
 
 const formatDate = (value) =>
   value
@@ -21,55 +24,104 @@ const formatDate = (value) =>
       }).format(new Date(value))
     : "No deadline";
 
+const formatDeadline = (job) =>
+  `${formatDate(job.deadline)} ${job.deadlineTime || ""}`.trim();
+
 export default function JobOpenings() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [jobs, setJobs] = useState([]);
   const [filters, setFilters] = useState({
     search: "",
-    location: "",
+    district: "",
+    barangay: "",
+    school: "",
   });
   const [debouncedFilters, setDebouncedFilters] = useState(filters);
   const [isLoading, setIsLoading] = useState(true);
-  const [message, setMessage] = useState("");
   const [promptJob, setPromptJob] = useState(null);
   const [promptAction, setPromptAction] = useState("apply");
   const [collapsed, setCollapsed] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const { showToast } = useToast();
+  const shortSearchNoticeRef = useRef(false);
 
   const isApplicant = user && normalizeRole(user.role) === "applicant";
   const contentPadding = collapsed ? "lg:pl-20" : "lg:pl-72";
+  const selectedDistrict = sjdmDistricts.find(
+    (district) => district.name === filters.district
+  );
+  const barangayOptions = selectedDistrict?.barangays || [];
+  const schoolOptions = selectedDistrict?.schools || [];
+  const hasLocationFilter = Boolean(
+    filters.district || filters.barangay || filters.school
+  );
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
-      setDebouncedFilters(filters);
-    }, 300);
+      setDebouncedFilters({
+        search: filters.search.trim(),
+        district: filters.district,
+        barangay: filters.barangay,
+        school: filters.school.trim(),
+      });
+    }, 450);
 
     return () => window.clearTimeout(timeout);
   }, [filters]);
 
   useEffect(() => {
     let isMounted = true;
+    const controller = new AbortController();
 
     async function loadJobs() {
+      const searchTerm = debouncedFilters.search.trim();
+
+      if (searchTerm && searchTerm.length < 2) {
+        setIsLoading(false);
+        setJobs([]);
+        if (!shortSearchNoticeRef.current) {
+          showToast({
+            type: "info",
+            message: "Type at least 2 characters to search job openings.",
+          });
+          shortSearchNoticeRef.current = true;
+        }
+        return;
+      }
+
+      shortSearchNoticeRef.current = false;
       setIsLoading(true);
-      setMessage("");
 
       try {
         const params = new URLSearchParams();
-        if (debouncedFilters.search) params.set("q", debouncedFilters.search);
-        if (debouncedFilters.location) {
-          params.set("location", debouncedFilters.location);
+        if (searchTerm) params.set("q", searchTerm);
+        if (debouncedFilters.school) {
+          params.set("location", debouncedFilters.school);
+        } else if (debouncedFilters.barangay) {
+          params.set("barangay", debouncedFilters.barangay);
+        } else if (debouncedFilters.district) {
+          params.set("location", debouncedFilters.district);
         }
 
-        const result = await apiRequest(`/api/job-openings?${params.toString()}`);
+        const queryString = params.toString();
+        const result = await apiRequest(
+          `/api/job-openings${queryString ? `?${queryString}` : ""}`,
+          { signal: controller.signal }
+        );
 
         if (isMounted) {
           setJobs(result.jobs || []);
         }
       } catch (error) {
+        if (error?.name === "AbortError") return;
+
         if (isMounted) {
           setJobs([]);
-          setMessage(error.message || "Unable to load available job openings.");
+          showToast({
+            type: "error",
+            message: error.message || "Unable to load available job openings.",
+          });
         }
       } finally {
         if (isMounted) setIsLoading(false);
@@ -80,18 +132,9 @@ export default function JobOpenings() {
 
     return () => {
       isMounted = false;
+      controller.abort();
     };
-  }, [debouncedFilters]);
-
-  const locationHints = useMemo(() => {
-    const unique = new Set();
-
-    for (const job of jobs) {
-      if (job.location) unique.add(job.location);
-    }
-
-    return Array.from(unique).slice(0, 6);
-  }, [jobs]);
+  }, [debouncedFilters, showToast]);
 
   const handleApply = (job) => {
     if (!user) {
@@ -123,6 +166,16 @@ export default function JobOpenings() {
     navigate(`/jobs/${job.id}`);
   };
 
+  const handleSchoolFilterChange = (value) => {
+    const school = findSjdmSchool(filters.district, value);
+
+    setFilters((current) => ({
+      ...current,
+      school: value,
+      barangay: value ? school?.barangay || current.barangay : "",
+    }));
+  };
+
   return (
     <main
       className={`min-h-screen bg-slate-50 ${
@@ -146,23 +199,17 @@ export default function JobOpenings() {
         }
       >
         <div className="mx-auto w-full max-w-7xl space-y-6">
-        <section className="oas-panel p-5 sm:p-6">
-          <p className="oas-page-kicker">
-            Job Listings
-          </p>
+          <header>
+            <h1 className="oas-page-title">Available vacancies</h1>
+            <p className="oas-page-description mt-2 max-w-2xl">
+              Search by title or school/location, then open a posting or start
+              your application flow.
+            </p>
+          </header>
 
-          <h1 className="oas-page-title mt-2">
-            Available vacancies
-          </h1>
-
-          <p className="oas-page-description mt-2 max-w-2xl">
-            Search by title or school/location, then open a posting or start
-            your application flow.
-          </p>
-
-          <div className="mt-5 grid gap-3 md:grid-cols-[1.2fr_1fr_auto]">
-            <div className="flex h-11 items-center gap-2 rounded-xl border border-slate-300 bg-slate-50 px-3">
-              <Search className="h-4 w-4 text-slate-400" />
+          <div className="flex items-start gap-3">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
 
               <input
                 value={filters.search}
@@ -173,62 +220,132 @@ export default function JobOpenings() {
                   }))
                 }
                 placeholder="Search by title or keyword"
-                className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+                className="h-11 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-11 text-sm outline-none transition focus:ring-2 focus:ring-blue-500"
               />
-            </div>
 
-            <div className="flex h-11 items-center gap-2 rounded-xl border border-slate-300 bg-slate-50 px-3">
-              <MapPin className="h-4 w-4 text-slate-400" />
-
-              <input
-                value={filters.location}
-                onChange={(e) =>
-                  setFilters((current) => ({
-                    ...current,
-                    location: e.target.value,
-                  }))
-                }
-                placeholder="Filter by school / location"
-                className="min-w-0 flex-1 bg-transparent text-sm outline-none"
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setFilters({ search: "", location: "" })}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              <Filter className="h-4 w-4" />
-              Clear
-            </button>
-          </div>
-
-          {locationHints.length > 0 && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {locationHints.map((hint) => (
+              {filters.search && (
                 <button
-                  key={hint}
                   type="button"
+                  aria-label="Clear search"
                   onClick={() =>
                     setFilters((current) => ({
                       ...current,
-                      location: hint,
+                      search: "",
                     }))
                   }
-                  className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700"
+                  className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
                 >
-                  {hint}
+                  <X className="h-4 w-4" />
                 </button>
-              ))}
+              )}
             </div>
-          )}
-        </section>
 
-        {message && (
-          <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-            {message}
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                aria-label="Filter jobs"
+                aria-expanded={isFilterOpen}
+                title="Filter"
+                onClick={() => setIsFilterOpen((open) => !open)}
+                className={`grid h-11 w-11 place-items-center rounded-xl border bg-white transition ${
+                  hasLocationFilter
+                    ? "border-blue-500 text-blue-700 shadow-sm"
+                    : "border-slate-300 text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                <FilterIcon className="h-4 w-4" />
+              </button>
+
+              {isFilterOpen && (
+                <div className="absolute right-0 z-20 mt-2 w-[calc(100vw-2rem)] max-w-80 rounded-xl border border-slate-200 bg-white p-3 shadow-lg">
+                  <p className="text-xs font-semibold uppercase text-slate-500">
+                    School / location
+                  </p>
+
+                  <div className="mt-3 space-y-3">
+                    <label
+                      htmlFor="job-district-filter"
+                      className="block text-xs font-medium text-slate-600"
+                    >
+                      District
+                    </label>
+
+                    <select
+                      id="job-district-filter"
+                      value={filters.district}
+                      onChange={(e) =>
+                        setFilters((current) => ({
+                          ...current,
+                          district: e.target.value,
+                          barangay: "",
+                          school: "",
+                        }))
+                      }
+                      className="mt-1 h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none transition focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">All districts</option>
+                      {sjdmDistricts.map((district) => (
+                        <option key={district.name} value={district.name}>
+                          {district.name}
+                        </option>
+                      ))}
+                    </select>
+
+                    <label
+                      htmlFor="job-school-filter"
+                      className="block text-xs font-medium text-slate-600"
+                    >
+                      School / Office
+                    </label>
+
+                    <select
+                      id="job-school-filter"
+                      value={filters.school}
+                      disabled={!filters.district}
+                      onChange={(e) => handleSchoolFilterChange(e.target.value)}
+                      className="mt-1 h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none transition focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                    >
+                      <option value="">All schools / offices</option>
+                      {schoolOptions.map((school) => (
+                        <option key={school.name} value={school.name}>
+                          {school.name}
+                        </option>
+                      ))}
+                    </select>
+
+                    <label
+                      htmlFor="job-barangay-filter"
+                      className="block text-xs font-medium text-slate-600"
+                    >
+                      Barangay
+                    </label>
+
+                    <select
+                      id="job-barangay-filter"
+                      value={filters.barangay}
+                      disabled={!filters.district}
+                      onChange={(e) =>
+                        setFilters((current) => ({
+                          ...current,
+                          barangay: e.target.value,
+                          school: "",
+                        }))
+                      }
+                      className="mt-1 h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none transition focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                    >
+                      <option value="">All barangays</option>
+                      {barangayOptions.map((barangay) => (
+                        <option key={barangay} value={barangay}>
+                          {barangay}
+                        </option>
+                      ))}
+                    </select>
+
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        )}
 
         {isLoading ? (
           <div className="oas-panel flex items-center justify-center gap-2 p-10 text-slate-500">
@@ -246,16 +363,10 @@ export default function JobOpenings() {
                 key={job.id}
                 className="oas-panel p-5 transition hover:border-blue-200 hover:shadow-md"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h2 className="oas-panel-title">
-                      {job.title}
-                    </h2>
-                  </div>
-
-                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
-                    Open
-                  </span>
+                <div className="min-w-0">
+                  <h2 className="oas-panel-title">
+                    {job.title}
+                  </h2>
                 </div>
 
                 <div className="mt-4 space-y-3 text-sm text-slate-700">
@@ -271,7 +382,7 @@ export default function JobOpenings() {
 
                   <div className="flex items-center gap-2">
                     <CalendarDays className="h-4 w-4 text-slate-400" />
-                    <span>Deadline {formatDate(job.deadline)}</span>
+                    <span>Deadline {formatDeadline(job)}</span>
                   </div>
                 </div>
 
@@ -279,15 +390,15 @@ export default function JobOpenings() {
                   <button
                     type="button"
                     onClick={() => handleViewDetails(job)}
-                    className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-slate-300 px-4 font-semibold text-slate-700 transition hover:bg-slate-50"
+                    className="oas-action-button flex-1"
                   >
-                    View details
+                    View
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleApply(job)}
-                    className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-[#0056b3] px-4 font-semibold text-white transition hover:bg-[#003a78]"
+                    className="oas-action-button flex-1"
                   >
                     Apply
                   </button>
@@ -300,15 +411,15 @@ export default function JobOpenings() {
       </section>
 
       {promptJob && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-4 sm:items-center">
-          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
-            <h3 className="text-lg font-semibold text-slate-900">
+        <div className="fixed inset-0 z-[80] flex items-end justify-center overflow-y-auto bg-slate-950/50 p-4 sm:items-center">
+          <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl">
+            <h3 className="break-words text-lg font-semibold text-slate-900 [overflow-wrap:anywhere]">
               {promptAction === "view"
                 ? "Login to view the description"
                 : "Continue your application"}
             </h3>
 
-            <p className="mt-2 text-sm leading-6 text-slate-600">
+            <p className="mt-2 break-words text-sm leading-6 text-slate-600 [overflow-wrap:anywhere]">
               Login or sign up first to {promptAction === "view" ? "view" : "apply to"}{" "}
               {promptJob.title}.
             </p>

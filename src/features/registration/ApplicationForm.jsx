@@ -281,7 +281,7 @@ const PersonalInfo = ({ data = {}, onChange, onNext }) => {
     if (!nationality) newErrors.nationality = "Nationality is required";
 
     if (
-      (nationality === "Dual Citizen" || nationality === "Others") &&
+      (nationality === "Dual Citizen" || nationality === "Foreigner") &&
       !nationalityInput.trim()
     ) {
       newErrors.nationality = "Please specify nationality";
@@ -564,10 +564,10 @@ const PersonalInfo = ({ data = {}, onChange, onNext }) => {
             <option value="">Select</option>
             <option value="Filipino">Filipino</option>
             <option value="Dual Citizen">Dual Citizen</option>
-            <option value="Others">Others</option>
+            <option value="Foreigner">Foreigner</option>
           </select>
 
-          {(nationality === "Dual Citizen" || nationality === "Others") && (
+          {(nationality === "Dual Citizen" || nationality === "Foreigner") && (
             <input
               value={nationalityInput}
               onChange={(e) => {

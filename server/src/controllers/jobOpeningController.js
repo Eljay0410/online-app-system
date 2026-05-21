@@ -1,7 +1,8 @@
 import pool from "../config/db.js";
-import { mapJobOpening } from "../utils/formatters.js";
+import { mapJobOpening, mapJobPosition } from "../utils/formatters.js";
 
 const allowedJobStatuses = ["open", "closed", "draft"];
+const allowedPositionCategories = ["Teaching", "Non-Teaching"];
 
 function normalizeSearch(value) {
   return String(value || "")
@@ -9,14 +10,95 @@ function normalizeSearch(value) {
     .replace(/\s+/g, " ");
 }
 
-function getTodayDate() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function parseLimit(value) {
   const limit = Number.parseInt(value || "60", 10);
   return Number.isInteger(limit) ? Math.min(Math.max(limit, 1), 100) : 60;
 }
+
+function normalizeDeadlineTime(value, fallback = "23:59") {
+  const raw = String(value || "").trim();
+  if (!raw) return fallback;
+
+  const match = raw.match(/^([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/);
+  return match ? `${match[1]}:${match[2]}` : null;
+}
+
+function isDeadlinePast(deadline, deadlineTime) {
+  if (!deadline) return false;
+
+  const time = normalizeDeadlineTime(deadlineTime);
+  if (!time) return true;
+
+  const deadlineAt = new Date(`${deadline}T${time}:00`);
+  return Number.isNaN(deadlineAt.getTime()) || deadlineAt < new Date();
+}
+
+function slugifyRequirement(label, index) {
+  const slug = String(label || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+  return slug || `requirement_${index + 1}`;
+}
+
+function normalizeRequirements(requirements = []) {
+  if (!Array.isArray(requirements)) return [];
+
+  const used = new Set();
+
+  return requirements
+    .map((requirement, index) => {
+      const label = String(requirement?.label || "").trim();
+      if (!label) return null;
+
+      let field = String(requirement?.field || slugifyRequirement(label, index))
+        .trim()
+        .replace(/[^a-zA-Z0-9_]/g, "_");
+
+      if (!field) field = `requirement_${index + 1}`;
+
+      const baseField = field;
+      let suffix = 2;
+      while (used.has(field)) {
+        field = `${baseField}_${suffix}`;
+        suffix += 1;
+      }
+      used.add(field);
+
+      return {
+        field,
+        label,
+        description: String(requirement?.description || "").trim(),
+        required: requirement?.required !== false,
+      };
+    })
+    .filter(Boolean);
+}
+
+async function getPosition(positionId) {
+  const id = Number.parseInt(positionId, 10);
+
+  if (!Number.isInteger(id) || id <= 0) return null;
+
+  const result = await pool.query(
+    `SELECT id, category, title, requirements, created_at, updated_at
+     FROM job_positions
+     WHERE id = $1
+     LIMIT 1`,
+    [id]
+  );
+
+  return result.rows[0] || null;
+}
+
+const jobOpeningSelect = `
+  id, title, location, district, barangay, vacancy, deadline, deadline_time,
+  position_id, position_category, status, description, requirements,
+  deadline + COALESCE(deadline_time, TIME '23:59') AS deadline_at,
+  created_at, updated_at
+`;
 
 function buildJobFilters(query = {}, { publicOnly = false } = {}) {
   const conditions = [];
@@ -28,11 +110,11 @@ function buildJobFilters(query = {}, { publicOnly = false } = {}) {
 
   if (publicOnly) {
     conditions.push("status = 'open'");
-    conditions.push("deadline >= CURRENT_DATE");
+    conditions.push("(deadline + COALESCE(deadline_time, TIME '23:59')) >= NOW()");
   } else if (query.status && query.status !== "all") {
     if (query.status === "expired") {
       conditions.push("status = 'open'");
-      conditions.push("deadline < CURRENT_DATE");
+      conditions.push("(deadline + COALESCE(deadline_time, TIME '23:59')) < NOW()");
     } else if (allowedJobStatuses.includes(query.status)) {
       values.push(query.status);
       conditions.push(`status = $${values.length}`);
@@ -79,10 +161,10 @@ export async function listOpenJobOpenings(req, res) {
     values.push(limit);
 
     const result = await pool.query(
-      `SELECT id, title, location, district, barangay, vacancy, deadline, status, description, created_at, updated_at
+      `SELECT ${jobOpeningSelect}
        FROM job_openings
        ${where}
-       ORDER BY deadline ASC, created_at DESC
+       ORDER BY deadline ASC, deadline_time ASC, created_at DESC
        LIMIT $${values.length}`,
       values
     );
@@ -100,11 +182,11 @@ export async function listOpenJobOpenings(req, res) {
 export async function getJobOpening(req, res) {
   try {
     const result = await pool.query(
-      `SELECT id, title, location, district, barangay, vacancy, deadline, status, description, created_at, updated_at
+      `SELECT ${jobOpeningSelect}
        FROM job_openings
        WHERE id = $1
          AND status = 'open'
-         AND deadline >= CURRENT_DATE
+         AND (deadline + COALESCE(deadline_time, TIME '23:59')) >= NOW()
        LIMIT 1`,
       [req.params.id]
     );
@@ -139,7 +221,7 @@ export async function listAdminJobOpenings(req, res) {
     values.push(limit);
 
     const result = await pool.query(
-      `SELECT id, title, location, district, barangay, vacancy, deadline, status, description, created_at, updated_at
+      `SELECT ${jobOpeningSelect}
        FROM job_openings
        ${where}
        ORDER BY created_at DESC
@@ -185,8 +267,176 @@ export async function deleteJobOpening(req, res) {
   }
 }
 
-export async function createJobOpening(req, res) {
+export async function listJobPositions(_req, res) {
+  try {
+    const result = await pool.query(
+      `SELECT id, category, title, requirements, created_at, updated_at
+       FROM job_positions
+       ORDER BY category ASC, title ASC`
+    );
+
+    return res.json({
+      success: true,
+      positions: result.rows.map(mapJobPosition),
+    });
+  } catch (error) {
+    console.error("Error fetching job positions:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch job positions",
+    });
+  }
+}
+
+export async function createJobPosition(req, res) {
+  const category = String(req.body?.category || "").trim();
   const title = String(req.body?.title || "").trim();
+  const requirements = normalizeRequirements(req.body?.requirements || []);
+
+  if (!allowedPositionCategories.includes(category) || !title) {
+    return res.status(400).json({
+      success: false,
+      message: "Position category and title are required.",
+    });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO job_positions (category, title, requirements, created_at, updated_at)
+       VALUES ($1, $2, $3, NOW(), NOW())
+       RETURNING id, category, title, requirements, created_at, updated_at`,
+      [category, title, JSON.stringify(requirements)]
+    );
+
+    return res.status(201).json({
+      success: true,
+      position: mapJobPosition(result.rows[0]),
+    });
+  } catch (error) {
+    if (error?.code === "23505") {
+      return res.status(409).json({
+        success: false,
+        message: "That position already exists.",
+      });
+    }
+
+    console.error("Error creating job position:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to create job position",
+    });
+  }
+}
+
+export async function updateJobPosition(req, res) {
+  const category =
+    req.body?.category === undefined
+      ? undefined
+      : String(req.body.category || "").trim();
+  const title =
+    req.body?.title === undefined
+      ? undefined
+      : String(req.body.title || "").trim();
+  const requirements =
+    req.body?.requirements === undefined
+      ? undefined
+      : normalizeRequirements(req.body.requirements || []);
+
+  if (category !== undefined && !allowedPositionCategories.includes(category)) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid position category.",
+    });
+  }
+
+  if (title !== undefined && !title) {
+    return res.status(400).json({
+      success: false,
+      message: "Position title is required.",
+    });
+  }
+
+  try {
+    const result = await pool.query(
+      `UPDATE job_positions
+       SET category = COALESCE($2, category),
+           title = COALESCE($3, title),
+           requirements = COALESCE($4, requirements),
+           updated_at = NOW()
+       WHERE id = $1
+       RETURNING id, category, title, requirements, created_at, updated_at`,
+      [
+        req.params.id,
+        category || null,
+        title || null,
+        requirements === undefined ? null : JSON.stringify(requirements),
+      ]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Position not found.",
+      });
+    }
+
+    return res.json({
+      success: true,
+      position: mapJobPosition(result.rows[0]),
+    });
+  } catch (error) {
+    if (error?.code === "23505") {
+      return res.status(409).json({
+        success: false,
+        message: "That position already exists.",
+      });
+    }
+
+    console.error("Error updating job position:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update job position",
+    });
+  }
+}
+
+export async function deleteJobPosition(req, res) {
+  try {
+    const result = await pool.query(
+      "DELETE FROM job_positions WHERE id = $1 RETURNING id",
+      [req.params.id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Position not found.",
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Position deleted.",
+    });
+  } catch (error) {
+    console.error("Error deleting job position:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete job position",
+    });
+  }
+}
+
+export async function createJobOpening(req, res) {
+  const selectedPosition = await getPosition(req.body?.positionId);
+  if (req.body?.positionId && !selectedPosition) {
+    return res.status(400).json({
+      success: false,
+      message: "Selected position was not found.",
+    });
+  }
+
+  const title = String(req.body?.title || selectedPosition?.title || "").trim();
   const district = String(req.body?.district || "").trim();
   const barangay = String(req.body?.barangay || "").trim();
   const location = String(
@@ -194,13 +444,23 @@ export async function createJobOpening(req, res) {
   ).trim();
   const vacancy = Number.parseInt(req.body?.vacancy || "1", 10);
   const deadline = String(req.body?.deadline || "").trim();
+  const deadlineTime = normalizeDeadlineTime(req.body?.deadlineTime);
   const status = String(req.body?.status || "open").toLowerCase();
-  const description = String(req.body?.description || "").trim();
+  const description = String(req.body?.description || "");
+  const positionId = selectedPosition?.id || null;
+  const positionCategory = String(
+    req.body?.positionCategory || selectedPosition?.category || ""
+  ).trim();
+  const requirements = normalizeRequirements(
+    req.body?.requirements?.length
+      ? req.body.requirements
+      : selectedPosition?.requirements || []
+  );
 
-  if (!title || !district || !barangay || !deadline) {
+  if (!title || !district || !barangay || !deadline || !deadlineTime) {
     return res.status(400).json({
       success: false,
-      message: "Title, district, barangay, and expiration date are required.",
+      message: "Title, district, barangay, application deadline, and time are required.",
     });
   }
 
@@ -218,19 +478,28 @@ export async function createJobOpening(req, res) {
     });
   }
 
-  if (status === "open" && deadline < getTodayDate()) {
+  if (positionCategory && !allowedPositionCategories.includes(positionCategory)) {
     return res.status(400).json({
       success: false,
-      message: "Open job postings cannot have an expired date.",
+      message: "Invalid position category.",
+    });
+  }
+
+  if (status === "open" && isDeadlinePast(deadline, deadlineTime)) {
+    return res.status(400).json({
+      success: false,
+      message: "Open job postings cannot have an expired application deadline.",
     });
   }
 
   try {
     const result = await pool.query(
       `INSERT INTO job_openings
-        (title, location, district, barangay, vacancy, deadline, status, description, created_by, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
-       RETURNING id, title, location, district, barangay, vacancy, deadline, status, description, created_at, updated_at`,
+        (title, location, district, barangay, vacancy, deadline, deadline_time,
+         position_id, position_category, status, description, requirements,
+         created_by, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())
+       RETURNING ${jobOpeningSelect}`,
       [
         title,
         location,
@@ -238,8 +507,12 @@ export async function createJobOpening(req, res) {
         barangay,
         vacancy,
         deadline,
+        deadlineTime,
+        positionId,
+        positionCategory || null,
         status,
-        description || null,
+        description.trim() ? description : null,
+        JSON.stringify(requirements),
         req.user?.id || null,
       ]
     );
@@ -258,11 +531,20 @@ export async function createJobOpening(req, res) {
 }
 
 export async function updateJobOpening(req, res) {
+  const selectedPosition =
+    req.body?.positionId === undefined ? undefined : await getPosition(req.body.positionId);
+  if (req.body?.positionId && !selectedPosition) {
+    return res.status(400).json({
+      success: false,
+      message: "Selected position was not found.",
+    });
+  }
+
   const updates = {
     title:
       req.body?.title === undefined
-        ? undefined
-        : String(req.body.title || "").trim(),
+        ? selectedPosition?.title
+        : String(req.body.title || selectedPosition?.title || "").trim(),
     location:
       req.body?.location === undefined
         ? undefined
@@ -283,6 +565,18 @@ export async function updateJobOpening(req, res) {
       req.body?.deadline === undefined
         ? undefined
         : String(req.body.deadline || "").trim(),
+    deadlineTime:
+      req.body?.deadlineTime === undefined
+        ? undefined
+        : normalizeDeadlineTime(req.body.deadlineTime),
+    positionId:
+      req.body?.positionId === undefined
+        ? undefined
+        : selectedPosition?.id || null,
+    positionCategory:
+      req.body?.positionCategory === undefined && selectedPosition === undefined
+        ? undefined
+        : String(req.body?.positionCategory || selectedPosition?.category || "").trim(),
     status:
       req.body?.status === undefined
         ? undefined
@@ -290,7 +584,15 @@ export async function updateJobOpening(req, res) {
     description:
       req.body?.description === undefined
         ? undefined
-        : String(req.body.description || "").trim(),
+        : String(req.body.description || ""),
+    requirements:
+      req.body?.requirements === undefined && selectedPosition === undefined
+        ? undefined
+        : normalizeRequirements(
+            req.body?.requirements !== undefined
+              ? req.body.requirements
+              : selectedPosition?.requirements || []
+          ),
   };
 
   if (updates.vacancy !== undefined) {
@@ -309,10 +611,32 @@ export async function updateJobOpening(req, res) {
     });
   }
 
-  if (updates.status === "open" && updates.deadline && updates.deadline < getTodayDate()) {
+  if (updates.deadlineTime === null) {
     return res.status(400).json({
       success: false,
-      message: "Open job postings cannot have an expired date.",
+      message: "Invalid application deadline time.",
+    });
+  }
+
+  if (
+    updates.positionCategory !== undefined &&
+    updates.positionCategory &&
+    !allowedPositionCategories.includes(updates.positionCategory)
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid position category.",
+    });
+  }
+
+  if (
+    updates.status === "open" &&
+    updates.deadline &&
+    isDeadlinePast(updates.deadline, updates.deadlineTime || req.body?.deadlineTime)
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: "Open job postings cannot have an expired application deadline.",
     });
   }
 
@@ -325,11 +649,15 @@ export async function updateJobOpening(req, res) {
             barangay = COALESCE($5, barangay),
             vacancy = COALESCE($6, vacancy),
             deadline = COALESCE($7, deadline),
-            status = COALESCE($8, status),
-            description = COALESCE($9, description),
+            deadline_time = COALESCE($8, deadline_time),
+            position_id = COALESCE($9, position_id),
+            position_category = COALESCE($10, position_category),
+            status = COALESCE($11, status),
+            description = COALESCE($12, description),
+            requirements = COALESCE($13, requirements),
             updated_at = NOW()
         WHERE id = $1
-        RETURNING id, title, location, district, barangay, vacancy, deadline, status, description, created_at, updated_at`,
+        RETURNING ${jobOpeningSelect}`,
       [
         req.params.id,
         updates.title || null,
@@ -338,8 +666,12 @@ export async function updateJobOpening(req, res) {
         updates.barangay || null,
         updates.vacancy ?? null,
         updates.deadline || null,
+        updates.deadlineTime || null,
+        updates.positionId ?? null,
+        updates.positionCategory || null,
         updates.status || null,
         updates.description ?? null,
+        updates.requirements === undefined ? null : JSON.stringify(updates.requirements),
       ]
     );
 
