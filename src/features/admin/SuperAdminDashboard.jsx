@@ -659,12 +659,19 @@ function AccountTable({
                     </button>
                     <button
                       type="button"
+                      onClick={() => onEdit(user)}
+                      className={`${buttonClass} border border-slate-300 bg-white text-slate-700 hover:bg-slate-50`}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
                       disabled={isSaving}
                       onClick={() => onToggleStatus(user)}
-                      className={`${
+                      className={`${buttonClass} ${
                         user.isActive
-                          ? "oas-danger-button"
-                          : `${buttonClass} border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100`
+                          ? "border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                          : "border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                       } disabled:cursor-not-allowed disabled:opacity-70`}
                     >
                       {user.isActive ? "Suspend" : "Activate"}
@@ -986,7 +993,7 @@ function AccountModal({ account, mode, isSaving, onClose, onEdit, onSave }) {
             <button
               type="button"
               disabled={isSaving}
-              onClick={handleSave}
+              onClick={() => onSave(draft)}
               className={`${buttonClass} bg-[#0056b3] text-white hover:bg-[#003a78] disabled:cursor-not-allowed disabled:opacity-70`}
             >
               {isSaving ? "Saving..." : "Save Changes"}
