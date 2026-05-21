@@ -433,25 +433,29 @@ function AccountTable({
                     >
                       View
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => onEdit(user)}
-                      className={`${buttonClass} border border-slate-300 bg-white text-slate-700 hover:bg-slate-50`}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isSaving}
-                      onClick={() => onToggleStatus(user)}
-                      className={`${buttonClass} ${
-                        user.isActive
-                          ? "border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-                          : "border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                      } disabled:cursor-not-allowed disabled:opacity-70`}
-                    >
-                      {user.isActive ? "Suspend" : "Activate"}
-                    </button>
+                    {String(user.role) !== "superadmin" && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => onEdit(user)}
+                          className={`${buttonClass} border border-slate-300 bg-white text-slate-700 hover:bg-slate-50`}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isSaving}
+                          onClick={() => onToggleStatus(user)}
+                          className={`${buttonClass} ${
+                            user.isActive
+                              ? "border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                              : "border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                          } disabled:cursor-not-allowed disabled:opacity-70`}
+                        >
+                          {user.isActive ? "Suspend" : "Activate"}
+                        </button>
+                      </>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -554,23 +558,25 @@ function AccountModal({ account, mode, isSaving, onClose, onEdit, onSave }) {
           >
             Close
           </button>
-          {isEditing ? (
-            <button
-              type="button"
-              disabled={isSaving}
-              onClick={() => onSave(draft)}
-              className={`${buttonClass} bg-[#0056b3] text-white hover:bg-[#003a78] disabled:cursor-not-allowed disabled:opacity-70`}
-            >
-              {isSaving ? "Saving..." : "Save Changes"}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={onEdit}
-              className={`${buttonClass} bg-[#0056b3] text-white hover:bg-[#003a78]`}
-            >
-              Edit
-            </button>
+          {String(account.role) !== "superadmin" && (
+            isEditing ? (
+              <button
+                type="button"
+                disabled={isSaving}
+                onClick={() => onSave(draft)}
+                className={`${buttonClass} bg-[#0056b3] text-white hover:bg-[#003a78] disabled:cursor-not-allowed disabled:opacity-70`}
+              >
+                {isSaving ? "Saving..." : "Save Changes"}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onEdit}
+                className={`${buttonClass} bg-[#0056b3] text-white hover:bg-[#003a78]`}
+              >
+                Edit
+              </button>
+            )
           )}
         </div>
       </div>
