@@ -1,4 +1,5 @@
 import pool from "../config/db.js";
+import { recordActivityLog } from "../services/activityLogService.js";
 import { mapJobOpening, mapJobPosition } from "../utils/formatters.js";
 
 const allowedJobStatuses = ["open", "closed", "draft"];
@@ -10,9 +11,14 @@ function normalizeSearch(value) {
     .replace(/\s+/g, " ");
 }
 
-function parseLimit(value) {
-  const limit = Number.parseInt(value || "60", 10);
-  return Number.isInteger(limit) ? Math.min(Math.max(limit, 1), 100) : 60;
+function getPagination(query = {}, { defaultLimit = 60, maxLimit = 100 } = {}) {
+  const limit = Number.parseInt(query.limit || String(defaultLimit), 10);
+  const offset = Number.parseInt(query.offset || "0", 10);
+
+  return {
+    limit: Number.isInteger(limit) ? Math.min(Math.max(limit, 1), maxLimit) : defaultLimit,
+    offset: Number.isInteger(offset) ? Math.max(offset, 0) : 0,
+  };
 }
 
 function normalizeDeadlineTime(value, fallback = "23:59") {
@@ -100,6 +106,121 @@ const jobOpeningSelect = `
   created_at, updated_at
 `;
 
+const jobPositionsCacheTtlMs = 30 * 1000;
+let jobPositionsCache = {
+  expiresAt: 0,
+  positions: null,
+};
+
+function clearJobPositionsCache() {
+  jobPositionsCache = {
+    expiresAt: 0,
+    positions: null,
+  };
+}
+
+function isApplicantUser(user) {
+  return String(user?.role || "").toLowerCase() === "applicant";
+}
+
+function requirementSnapshot(requirements = []) {
+  return normalizeRequirements(requirements).map((requirement) => ({
+    field: requirement.field,
+    label: requirement.label,
+    description: requirement.description,
+    required: requirement.required !== false,
+  }));
+}
+
+function requirementsChanged(beforeRequirements = [], afterRequirements = []) {
+  return (
+    JSON.stringify(requirementSnapshot(beforeRequirements)) !==
+    JSON.stringify(requirementSnapshot(afterRequirements))
+  );
+}
+
+async function getApplicantJobContext(
+  jobIds,
+  user,
+  { includeUploads = false } = {}
+) {
+  const ids = Array.from(
+    new Set(
+      (jobIds || [])
+        .map((id) => Number.parseInt(id, 10))
+        .filter((id) => Number.isInteger(id) && id > 0)
+    )
+  );
+
+  if (!isApplicantUser(user) || ids.length === 0) {
+    return {
+      applications: new Map(),
+      activeUploads: new Map(),
+    };
+  }
+
+  const [applicationResult, uploadResult] = await Promise.all([
+    pool.query(
+      `SELECT id, job_opening_id, status
+       FROM job_applications
+       WHERE user_id = $1
+         AND job_opening_id = ANY($2::int[])`,
+      [user.id, ids]
+    ),
+    includeUploads
+      ? pool.query(
+          `SELECT job_opening_id, ARRAY_AGG(DISTINCT requirement_field) AS fields
+           FROM uploaded_files
+           WHERE owner_user_id = $1
+             AND job_opening_id = ANY($2::int[])
+             AND status = 'active'
+           GROUP BY job_opening_id`,
+          [user.id, ids]
+        )
+      : Promise.resolve({ rows: [] }),
+  ]);
+
+  return {
+    applications: new Map(
+      applicationResult.rows.map((row) => [Number(row.job_opening_id), row])
+    ),
+    activeUploads: new Map(
+      uploadResult.rows.map((row) => [
+        Number(row.job_opening_id),
+        row.fields || [],
+      ])
+    ),
+  };
+}
+
+function mapJobOpeningForApplicant(row, context) {
+  const job = mapJobOpening(row);
+  const application = context.applications.get(Number(job.id));
+  const activeRequirementFields = context.activeUploads.get(Number(job.id));
+
+  return {
+    ...job,
+    applied: Boolean(application),
+    applicationId: application?.id || null,
+    applicationStatus: application?.status || "",
+    ...(activeRequirementFields ? { activeRequirementFields } : {}),
+  };
+}
+
+async function archiveUploadsForRequirementChange(jobId) {
+  const result = await pool.query(
+    `UPDATE uploaded_files
+     SET status = 'archived',
+         deleted_at = NOW(),
+         updated_at = NOW()
+     WHERE job_opening_id = $1
+       AND status = 'active'`,
+    [jobId]
+  );
+
+  return result.rowCount;
+}
+
 function buildJobFilters(query = {}, { publicOnly = false } = {}) {
   const conditions = [];
   const values = [];
@@ -153,23 +274,44 @@ function buildJobFilters(query = {}, { publicOnly = false } = {}) {
 
 export async function listOpenJobOpenings(req, res) {
   try {
-    const limit = parseLimit(req.query.limit);
+    const { limit, offset } = getPagination(req.query);
     const { where, values } = buildJobFilters(req.query, {
       publicOnly: true,
     });
+    const countResult = await pool.query(
+      `SELECT COUNT(*)::int AS total
+       FROM job_openings
+       ${where}`,
+      values
+    );
 
     values.push(limit);
+    values.push(offset);
 
     const result = await pool.query(
       `SELECT ${jobOpeningSelect}
        FROM job_openings
        ${where}
        ORDER BY deadline ASC, deadline_time ASC, created_at DESC
-       LIMIT $${values.length}`,
+       LIMIT $${values.length - 1} OFFSET $${values.length}`,
       values
     );
+    const applicantContext = await getApplicantJobContext(
+      result.rows.map((row) => row.id),
+      req.user
+    );
 
-    res.json({ success: true, jobs: result.rows.map(mapJobOpening) });
+    res.json({
+      success: true,
+      jobs: result.rows.map((row) =>
+        mapJobOpeningForApplicant(row, applicantContext)
+      ),
+      pagination: {
+        limit,
+        offset,
+        total: countResult.rows[0]?.total || 0,
+      },
+    });
   } catch (error) {
     console.error("Error fetching job openings:", error);
     res.status(500).json({
@@ -199,10 +341,18 @@ export async function getJobOpening(req, res) {
         message: "Job opening not found.",
       });
     }
+    const applicantContext = await getApplicantJobContext([job.id], req.user, {
+      includeUploads: true,
+    });
+    const mappedJob = mapJobOpeningForApplicant(job, applicantContext);
+    if (isApplicantUser(req.user)) {
+      mappedJob.activeRequirementFields =
+        applicantContext.activeUploads.get(Number(job.id)) || [];
+    }
 
     return res.json({
       success: true,
-      job: mapJobOpening(job),
+      job: mappedJob,
     });
   } catch (error) {
     console.error("Error fetching job opening:", error);
@@ -215,21 +365,36 @@ export async function getJobOpening(req, res) {
 
 export async function listAdminJobOpenings(req, res) {
   try {
-    const limit = parseLimit(req.query.limit);
+    const { limit, offset } = getPagination(req.query);
     const { where, values } = buildJobFilters(req.query);
+    const countResult = await pool.query(
+      `SELECT COUNT(*)::int AS total
+       FROM job_openings
+       ${where}`,
+      values
+    );
 
     values.push(limit);
+    values.push(offset);
 
     const result = await pool.query(
       `SELECT ${jobOpeningSelect}
        FROM job_openings
        ${where}
        ORDER BY created_at DESC
-       LIMIT $${values.length}`,
+       LIMIT $${values.length - 1} OFFSET $${values.length}`,
       values
     );
 
-    res.json({ success: true, jobs: result.rows.map(mapJobOpening) });
+    res.json({
+      success: true,
+      jobs: result.rows.map(mapJobOpening),
+      pagination: {
+        limit,
+        offset,
+        total: countResult.rows[0]?.total || 0,
+      },
+    });
   } catch (error) {
     console.error("Error fetching admin job openings:", error);
     res.status(500).json({
@@ -241,6 +406,15 @@ export async function listAdminJobOpenings(req, res) {
 
 export async function deleteJobOpening(req, res) {
   try {
+    const existingResult = await pool.query(
+      `SELECT id, title, status
+       FROM job_openings
+       WHERE id = $1
+       LIMIT 1`,
+      [req.params.id]
+    );
+    const existingJob = existingResult.rows[0];
+
     const result = await pool.query(
       "DELETE FROM job_openings WHERE id = $1 RETURNING id",
       [req.params.id]
@@ -252,6 +426,17 @@ export async function deleteJobOpening(req, res) {
         message: "Job opening not found.",
       });
     }
+
+    await recordActivityLog(pool, {
+      actor: req.user,
+      action: "job_opening.deleted",
+      entityType: "job_opening",
+      entityId: Number(req.params.id),
+      entityLabel: existingJob?.title || "Job opening",
+      metadata: {
+        previousStatus: existingJob?.status || "",
+      },
+    });
 
     return res.json({
       success: true,
@@ -269,15 +454,30 @@ export async function deleteJobOpening(req, res) {
 
 export async function listJobPositions(_req, res) {
   try {
+    if (
+      jobPositionsCache.positions &&
+      jobPositionsCache.expiresAt > Date.now()
+    ) {
+      return res.json({
+        success: true,
+        positions: jobPositionsCache.positions,
+      });
+    }
+
     const result = await pool.query(
       `SELECT id, category, title, requirements, created_at, updated_at
        FROM job_positions
        ORDER BY category ASC, title ASC`
     );
+    const positions = result.rows.map(mapJobPosition);
+    jobPositionsCache = {
+      positions,
+      expiresAt: Date.now() + jobPositionsCacheTtlMs,
+    };
 
     return res.json({
       success: true,
-      positions: result.rows.map(mapJobPosition),
+      positions,
     });
   } catch (error) {
     console.error("Error fetching job positions:", error);
@@ -307,10 +507,23 @@ export async function createJobPosition(req, res) {
        RETURNING id, category, title, requirements, created_at, updated_at`,
       [category, title, JSON.stringify(requirements)]
     );
+    const position = mapJobPosition(result.rows[0]);
+    clearJobPositionsCache();
+
+    await recordActivityLog(pool, {
+      actor: req.user,
+      action: "job_position.created",
+      entityType: "job_position",
+      entityId: position.id,
+      entityLabel: position.title,
+      metadata: {
+        category: position.category,
+      },
+    });
 
     return res.status(201).json({
       success: true,
-      position: mapJobPosition(result.rows[0]),
+      position,
     });
   } catch (error) {
     if (error?.code === "23505") {
@@ -357,6 +570,14 @@ export async function updateJobPosition(req, res) {
   }
 
   try {
+    const beforeResult = await pool.query(
+      `SELECT id, category, title, requirements
+       FROM job_positions
+       WHERE id = $1
+       LIMIT 1`,
+      [req.params.id]
+    );
+
     const result = await pool.query(
       `UPDATE job_positions
        SET category = COALESCE($2, category),
@@ -380,9 +601,28 @@ export async function updateJobPosition(req, res) {
       });
     }
 
+    const position = mapJobPosition(result.rows[0]);
+    clearJobPositionsCache();
+
+    await recordActivityLog(pool, {
+      actor: req.user,
+      action: "job_position.updated",
+      entityType: "job_position",
+      entityId: position.id,
+      entityLabel: position.title,
+      metadata: {
+        before: beforeResult.rows[0] || null,
+        after: {
+          category: position.category,
+          title: position.title,
+          requirements: position.requirements,
+        },
+      },
+    });
+
     return res.json({
       success: true,
-      position: mapJobPosition(result.rows[0]),
+      position,
     });
   } catch (error) {
     if (error?.code === "23505") {
@@ -402,6 +642,15 @@ export async function updateJobPosition(req, res) {
 
 export async function deleteJobPosition(req, res) {
   try {
+    const existingResult = await pool.query(
+      `SELECT id, category, title
+       FROM job_positions
+       WHERE id = $1
+       LIMIT 1`,
+      [req.params.id]
+    );
+    const existingPosition = existingResult.rows[0];
+
     const result = await pool.query(
       "DELETE FROM job_positions WHERE id = $1 RETURNING id",
       [req.params.id]
@@ -413,6 +662,18 @@ export async function deleteJobPosition(req, res) {
         message: "Position not found.",
       });
     }
+    clearJobPositionsCache();
+
+    await recordActivityLog(pool, {
+      actor: req.user,
+      action: "job_position.deleted",
+      entityType: "job_position",
+      entityId: Number(req.params.id),
+      entityLabel: existingPosition?.title || "Position",
+      metadata: {
+        category: existingPosition?.category || "",
+      },
+    });
 
     return res.json({
       success: true,
@@ -497,8 +758,8 @@ export async function createJobOpening(req, res) {
       `INSERT INTO job_openings
         (title, location, district, barangay, vacancy, deadline, deadline_time,
          position_id, position_category, status, description, requirements,
-         created_by, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())
+         created_by, updated_by, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13, NOW(), NOW())
        RETURNING ${jobOpeningSelect}`,
       [
         title,
@@ -516,10 +777,24 @@ export async function createJobOpening(req, res) {
         req.user?.id || null,
       ]
     );
+    const job = mapJobOpening(result.rows[0]);
+
+    await recordActivityLog(pool, {
+      actor: req.user,
+      action: "job_opening.created",
+      entityType: "job_opening",
+      entityId: job.id,
+      entityLabel: job.title,
+      metadata: {
+        status: job.status,
+        deadline: job.deadline,
+        vacancy: job.vacancy,
+      },
+    });
 
     res.status(201).json({
       success: true,
-      job: mapJobOpening(result.rows[0]),
+      job,
     });
   } catch (error) {
     console.error("Error creating job opening:", error);
@@ -641,6 +916,14 @@ export async function updateJobOpening(req, res) {
   }
 
   try {
+    const beforeResult = await pool.query(
+      `SELECT ${jobOpeningSelect}
+       FROM job_openings
+       WHERE id = $1
+       LIMIT 1`,
+      [req.params.id]
+    );
+
     const result = await pool.query(
       `UPDATE job_openings
        SET title = COALESCE($2, title),
@@ -655,6 +938,7 @@ export async function updateJobOpening(req, res) {
             status = COALESCE($11, status),
             description = COALESCE($12, description),
             requirements = COALESCE($13, requirements),
+            updated_by = $14,
             updated_at = NOW()
         WHERE id = $1
         RETURNING ${jobOpeningSelect}`,
@@ -672,6 +956,7 @@ export async function updateJobOpening(req, res) {
         updates.status || null,
         updates.description ?? null,
         updates.requirements === undefined ? null : JSON.stringify(updates.requirements),
+        req.user?.id || null,
       ]
     );
 
@@ -682,7 +967,30 @@ export async function updateJobOpening(req, res) {
       });
     }
 
-    res.json({ success: true, job: mapJobOpening(result.rows[0]) });
+    const job = mapJobOpening(result.rows[0]);
+    const beforeJob = beforeResult.rows[0] ? mapJobOpening(beforeResult.rows[0]) : null;
+    const didRequirementsChange =
+      updates.requirements !== undefined &&
+      requirementsChanged(beforeJob?.requirements || [], job.requirements || []);
+    const archivedRequirementUploads = didRequirementsChange
+      ? await archiveUploadsForRequirementChange(job.id)
+      : 0;
+
+    await recordActivityLog(pool, {
+      actor: req.user,
+      action: "job_opening.updated",
+      entityType: "job_opening",
+      entityId: job.id,
+      entityLabel: job.title,
+      metadata: {
+        before: beforeJob,
+        after: job,
+        requirementsChanged: didRequirementsChange,
+        archivedRequirementUploads,
+      },
+    });
+
+    res.json({ success: true, job });
   } catch (error) {
     console.error("Error updating job opening:", error);
     res.status(500).json({

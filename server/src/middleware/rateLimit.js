@@ -252,3 +252,12 @@ export const authenticatedWriteLimiter = rateLimit({
   includePath: true,
   message: "Too many changes submitted. Please try again later.",
 });
+
+export const uploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: envInt("RATE_LIMIT_UPLOAD_MAX", 40),
+  keyPrefix: "upload",
+  includeBodyIdentity: false,
+  includePath: true,
+  message: "Too many file uploads. Please wait before uploading more files.",
+});

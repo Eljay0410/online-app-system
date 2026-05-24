@@ -12,6 +12,10 @@ import {
   revokeSessionToken,
 } from "../services/sessionService.js";
 import { normalizeEmail } from "../utils/formatters.js";
+import {
+  hasPasswordStrength,
+  passwordPolicyMessage,
+} from "../utils/password.js";
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const contactPattern = /^09\d{9}$/;
@@ -66,15 +70,6 @@ function mapAccountUser(user) {
     lastLogin: user.last_login || null,
     uan: String(user.uan || "").toUpperCase(),
   };
-}
-
-function hasPasswordStrength(password) {
-  return (
-    password.length >= 8 &&
-    /[a-z]/.test(password) &&
-    /[A-Z]/.test(password) &&
-    /\d/.test(password)
-  );
 }
 
 export async function checkEmail(req, res) {
@@ -230,7 +225,7 @@ export async function registerApplicant(req, res) {
     activationPayload = await createActivationToken(
       client,
       user,
-      TOKEN_PURPOSES.PASSWORD_RESET
+      TOKEN_PURPOSES.PASSWORD_SETUP
     );
     createdUser = user;
 
@@ -243,14 +238,19 @@ export async function registerApplicant(req, res) {
       try {
         emailSent = await sendActivationEmail(
           createdUser.email,
-          createdUser.uan,
           activationPayload.token,
-          TOKEN_PURPOSES.EMAIL_VERIFICATION
+          TOKEN_PURPOSES.PASSWORD_SETUP,
+          {
+            recipientName: [createdUser.first_name, createdUser.last_name]
+              .filter(Boolean)
+              .join(" "),
+            uan: createdUser.uan,
+          }
         );
       } catch (error) {
-        console.error("Failed to send verification email:", error);
+        console.error("Failed to send password setup email:", error);
         emailMessage =
-          "Account created, but the verification email could not be sent.";
+          "Account created, but the password setup email could not be sent.";
       }
     } else if (!transporter) {
       emailMessage =
@@ -336,7 +336,7 @@ export async function login(req, res) {
       return res.status(403).json({
         success: false,
         message:
-          "This account does not have a password yet. Please use password reset.",
+          "This account does not have a password yet. Please use the setup link sent to your email or request a new setup link.",
       });
     }
 
@@ -409,7 +409,7 @@ export async function resendActivationEmail(req, res) {
   try {
     await client.query("BEGIN");
     const result = await client.query(
-      `SELECT id, email, uan, is_active, password_hash,
+      `SELECT id, email, first_name, last_name, uan, is_active, password_hash,
               last_activation_sent_at, last_password_reset_sent_at
        FROM users
        WHERE LOWER(email) = LOWER($1)
@@ -419,30 +419,45 @@ export async function resendActivationEmail(req, res) {
 
     const user = result.rows[0];
 
-    if (!user || user.is_active) {
+    if (!user || (user.is_active && user.password_hash)) {
       await client.query("COMMIT");
       return res.json(genericResponse);
     }
 
     const purpose = user.password_hash
       ? TOKEN_PURPOSES.EMAIL_VERIFICATION
-      : TOKEN_PURPOSES.PASSWORD_RESET;
+      : TOKEN_PURPOSES.PASSWORD_SETUP;
+
+    if (purpose === TOKEN_PURPOSES.PASSWORD_SETUP && !user.uan) {
+      user.uan = await assignUan(client, user.id, user.uan);
+    }
 
     const activation = await createActivationToken(client, user, purpose);
     await client.query("COMMIT");
 
+    let emailSent = false;
+
     if (activation.token && transporter) {
-      await sendActivationEmail(
-        user.email,
-        user.uan,
-        activation.token,
-        purpose
-      );
+      try {
+        emailSent = await sendActivationEmail(
+          user.email,
+          activation.token,
+          purpose,
+          {
+            recipientName: [user.first_name, user.last_name]
+              .filter(Boolean)
+              .join(" "),
+            uan: user.uan,
+          }
+        );
+      } catch (error) {
+        console.error("Failed to send activation/setup email:", error);
+      }
     }
 
     return res.json({
       ...genericResponse,
-      emailSent: Boolean(activation.token && transporter),
+      emailSent,
       message: activation.skippedReason || genericResponse.message,
     });
   } catch (error) {
@@ -479,7 +494,7 @@ export async function forgotPassword(req, res) {
     await client.query("BEGIN");
 
     const result = await client.query(
-      `SELECT id, email, uan, is_active, last_password_reset_sent_at
+      `SELECT id, email, is_active, password_hash, last_password_reset_sent_at
        FROM users
        WHERE LOWER(email) = LOWER($1)
        FOR UPDATE`,
@@ -488,7 +503,7 @@ export async function forgotPassword(req, res) {
 
     const user = result.rows[0];
 
-    if (!user || user.is_active === false) {
+    if (!user || user.is_active === false || !user.password_hash) {
       await client.query("COMMIT");
       return res.json(genericResponse);
     }
@@ -500,18 +515,23 @@ export async function forgotPassword(req, res) {
     );
     await client.query("COMMIT");
 
+    let emailSent = false;
+
     if (activation.token && transporter) {
-      await sendActivationEmail(
-        user.email,
-        user.uan,
-        activation.token,
-        TOKEN_PURPOSES.PASSWORD_RESET
-      );
+      try {
+        emailSent = await sendActivationEmail(
+          user.email,
+          activation.token,
+          TOKEN_PURPOSES.PASSWORD_RESET
+        );
+      } catch (error) {
+        console.error("Failed to send password reset email:", error);
+      }
     }
 
     return res.json({
       ...genericResponse,
-      emailSent: Boolean(activation.token && transporter),
+      emailSent,
       message:
         activation.skippedReason ||
         (transporter
@@ -716,8 +736,7 @@ export async function changePassword(req, res) {
   if (!hasPasswordStrength(newPassword)) {
     return res.status(400).json({
       success: false,
-      message:
-        "Password must be at least 8 characters and include uppercase, lowercase, and a number.",
+      message: passwordPolicyMessage,
     });
   }
 

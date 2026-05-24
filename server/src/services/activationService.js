@@ -8,6 +8,7 @@ import {
 
 export const TOKEN_PURPOSES = {
   EMAIL_VERIFICATION: "email_verification",
+  PASSWORD_SETUP: "password_setup",
   PASSWORD_RESET: "password_reset",
 };
 
@@ -15,24 +16,100 @@ function hashToken(token) {
   return `sha256:${createHash("sha256").update(token).digest("hex")}`;
 }
 
-function buildActivationEmail({ actionLink, intro, purpose, ttlHours, uan }) {
-  const isReset = purpose === TOKEN_PURPOSES.PASSWORD_RESET;
-  const title = isReset ? "Reset your password" : "Verify your email";
-  const actionLabel = isReset ? "Reset Password" : "Verify Email";
-  const uanValue = String(uan || "N/A").toUpperCase();
+function getPurposeCopy(purpose) {
+  if (purpose === TOKEN_PURPOSES.PASSWORD_SETUP) {
+    return {
+      title: "Activate your account",
+      actionLabel: "Activate Account",
+      subject: "Activate your Online Application System account",
+      intro:
+        "An Online Application System account has been created for you. Use the secure link below to set your password and activate your account.",
+      footer:
+        "Keep your UAN for future reference. If you were not expecting this account, please contact the system administrator.",
+    };
+  }
+
+  if (purpose === TOKEN_PURPOSES.PASSWORD_RESET) {
+    return {
+      title: "Reset your password",
+      actionLabel: "Reset Password",
+      subject: "Reset your Online Application System password",
+      intro:
+        "Use the secure link below to choose a new password for your account.",
+      footer: "If you did not request this email, you can safely ignore it.",
+    };
+  }
+
+  return {
+    title: "Verify your email",
+    actionLabel: "Verify Email",
+    subject: "Verify your Online Application System email",
+    intro:
+      "Use the secure link below to verify your email and activate your account.",
+    footer: "If you did not request this email, you can safely ignore it.",
+  };
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function buildActivationEmail({
+  actionLink,
+  purpose,
+  ttlHours,
+  recipientName = "",
+  uan = "",
+}) {
+  const { title, actionLabel, intro, footer } = getPurposeCopy(purpose);
+  const isPasswordSetup = purpose === TOKEN_PURPOSES.PASSWORD_SETUP;
+  const safeTitle = escapeHtml(title);
+  const safeActionLabel = escapeHtml(actionLabel);
+  const safeIntro = escapeHtml(intro);
+  const safeFooter = escapeHtml(footer);
+  const safeActionLink = escapeHtml(actionLink);
+  const safeRecipientName = escapeHtml(recipientName);
+  const safeUan = escapeHtml(String(uan || "").toUpperCase());
+  const greeting = safeRecipientName ? `Dear ${safeRecipientName},` : "Hello,";
+  const accountDetailsText =
+    isPasswordSetup && safeUan
+      ? ["", "Account details", `UAN: ${safeUan}`]
+      : [];
+  const accountDetailsHtml =
+    isPasswordSetup && safeUan
+      ? `<tr>
+              <td style="padding:10px 28px 6px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;">
+                  <tr>
+                    <td style="padding:16px 18px;">
+                      <div style="font-size:12px;letter-spacing:1.2px;text-transform:uppercase;color:#64748b;font-weight:700;">Account details</div>
+                      <div style="margin-top:8px;font-size:15px;color:#334155;">Your UAN: <strong style="color:#0f172a;">${safeUan}</strong></div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>`
+      : "";
 
   const text = [
     "DepEd City of San Jose del Monte Online Application System",
     "",
     title,
     "",
-    `Unique Application Number (UAN): ${uanValue}`,
+    greeting,
+    "",
     intro,
+    ...accountDetailsText,
     "",
     `${actionLabel}: ${actionLink}`,
     "",
     `This secure link expires in ${ttlHours} hours.`,
-    "If you did not request this email, you can safely ignore it.",
+    footer,
   ].join("\n");
 
   const html = `<!doctype html>
@@ -40,7 +117,7 @@ function buildActivationEmail({ actionLink, intro, purpose, ttlHours, uan }) {
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>${title}</title>
+    <title>${safeTitle}</title>
   </head>
   <body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f1f5f9;margin:0;padding:32px 12px;">
@@ -56,37 +133,27 @@ function buildActivationEmail({ actionLink, intro, purpose, ttlHours, uan }) {
             </tr>
             <tr>
               <td style="padding:30px 28px 10px;">
-                <h1 style="margin:0;font-size:24px;line-height:1.25;color:#0f172a;">${title}</h1>
-                <p style="margin:12px 0 0;font-size:15px;line-height:1.6;color:#475569;">${intro}</p>
+                <h1 style="margin:0;font-size:24px;line-height:1.25;color:#0f172a;">${safeTitle}</h1>
+                <p style="margin:12px 0 0;font-size:15px;line-height:1.6;color:#334155;">${greeting}</p>
+                <p style="margin:12px 0 0;font-size:15px;line-height:1.6;color:#475569;">${safeIntro}</p>
               </td>
             </tr>
-            <tr>
-              <td style="padding:16px 28px;">
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;">
-                  <tr>
-                    <td style="padding:18px 20px;">
-                      <div style="font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#1d4ed8;">Unique Application Number</div>
-                      <div style="margin-top:8px;font-size:28px;font-weight:800;letter-spacing:2px;color:#0f172a;">${uanValue}</div>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
+            ${accountDetailsHtml}
             <tr>
               <td align="center" style="padding:18px 28px 12px;">
-                <a href="${actionLink}" style="display:inline-block;background:#0056b3;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:14px 24px;border-radius:10px;">${actionLabel}</a>
+                <a href="${safeActionLink}" style="display:inline-block;background:#0056b3;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:14px 24px;border-radius:10px;">${safeActionLabel}</a>
               </td>
             </tr>
             <tr>
               <td style="padding:8px 28px 30px;">
                 <p style="margin:0;font-size:13px;line-height:1.6;color:#64748b;text-align:center;">This secure link expires in <strong>${ttlHours} hours</strong>.</p>
                 <p style="margin:18px 0 0;font-size:12px;line-height:1.6;color:#64748b;">If the button does not work, copy and paste this link into your browser:</p>
-                <p style="margin:6px 0 0;font-size:12px;line-height:1.6;word-break:break-all;color:#2563eb;">${actionLink}</p>
+                <p style="margin:6px 0 0;font-size:12px;line-height:1.6;word-break:break-all;color:#2563eb;">${safeActionLink}</p>
               </td>
             </tr>
             <tr>
               <td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:18px 28px;">
-                <p style="margin:0;font-size:12px;line-height:1.6;color:#64748b;">If you did not request this email, you can safely ignore it.</p>
+                <p style="margin:0;font-size:12px;line-height:1.6;color:#64748b;">${safeFooter}</p>
               </td>
             </tr>
           </table>
@@ -121,9 +188,10 @@ function getCooldownMinutes(purpose, sentCount) {
 }
 
 function getTokenTtlHours(purpose) {
-  const key =
-    purpose === TOKEN_PURPOSES.PASSWORD_RESET
-      ? "PASSWORD_RESET_TOKEN_HOURS"
+  const key = purpose === TOKEN_PURPOSES.PASSWORD_RESET
+    ? "PASSWORD_RESET_TOKEN_HOURS"
+    : purpose === TOKEN_PURPOSES.PASSWORD_SETUP
+      ? "PASSWORD_SETUP_TOKEN_HOURS"
       : "ACTIVATION_TOKEN_HOURS";
 
   return Number.parseInt(
@@ -246,9 +314,9 @@ export async function createActivationToken(
 
 export async function sendActivationEmail(
   to,
-  uan,
   token,
-  purpose = TOKEN_PURPOSES.EMAIL_VERIFICATION
+  purpose = TOKEN_PURPOSES.EMAIL_VERIFICATION,
+  options = {}
 ) {
   if (!transporter || !token) return false;
 
@@ -260,19 +328,13 @@ export async function sendActivationEmail(
   const from = MAIL_FROM_NAME
     ? `${MAIL_FROM_NAME} <${MAIL_FROM_ADDRESS}>`
     : MAIL_FROM_ADDRESS;
-  const isReset = safePurpose === TOKEN_PURPOSES.PASSWORD_RESET;
-  const subject = isReset
-    ? "Reset your Online Application System password"
-    : "Verify your Online Application System email";
-  const intro = isReset
-    ? "Use the link below to set a new password for your account."
-    : "Use the link below to verify your email. Your password will not activate the account until this verification is completed.";
+  const { subject } = getPurposeCopy(safePurpose);
   const emailContent = buildActivationEmail({
     actionLink,
-    intro,
     purpose: safePurpose,
     ttlHours,
-    uan,
+    recipientName: options.recipientName || "",
+    uan: safePurpose === TOKEN_PURPOSES.PASSWORD_SETUP ? options.uan : "",
   });
 
   await transporter.sendMail({

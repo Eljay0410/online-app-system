@@ -52,6 +52,24 @@ export async function requireAuth(req, res, next) {
   }
 }
 
+export async function optionalAuth(req, _res, next) {
+  try {
+    const token = readBearerToken(req);
+    if (!token) return next();
+
+    const user = await getUserBySessionToken(token);
+    if (user) {
+      req.user = user;
+      req.authToken = token;
+    }
+
+    return next();
+  } catch (error) {
+    console.error("Optional auth middleware error:", error);
+    return next();
+  }
+}
+
 export function requireRoles(...allowedRoles) {
   const allowed = allowedRoles.map(normalizeRole);
 

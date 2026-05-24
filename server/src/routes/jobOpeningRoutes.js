@@ -11,13 +11,13 @@ import {
   updateJobOpening,
   updateJobPosition,
 } from "../controllers/jobOpeningController.js";
-import { requireAuth, requireRoles } from "../middleware/auth.js";
+import { optionalAuth, requireAuth, requireRoles } from "../middleware/auth.js";
 import { authenticatedWriteLimiter } from "../middleware/rateLimit.js";
 
 const router = Router();
 
-router.get("/job-openings", listOpenJobOpenings);
-router.get("/job-openings/:id", getJobOpening);
+router.get("/job-openings", optionalAuth, listOpenJobOpenings);
+router.get("/job-openings/:id", optionalAuth, getJobOpening);
 router.get("/job-positions", listJobPositions);
 router.get(
   "/admin/job-openings",

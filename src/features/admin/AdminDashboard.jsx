@@ -1,18 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
-  Briefcase,
-  CheckCircle2,
-  ClipboardList,
   Loader2,
+  Pencil,
   Plus,
   Save,
   Search,
+  Trash2,
   X,
 } from "lucide-react";
 import { apiRequest } from "../../lib/api";
+import ActivityLogSection from "./ActivityLogSection";
 import SuperAdminSidebar from "../../components/layout/SuperAdminSidebar";
+import FilePreviewModal from "../../components/ui/FilePreviewModal";
 import FilterIcon from "../../components/ui/FilterIcon";
+import PaginationControls from "../../components/ui/PaginationControls";
 import { useToast } from "../../components/ui/toastContext";
+import {
+  getInitialSidebarCollapsed,
+  getSidebarContentPadding,
+} from "../../lib/sidebar";
 import {
   buildSjdmLocationLabel,
   findSjdmSchool,
@@ -42,31 +49,128 @@ const emptyPosition = {
 };
 
 const statusLabels = {
+  draft: "Draft",
   submitted: "Submitted",
+  pending_review: "Pending Review",
+  for_compliance: "For Compliance",
   under_review: "Under Review",
-  for_interview: "For Interview",
   qualified: "Qualified",
   rejected: "Rejected",
-  denied: "Denied",
+  hired: "Hired",
 };
+
+const applicationStatusTransitions = {
+  draft: ["submitted", "rejected"],
+  submitted: ["pending_review", "under_review", "for_compliance", "rejected"],
+  pending_review: ["under_review", "for_compliance", "rejected"],
+  for_compliance: ["pending_review", "under_review", "rejected"],
+  under_review: ["qualified", "rejected"],
+  qualified: ["hired", "rejected"],
+  rejected: [],
+  hired: [],
+};
+
+function getApplicationStatusOptions(status) {
+  const currentStatus = statusLabels[status] ? status : "submitted";
+  const nextStatuses = applicationStatusTransitions[currentStatus] || [];
+
+  return [currentStatus, ...nextStatuses].filter(
+    (value, index, items) => statusLabels[value] && items.indexOf(value) === index
+  );
+}
+
+function isApplicationStatusFinal(status) {
+  return (applicationStatusTransitions[status] || []).length === 0;
+}
+
+const adminSections = new Set([
+  "job-posting",
+  "positions",
+  "applicant-list",
+  "job-listing",
+  "activity-logs",
+]);
+const defaultApplicationPageSize = 10;
+const applicantPageSizeOptions = [10, 25, 50];
+const cardPageSizeOptions = [6, 9, 12];
+const tablePageSizeOptions = [10, 25, 50];
+const defaultPositionPageSize = 10;
+const positionPageSizeOptions = [10, 25, 50];
+const requirementReviewStatuses = [
+  "pending",
+  "approved",
+  "rejected",
+  "needs_resubmission",
+  "missing",
+];
+const requirementReviewStatusLabels = {
+  pending: "Pending",
+  approved: "Approved",
+  rejected: "Rejected",
+  needs_resubmission: "Needs Resubmission",
+  missing: "Missing",
+};
+
+const adminPageMeta = {
+  "job-posting": {
+    title: "Manage Job Openings",
+    description: "Create, update, and monitor job postings in one place.",
+  },
+  positions: {
+    title: "Positions",
+    description: "Manage position categories and document requirements.",
+  },
+  "applicant-list": {
+    title: "Applicant List",
+    description: "Review applicants, update statuses, and record HR remarks.",
+  },
+  "job-listing": {
+    title: "Job Listing",
+    description: "View all posted job openings and their published details.",
+  },
+  "activity-logs": {
+    title: "Activity Logs",
+    description: "Backtrack admin changes to postings, positions, and applicant statuses.",
+  },
+};
+
+function normalizeAdminSection(section) {
+  const normalizedSection = section === "post-job" ? "job-posting" : section;
+
+  return adminSections.has(normalizedSection)
+    ? normalizedSection
+    : "job-posting";
+}
 
 function getStatusBadgeClass(status) {
   const normalizedStatus = String(status || "").toLowerCase();
 
+  if (normalizedStatus === "draft") {
+    return "border-slate-200 bg-slate-50 text-slate-700";
+  }
+
   if (normalizedStatus === "submitted") {
     return "border-blue-200 bg-blue-50 text-blue-700";
+  }
+
+  if (normalizedStatus === "pending_review") {
+    return "border-indigo-200 bg-indigo-50 text-indigo-700";
+  }
+
+  if (normalizedStatus === "for_compliance") {
+    return "border-orange-200 bg-orange-50 text-orange-700";
   }
 
   if (normalizedStatus === "under_review") {
     return "border-amber-200 bg-amber-50 text-amber-700";
   }
 
-  if (normalizedStatus === "for_interview") {
-    return "border-violet-200 bg-violet-50 text-violet-700";
-  }
-
   if (normalizedStatus === "qualified") {
     return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+
+  if (normalizedStatus === "hired") {
+    return "border-emerald-300 bg-emerald-50 text-emerald-800";
   }
 
   if (normalizedStatus === "rejected" || normalizedStatus === "denied") {
@@ -79,20 +183,32 @@ function getStatusBadgeClass(status) {
 function getStatusOptionClass(status) {
   const normalizedStatus = String(status || "").toLowerCase();
 
+  if (normalizedStatus === "draft") {
+    return "bg-slate-50 text-slate-700";
+  }
+
   if (normalizedStatus === "submitted") {
     return "bg-blue-50 text-blue-700";
+  }
+
+  if (normalizedStatus === "pending_review") {
+    return "bg-indigo-50 text-indigo-700";
+  }
+
+  if (normalizedStatus === "for_compliance") {
+    return "bg-orange-50 text-orange-700";
   }
 
   if (normalizedStatus === "under_review") {
     return "bg-amber-50 text-amber-700";
   }
 
-  if (normalizedStatus === "for_interview") {
-    return "bg-violet-50 text-violet-700";
-  }
-
   if (normalizedStatus === "qualified") {
     return "bg-emerald-50 text-emerald-700";
+  }
+
+  if (normalizedStatus === "hired") {
+    return "bg-emerald-50 text-emerald-800";
   }
 
   if (normalizedStatus === "rejected" || normalizedStatus === "denied") {
@@ -100,6 +216,44 @@ function getStatusOptionClass(status) {
   }
 
   return "bg-slate-50 text-slate-700";
+}
+
+function getRequirementReviewStatusClass(status) {
+  const normalizedStatus = String(status || "").toLowerCase();
+
+  if (normalizedStatus === "approved") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+
+  if (normalizedStatus === "needs_resubmission") {
+    return "border-orange-200 bg-orange-50 text-orange-700";
+  }
+
+  if (normalizedStatus === "missing") {
+    return "border-slate-300 bg-slate-100 text-slate-700";
+  }
+
+  if (normalizedStatus === "rejected") {
+    return "border-rose-200 bg-rose-50 text-rose-700";
+  }
+
+  return "border-blue-200 bg-blue-50 text-blue-700";
+}
+
+function getRequirementFileName(file) {
+  return file?.name || file?.fileName || file?.filename || "No file attached";
+}
+
+function buildRequirementDrafts(requirements = []) {
+  return Object.fromEntries(
+    requirements.map((requirement) => [
+      String(requirement.id || requirement.field),
+      {
+        status: requirement.status || "pending",
+        remarks: requirement.remarks || "",
+      },
+    ])
+  );
 }
 
 function getControlClass(error, baseClass) {
@@ -238,8 +392,12 @@ function getJobLocation(form) {
 }
 
 export default function AdminDashboard() {
-  const [activeSection, setActiveSection] = useState("job-posting");
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const sectionParam = searchParams.get("section");
+  const activeSection = normalizeAdminSection(sectionParam);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(
+    getInitialSidebarCollapsed
+  );
 
   const [jobs, setJobs] = useState([]);
   const [positions, setPositions] = useState([]);
@@ -251,35 +409,39 @@ export default function AdminDashboard() {
   const [isSaving, setIsSaving] = useState(false);
   const [jobToDelete, setJobToDelete] = useState(null);
   const [reviewNotes, setReviewNotes] = useState({});
+  const [applicationPagination, setApplicationPagination] = useState({
+    limit: defaultApplicationPageSize,
+    offset: 0,
+    total: 0,
+  });
+  const [applicationPage, setApplicationPage] = useState(1);
+  const [applicationPageSize, setApplicationPageSize] =
+    useState(defaultApplicationPageSize);
+  const [isLoadingApplications, setIsLoadingApplications] = useState(true);
+  const [applicationFilterOptions, setApplicationFilterOptions] = useState({
+    positions: [],
+    locations: [],
+  });
   const { showToast } = useToast();
 
   const [selectedPosition, setSelectedPosition] = useState("all");
   const [selectedLocation, setSelectedLocation] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [viewApplication, setViewApplication] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
 
     Promise.all([
-      apiRequest("/api/admin/job-openings"),
+      apiRequest("/api/admin/job-openings?limit=100"),
       apiRequest("/api/admin/job-positions"),
-      apiRequest("/api/admin/applications"),
     ])
-      .then(([jobResult, positionResult, applicationResult]) => {
+      .then(([jobResult, positionResult]) => {
         if (!isMounted) return;
 
         setJobs(jobResult.jobs || []);
         setPositions(positionResult.positions || []);
-        setApplications(applicationResult.applications || []);
-        setReviewNotes(
-          Object.fromEntries(
-            (applicationResult.applications || []).map((application) => [
-              application.id,
-              application.reviewNotes || "",
-            ])
-          )
-        );
       })
       .catch((err) => {
         if (isMounted) {
@@ -297,6 +459,77 @@ export default function AdminDashboard() {
       isMounted = false;
     };
   }, [showToast]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm.trim());
+      setApplicationPage(1);
+    }, 350);
+
+    return () => window.clearTimeout(timeout);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const params = new URLSearchParams({
+      limit: String(applicationPageSize),
+      offset: String((applicationPage - 1) * applicationPageSize),
+    });
+
+    if (debouncedSearchTerm) params.set("q", debouncedSearchTerm);
+    if (selectedPosition !== "all") params.set("position", selectedPosition);
+    if (selectedLocation !== "all") params.set("location", selectedLocation);
+
+    apiRequest(`/api/admin/applications?${params.toString()}`, {
+      dedupe: false,
+    })
+      .then((result) => {
+        if (!isMounted) return;
+
+        const nextApplications = result.applications || [];
+        setApplications(nextApplications);
+        setApplicationPagination(
+          result.pagination || {
+            limit: applicationPageSize,
+            offset: (applicationPage - 1) * applicationPageSize,
+            total: nextApplications.length,
+          }
+        );
+        setApplicationFilterOptions(
+          result.filters || { positions: [], locations: [] }
+        );
+        setReviewNotes(
+          Object.fromEntries(
+            nextApplications.map((application) => [
+              application.id,
+              application.reviewNotes || "",
+            ])
+          )
+        );
+      })
+      .catch((err) => {
+        if (isMounted) {
+          showToast({
+            type: "error",
+            message: err.message || "Failed to load applicants.",
+          });
+        }
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingApplications(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    applicationPage,
+    applicationPageSize,
+    debouncedSearchTerm,
+    selectedLocation,
+    selectedPosition,
+    showToast,
+  ]);
 
   const handleFormChange = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -321,7 +554,13 @@ export default function AdminDashboard() {
   };
 
   const changeActiveSection = (section) => {
-    setActiveSection(section === "post-job" ? "job-posting" : section);
+    const nextSection = normalizeAdminSection(section);
+
+    setSearchParams((currentParams) => {
+      const nextParams = new URLSearchParams(currentParams);
+      nextParams.set("section", nextSection);
+      return nextParams;
+    });
     setIsCreateJobOpen(false);
     resetCreateJobForm();
   };
@@ -360,7 +599,7 @@ export default function AdminDashboard() {
       setFormErrors({});
       setIsCreateJobOpen(false);
       showToast({ type: "success", message: "Job opening posted." });
-      setActiveSection("job-posting");
+      changeActiveSection("job-posting");
     } catch (err) {
       showToast({
         type: "error",
@@ -439,9 +678,49 @@ export default function AdminDashboard() {
         item.id === application.id ? result.application : item
       )
     );
+    setReviewNotes((current) => ({
+      ...current,
+      [result.application.id]: result.application.reviewNotes || "",
+    }));
 
     showToast({ type: "success", message: "Application status updated." });
     return { skipped: false, application: result.application };
+  };
+
+  const reviewApplicationRequirement = async (
+    application,
+    requirement,
+    updates
+  ) => {
+    try {
+      const result = await apiRequest(
+        `/api/admin/applications/${application.id}/requirements/${requirement.id}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(updates),
+        }
+      );
+
+      setApplications((prev) =>
+        prev.map((item) =>
+          item.id === result.application.id ? result.application : item
+        )
+      );
+      setViewApplication(result.application);
+      setReviewNotes((current) => ({
+        ...current,
+        [result.application.id]: result.application.reviewNotes || "",
+      }));
+      showToast({ type: "success", message: "Requirement review saved." });
+
+      return result.application;
+    } catch (err) {
+      showToast({
+        type: "error",
+        message: err.message || "Failed to save requirement review.",
+      });
+      throw err;
+    }
   };
 
   const formatDate = (dateValue) => {
@@ -525,55 +804,17 @@ export default function AdminDashboard() {
   };
 
   const applicationPositions = useMemo(() => {
-    const uniquePositions = new Set(
-      applications.map((application) => getApplicationPosition(application))
-    );
-
-    return Array.from(uniquePositions).filter(Boolean).sort();
-  }, [applications]);
+    return (applicationFilterOptions.positions || []).filter(Boolean).sort();
+  }, [applicationFilterOptions.positions]);
 
   const locations = useMemo(() => {
-    const uniqueLocations = new Set(
-      applications.map((application) => getApplicationLocation(application))
-    );
+    return (applicationFilterOptions.locations || []).filter(Boolean).sort();
+  }, [applicationFilterOptions.locations]);
 
-    return Array.from(uniqueLocations).filter(Boolean).sort();
-  }, [applications]);
+  const filteredApplications = applications;
 
-  const filteredApplications = useMemo(() => {
-    const normalizedSearch = searchTerm.trim().toLowerCase();
-
-    return applications.filter((application) => {
-      const position = getApplicationPosition(application);
-      const location = getApplicationLocation(application);
-      const applicantName = getApplicantName(application);
-      const email = getApplicantEmail(application);
-      const uan = application.uan || "";
-
-      const matchesPosition =
-        selectedPosition === "all" || position === selectedPosition;
-
-      const matchesLocation =
-        selectedLocation === "all" || location === selectedLocation;
-
-      const matchesSearch =
-        !normalizedSearch ||
-        applicantName.toLowerCase().includes(normalizedSearch) ||
-        email.toLowerCase().includes(normalizedSearch) ||
-        uan.toLowerCase().includes(normalizedSearch) ||
-        position.toLowerCase().includes(normalizedSearch);
-
-      return matchesPosition && matchesLocation && matchesSearch;
-    });
-  }, [applications, selectedPosition, selectedLocation, searchTerm]);
-
-  const openJobs = jobs.filter((job) => job.status === "open").length;
-
-  const pendingApplications = applications.filter((application) =>
-    ["submitted", "under_review"].includes(application.status)
-  ).length;
-
-  const contentPadding = isSidebarCollapsed ? "lg:pl-20" : "lg:pl-72";
+  const contentPadding = getSidebarContentPadding(isSidebarCollapsed);
+  const currentPage = adminPageMeta[activeSection] || adminPageMeta["job-posting"];
 
   return (
     <main className={`min-h-screen bg-slate-50 pt-24 ${contentPadding}`}>
@@ -588,32 +829,8 @@ export default function AdminDashboard() {
       <section className="w-full px-4 pb-12 pt-8 transition-all duration-300 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl space-y-6">
           <div>
-            <h1 className="oas-page-title">Admin Dashboard</h1>
-            <p className="oas-page-description">
-              Post job openings, manage job postings, review applicants, and
-              view published job listings.
-            </p>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-3">
-            <DashboardCard
-              icon={Briefcase}
-              label="Open Jobs"
-              value={openJobs}
-            />
-
-            <DashboardCard
-              icon={ClipboardList}
-              label="Applications"
-              value={applications.length}
-            />
-
-            <DashboardCard
-              icon={CheckCircle2}
-              label="Needs Review"
-              value={pendingApplications}
-              iconClassName="text-green-700"
-            />
+            <h1 className="oas-page-title">{currentPage.title}</h1>
+            <p className="oas-page-description">{currentPage.description}</p>
           </div>
 
           {activeSection === "job-posting" && (
@@ -637,20 +854,34 @@ export default function AdminDashboard() {
 
           {activeSection === "applicant-list" && (
             <ApplicantListSection
-              isLoading={isLoading}
+              isLoading={isLoadingApplications}
               filteredApplications={filteredApplications}
               positions={applicationPositions}
               locations={locations}
               selectedPosition={selectedPosition}
               selectedLocation={selectedLocation}
               searchTerm={searchTerm}
-              setSelectedPosition={setSelectedPosition}
-              setSelectedLocation={setSelectedLocation}
+              setSelectedPosition={(value) => {
+                setSelectedPosition(value);
+                setApplicationPage(1);
+              }}
+              setSelectedLocation={(value) => {
+                setSelectedLocation(value);
+                setApplicationPage(1);
+              }}
               setSearchTerm={setSearchTerm}
               setViewApplication={setViewApplication}
               updateApplicationStatus={updateApplicationStatus}
               reviewNotes={reviewNotes}
               setReviewNotes={setReviewNotes}
+              pagination={applicationPagination}
+              page={applicationPage}
+              pageSize={applicationPageSize}
+              onPageChange={setApplicationPage}
+              onPageSizeChange={(nextSize) => {
+                setApplicationPageSize(nextSize);
+                setApplicationPage(1);
+              }}
               statusLabels={statusLabels}
               formatDate={formatDate}
               getApplicationDate={getApplicationDate}
@@ -668,6 +899,8 @@ export default function AdminDashboard() {
               formatDate={formatDate}
             />
           )}
+
+          {activeSection === "activity-logs" && <ActivityLogSection />}
         </div>
       </section>
       {jobToDelete && (
@@ -708,6 +941,7 @@ export default function AdminDashboard() {
 
       {viewApplication && (
         <ApplicationFormModal
+          key={`${viewApplication.id}-${viewApplication.updatedAt || ""}`}
           application={viewApplication}
           onClose={() => setViewApplication(null)}
           formatDate={formatDate}
@@ -716,6 +950,7 @@ export default function AdminDashboard() {
           getApplicationPosition={getApplicationPosition}
           getApplicationLocation={getApplicationLocation}
           getApplicationDate={getApplicationDate}
+          onReviewRequirement={reviewApplicationRequirement}
         />
       )}
 
@@ -731,25 +966,6 @@ export default function AdminDashboard() {
         />
       )}
     </main>
-  );
-}
-
-function DashboardCard({
-  icon,
-  label,
-  value,
-  iconClassName = "text-blue-700",
-}) {
-  const Icon = icon;
-
-  return (
-    <div className="oas-panel p-5">
-      <Icon className={`h-6 w-6 ${iconClassName}`} />
-
-      <p className="mt-3 text-sm text-slate-500">{label}</p>
-
-      <p className="oas-stat-value">{value}</p>
-    </div>
   );
 }
 
@@ -903,24 +1119,23 @@ function CreateJobOpeningModal({
           </JobFormField>
 
           <JobFormField label="School / Office" error={errors.school} required>
-            <input
+            <SchoolOfficePicker
               value={form.school}
-              list="create-job-school-options"
-              onChange={(event) => handleSchoolChange(event.target.value)}
+              schools={schools}
               disabled={!form.district}
               placeholder={
-                form.district ? "Select or type school / office" : "Select district first"
+                form.district ? "Type school / office name" : "Select district first"
               }
-              aria-invalid={Boolean(errors.school)}
-              className={getControlClass(errors.school, disabledInputControlClass)}
+              selectPlaceholder={
+                form.district ? "Choose from school list" : "Select district first"
+              }
+              onChange={handleSchoolChange}
+              onDelete={() => {
+                handleFormChange("school", "");
+                handleFormChange("barangay", "");
+              }}
+              error={errors.school}
             />
-            <datalist id="create-job-school-options">
-              {schools.map((school) => (
-                <option key={school.name} value={school.name}>
-                  {school.barangay}
-                </option>
-              ))}
-            </datalist>
           </JobFormField>
 
           <JobFormField label="Barangay" error={errors.barangay} required>
@@ -1051,6 +1266,69 @@ function JobFormField({ label, required = false, error = "", children }) {
   );
 }
 
+function SchoolOfficePicker({
+  value,
+  schools = [],
+  disabled = false,
+  placeholder = "Type school / office name",
+  selectPlaceholder = "Choose from school list",
+  onChange,
+  onDelete,
+  error = "",
+}) {
+  const selectedSchool = schools.find((school) => school.name === value);
+  const canDelete = Boolean(value) && !disabled;
+
+  return (
+    <div className="grid gap-2">
+      <select
+        value={selectedSchool ? selectedSchool.name : ""}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
+        aria-label="Change school / office from list"
+        aria-invalid={Boolean(error)}
+        className={getControlClass(error, disabledInputControlClass)}
+      >
+        <option value="">{selectPlaceholder}</option>
+        {schools.map((school) => (
+          <option key={school.name} value={school.name}>
+            {school.name} - {school.barangay}
+          </option>
+        ))}
+      </select>
+
+      <div className="flex gap-2">
+        <div className="relative min-w-0 flex-1">
+          <Pencil className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            disabled={disabled}
+            placeholder={placeholder}
+            aria-label="Edit school / office name"
+            aria-invalid={Boolean(error)}
+            className={`${getControlClass(
+              error,
+              disabledInputControlClass
+            )} pl-9`}
+          />
+        </div>
+
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={!canDelete}
+          title="Delete current school / office selection"
+          aria-label="Delete current school / office selection"
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function RequirementPreview({ requirements = [] }) {
   if (!requirements.length) {
     return (
@@ -1074,6 +1352,15 @@ function RequirementPreview({ requirements = [] }) {
           >
             <p className="font-semibold text-slate-800">
               {requirement.label}
+              <span
+                className={`ml-2 rounded-md px-1.5 py-0.5 text-[10px] uppercase ${
+                  requirement.required === false
+                    ? "bg-slate-100 text-slate-600"
+                    : "bg-red-50 text-red-700"
+                }`}
+              >
+                {requirement.required === false ? "Optional" : "Required"}
+              </span>
             </p>
             {requirement.description && (
               <p className="mt-1 text-xs text-slate-500">
@@ -1159,6 +1446,14 @@ function JobPostingSection(props) {
   );
   const selectedPosition = positions.find(
     (position) => String(position.id) === String(editForm.positionId)
+  );
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const totalPages = Math.max(1, Math.ceil(jobs.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const visibleJobs = useMemo(
+    () => jobs.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [currentPage, jobs, pageSize]
   );
 
   if (props.isLoading || jobs.length === 0) {
@@ -1250,6 +1545,23 @@ function JobPostingSection(props) {
     }
   };
 
+  const updateJobStatus = (job, status) =>
+    updateJob(job, { status })
+      .then((result) => {
+        if (!result?.skipped) {
+          showToast({
+            type: "success",
+            message: "Job status updated.",
+          });
+        }
+      })
+      .catch((err) =>
+        showToast({
+          type: "error",
+          message: err.message || "Failed to update job status.",
+        })
+      );
+
   return (
     <section className="oas-panel">
       <div className="oas-panel-header flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1270,7 +1582,72 @@ function JobPostingSection(props) {
         </button>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="grid gap-2 p-2 sm:p-4 md:hidden">
+        {visibleJobs.map((job) => (
+          <article
+            key={job.id}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-3 shadow-sm"
+          >
+            <div className="min-w-0">
+              <h3 className="break-words text-sm font-bold text-slate-950 [overflow-wrap:anywhere]">
+                {job.title}
+              </h3>
+              <p className="mt-1 break-words text-xs text-slate-500 [overflow-wrap:anywhere]">
+                {job.location || "Location not set"}
+              </p>
+            </div>
+
+            <dl className="mt-3 grid gap-2 text-xs">
+              <div className="flex items-center justify-between gap-3">
+                <dt className="font-semibold text-slate-500">Vacancies</dt>
+                <dd className="font-semibold text-slate-900">{job.vacancy}</dd>
+              </div>
+
+              <div className="flex items-center justify-between gap-3">
+                <dt className="font-semibold text-slate-500">Deadline</dt>
+                <dd className="text-right font-semibold text-slate-900">
+                  {formatDate(job.deadline)} {job.deadlineTime || ""}
+                </dd>
+              </div>
+            </dl>
+
+            <select
+              value={job.status}
+              onChange={(event) => updateJobStatus(job, event.target.value)}
+              className="mt-3 h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {job.status === "expired" && (
+                <option value="expired" disabled>
+                  Expired
+                </option>
+              )}
+              <option value="open">Open</option>
+              <option value="closed">Closed</option>
+              <option value="draft">Draft</option>
+            </select>
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => openEditJob(job)}
+                className="oas-action-button oas-card-action-button"
+              >
+                Edit
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setJobToDelete(job)}
+                className="oas-danger-button oas-card-action-button"
+              >
+                Delete
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="hidden overflow-x-auto md:block">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase text-slate-500">
             <tr>
@@ -1284,7 +1661,7 @@ function JobPostingSection(props) {
           </thead>
 
           <tbody>
-            {jobs.map((job) => (
+            {visibleJobs.map((job) => (
               <tr key={job.id} className="border-t border-slate-100">
                 <td className="px-5 py-4 font-semibold text-slate-900">
                   {job.title}
@@ -1302,24 +1679,7 @@ function JobPostingSection(props) {
                   <select
                     value={job.status}
                     onChange={(event) =>
-                      updateJob(job, {
-                        status: event.target.value,
-                      })
-                        .then((result) => {
-                          if (!result?.skipped) {
-                            showToast({
-                              type: "success",
-                              message: "Job status updated.",
-                            });
-                          }
-                        })
-                        .catch((err) =>
-                          showToast({
-                            type: "error",
-                            message:
-                              err.message || "Failed to update job status.",
-                          })
-                        )
+                      updateJobStatus(job, event.target.value)
                     }
                     className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
                   >
@@ -1359,15 +1719,29 @@ function JobPostingSection(props) {
         </table>
       </div>
 
+      <PaginationControls
+        page={currentPage}
+        pageSize={pageSize}
+        totalItems={jobs.length}
+        currentCount={visibleJobs.length}
+        onPageChange={setPage}
+        onPageSizeChange={(nextSize) => {
+          setPageSize(nextSize);
+          setPage(1);
+        }}
+        pageSizeOptions={tablePageSizeOptions}
+        itemLabel="job openings"
+      />
+
       {editingJob && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-6">
-          <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">
+        <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/50 p-3 sm:items-center sm:p-6">
+          <div className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl sm:max-h-[92dvh]">
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-6 sm:py-5">
+              <div className="min-w-0">
+                <h3 className="break-words text-lg font-bold text-slate-900 [overflow-wrap:anywhere]">
                   Edit Job Opening
                 </h3>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 break-words text-sm text-slate-500 [overflow-wrap:anywhere]">
                   Update the posting details applicants will see.
                 </p>
               </div>
@@ -1376,6 +1750,7 @@ function JobPostingSection(props) {
                 type="button"
                 onClick={closeEditJob}
                 className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                aria-label="Close edit job opening"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -1383,7 +1758,7 @@ function JobPostingSection(props) {
 
             <form
               onSubmit={saveEditedJob}
-              className="grid gap-4 overflow-y-auto px-6 py-5"
+              className="grid min-h-0 gap-4 overflow-y-auto px-4 py-5 sm:px-6"
               noValidate
             >
               <JobFormField label="Job Title" error={editErrors.title} required>
@@ -1419,29 +1794,27 @@ function JobPostingSection(props) {
                 </JobFormField>
 
                 <JobFormField label="School / Office" error={editErrors.school}>
-                  <input
+                  <SchoolOfficePicker
                     value={editForm.school}
-                    list="edit-job-school-options"
-                    onChange={(event) => updateEditSchool(event.target.value)}
+                    schools={schools}
                     disabled={!editForm.district}
                     placeholder={
                       editForm.district
-                        ? "Select or type school / office"
+                        ? "Type school / office name"
                         : "Select district first"
                     }
-                    aria-invalid={Boolean(editErrors.school)}
-                    className={getControlClass(
-                      editErrors.school,
-                      disabledInputControlClass
-                    )}
+                    selectPlaceholder={
+                      editForm.district
+                        ? "Choose from school list"
+                        : "Select district first"
+                    }
+                    onChange={updateEditSchool}
+                    onDelete={() => {
+                      updateEditField("school", "");
+                      updateEditField("barangay", "");
+                    }}
+                    error={editErrors.school}
                   />
-                  <datalist id="edit-job-school-options">
-                    {schools.map((school) => (
-                      <option key={school.name} value={school.name}>
-                        {school.barangay}
-                      </option>
-                    ))}
-                  </datalist>
                 </JobFormField>
 
                 <JobFormField label="Barangay" error={editErrors.barangay}>
@@ -1615,7 +1988,7 @@ function JobPostingSection(props) {
                 requirements={selectedPosition?.requirements || editForm.requirements || []}
               />
 
-              <div className="flex flex-col-reverse gap-2 border-t border-slate-200 pt-4 sm:flex-row sm:justify-end">
+              <div className="sticky bottom-0 -mx-4 flex flex-col-reverse gap-2 border-t border-slate-200 bg-white px-4 pt-4 sm:-mx-6 sm:flex-row sm:justify-end sm:px-6">
                 <button
                   type="button"
                   onClick={closeEditJob}
@@ -1755,9 +2128,18 @@ function PositionManagerSection({ positions, setPositions }) {
   const [draft, setDraft] = useState(emptyPosition);
   const [positionErrors, setPositionErrors] = useState({});
   const [editingId, setEditingId] = useState(null);
+  const [isPositionFormOpen, setIsPositionFormOpen] = useState(false);
   const [positionToDelete, setPositionToDelete] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(defaultPositionPageSize);
   const { showToast } = useToast();
+  const totalPages = Math.max(1, Math.ceil(positions.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const visiblePositions = useMemo(
+    () => positions.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [currentPage, pageSize, positions]
+  );
 
   const updateDraft = (field, value) => {
     setDraft((current) => ({ ...current, [field]: value }));
@@ -1767,6 +2149,7 @@ function PositionManagerSection({ positions, setPositions }) {
   const resetDraft = () => {
     setDraft(emptyPosition);
     setEditingId(null);
+    setIsPositionFormOpen(false);
     setPositionErrors({});
   };
 
@@ -1815,6 +2198,13 @@ function PositionManagerSection({ positions, setPositions }) {
     }));
   };
 
+  const openAddPosition = () => {
+    setDraft(emptyPosition);
+    setEditingId(null);
+    setPositionErrors({});
+    setIsPositionFormOpen(true);
+  };
+
   const editPosition = (position) => {
     setEditingId(position.id);
     setDraft({
@@ -1823,6 +2213,7 @@ function PositionManagerSection({ positions, setPositions }) {
       requirements: position.requirements || [],
     });
     setPositionErrors({});
+    setIsPositionFormOpen(true);
   };
 
   const savePosition = async (event) => {
@@ -1908,155 +2299,158 @@ function PositionManagerSection({ positions, setPositions }) {
     }
   };
 
-  return (
-    <>
-    <section className="grid gap-5 lg:grid-cols-[minmax(0,420px)_1fr]">
-      <form onSubmit={savePosition} className="oas-panel p-6" noValidate>
-        <h2 className="oas-panel-title">
-          {editingId ? "Edit Position" : "Add Position"}
-        </h2>
+  const isEditingPosition = Boolean(editingId);
+  const isPositionFormModalOpen = isPositionFormOpen || isEditingPosition;
+  const positionModalTitle = isEditingPosition ? "Edit Position" : "Add Position";
+  const positionModalDescription = isEditingPosition
+    ? "Update the category, title, and upload requirements for this position."
+    : "Create a position applicants can select when job openings are posted.";
+  const positionFormFields = (
+    <div className="grid gap-4">
+      <JobFormField label="Category" error={positionErrors.category} required>
+        <select
+          value={draft.category}
+          onChange={(event) => updateDraft("category", event.target.value)}
+          aria-invalid={Boolean(positionErrors.category)}
+          className={getControlClass(positionErrors.category, inputControlClass)}
+        >
+          <option value="Teaching">Teaching</option>
+          <option value="Non-Teaching">Non-Teaching</option>
+        </select>
+      </JobFormField>
 
-        <div className="mt-5 grid gap-4">
-          <JobFormField label="Category" error={positionErrors.category} required>
-            <select
-              value={draft.category}
-              onChange={(event) => updateDraft("category", event.target.value)}
-              aria-invalid={Boolean(positionErrors.category)}
-              className={getControlClass(positionErrors.category, inputControlClass)}
-            >
-              <option value="Teaching">Teaching</option>
-              <option value="Non-Teaching">Non-Teaching</option>
-            </select>
-          </JobFormField>
+      <JobFormField label="Position Title" error={positionErrors.title} required>
+        <input
+          value={draft.title}
+          onChange={(event) => updateDraft("title", event.target.value)}
+          placeholder="Example: Teacher I"
+          aria-invalid={Boolean(positionErrors.title)}
+          className={getControlClass(positionErrors.title, inputControlClass)}
+        />
+      </JobFormField>
 
-          <JobFormField
-            label="Position Title"
-            error={positionErrors.title}
-            required
+      <div>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+            Upload Requirements
+          </p>
+
+          <button
+            type="button"
+            onClick={addRequirement}
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
           >
-            <input
-              value={draft.title}
-              onChange={(event) => updateDraft("title", event.target.value)}
-              placeholder="Example: Teacher I"
-              aria-invalid={Boolean(positionErrors.title)}
-              className={getControlClass(positionErrors.title, inputControlClass)}
-            />
-          </JobFormField>
+            <Plus className="h-4 w-4" />
+            Add
+          </button>
+        </div>
 
-          <div>
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
-                Upload Requirements
-              </p>
-
-              <button
-                type="button"
-                onClick={addRequirement}
-                className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                <Plus className="h-4 w-4" />
-                Add
-              </button>
-            </div>
-
-            <div className="mt-3 space-y-3">
-              {(draft.requirements || []).map((requirement, index) => (
-                <div
-                  key={index}
-                  className="rounded-lg border border-slate-200 bg-slate-50 p-3"
-                >
-                  <input
-                    value={requirement.label}
-                    onChange={(event) =>
-                      updateRequirement(index, "label", event.target.value)
-                    }
-                    placeholder="Requirement label"
-                    aria-invalid={Boolean(
-                      positionErrors.requirements?.[index]?.label
-                    )}
-                    className={getControlClass(
-                      positionErrors.requirements?.[index]?.label,
-                      "h-10 w-full rounded-lg border px-3 text-sm outline-none transition focus:ring-2"
-                    )}
-                  />
-                  {positionErrors.requirements?.[index]?.label && (
-                    <p className="mt-1.5 text-[12px] font-semibold text-red-600">
-                      {positionErrors.requirements[index].label}
-                    </p>
-                  )}
-
-                  <textarea
-                    value={requirement.description || ""}
-                    onChange={(event) =>
-                      updateRequirement(
-                        index,
-                        "description",
-                        event.target.value
-                      )
-                    }
-                    placeholder="Short instruction or description"
-                    className="mt-2 min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-
-                  <button
-                    type="button"
-                    onClick={() => removeRequirement(index)}
-                    className="oas-danger-button mt-2"
-                  >
-                    Remove requirement
-                  </button>
-                </div>
-              ))}
-
-              {draft.requirements.length === 0 && (
-                <p className="rounded-lg border border-dashed border-slate-300 px-3 py-4 text-center text-sm text-slate-500">
-                  Add upload requirements applicants must submit for this
-                  position.
+        <div className="mt-3 space-y-3">
+          {(draft.requirements || []).map((requirement, index) => (
+            <div
+              key={index}
+              className="rounded-lg border border-slate-200 bg-slate-50 p-3"
+            >
+              <input
+                value={requirement.label}
+                onChange={(event) =>
+                  updateRequirement(index, "label", event.target.value)
+                }
+                placeholder="Requirement label"
+                aria-invalid={Boolean(
+                  positionErrors.requirements?.[index]?.label
+                )}
+                className={getControlClass(
+                  positionErrors.requirements?.[index]?.label,
+                  "h-10 w-full rounded-lg border px-3 text-sm outline-none transition focus:ring-2"
+                )}
+              />
+              {positionErrors.requirements?.[index]?.label && (
+                <p className="mt-1.5 text-[12px] font-semibold text-red-600">
+                  {positionErrors.requirements[index].label}
                 </p>
               )}
+
+              <textarea
+                value={requirement.description || ""}
+                onChange={(event) =>
+                  updateRequirement(index, "description", event.target.value)
+                }
+                placeholder="Short instruction or description"
+                className="mt-2 min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+              />
+
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={requirement.required !== false}
+                    onChange={(event) =>
+                      updateRequirement(index, "required", event.target.checked)
+                    }
+                    className="h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-500"
+                  />
+                  Required from applicant
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() => removeRequirement(index)}
+                  className="oas-danger-button"
+                >
+                  Remove requirement
+                </button>
+              </div>
             </div>
-          </div>
+          ))}
 
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            {editingId && (
-              <button
-                type="button"
-                onClick={resetDraft}
-                className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-100"
-              >
-                Cancel
-              </button>
-            )}
+          {(draft.requirements || []).length === 0 && (
+            <p className="rounded-lg border border-dashed border-slate-300 px-3 py-4 text-center text-sm text-slate-500">
+              Add upload requirements applicants must submit for this position.
+            </p>
+          )}
 
+          {(draft.requirements || []).length > 0 && (
             <button
-              type="submit"
-              disabled={isSaving}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#0056b3] px-4 text-sm font-semibold text-white hover:bg-[#003a78] disabled:opacity-60"
+              type="button"
+              onClick={addRequirement}
+              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
             >
-              {isSaving ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Save className="h-4 w-4" />
-              )}
-              {editingId ? "Save Changes" : "Add Position"}
+              <Plus className="h-4 w-4" />
+              Add another requirement
             </button>
-          </div>
+          )}
         </div>
-      </form>
+      </div>
+    </div>
+  );
 
+  return (
+    <>
       <section className="oas-panel">
-        <div className="oas-panel-header">
-          <h2 className="oas-panel-title">Position Library</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            These positions can be selected when creating job openings.
-          </p>
+        <div className="oas-panel-header flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="oas-panel-title">Position Library</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              These positions can be selected when creating job openings.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={openAddPosition}
+            className="inline-flex h-10 items-center justify-center gap-2 self-start rounded-lg bg-[#0056b3] px-4 text-sm font-semibold text-white hover:bg-[#003a78]"
+          >
+            <Plus className="h-4 w-4" />
+            Add Position
+          </button>
         </div>
 
         {positions.length === 0 ? (
           <EmptyState label="No positions added yet." />
         ) : (
           <div className="divide-y divide-slate-100">
-            {positions.map((position) => (
+            {visiblePositions.map((position) => (
               <div
                 key={position.id}
                 className="flex flex-col gap-3 px-5 py-4 lg:flex-row lg:items-center lg:justify-between"
@@ -2092,8 +2486,89 @@ function PositionManagerSection({ positions, setPositions }) {
             ))}
           </div>
         )}
+
+        <PaginationControls
+          page={currentPage}
+          pageSize={pageSize}
+          totalItems={positions.length}
+          currentCount={visiblePositions.length}
+          onPageChange={setPage}
+          onPageSizeChange={(nextSize) => {
+            setPageSize(nextSize);
+            setPage(1);
+          }}
+          pageSizeOptions={positionPageSizeOptions}
+          itemLabel="positions"
+        />
       </section>
-      </section>
+
+      {isPositionFormModalOpen && (
+        <div
+          className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-slate-950/50 px-3 py-4 backdrop-blur-sm sm:items-center sm:px-6 sm:py-8"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="position-form-title"
+        >
+          <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-6">
+              <div>
+                <h3
+                  id="position-form-title"
+                  className="text-lg font-bold text-slate-900"
+                >
+                  {positionModalTitle}
+                </h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  {positionModalDescription}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={resetDraft}
+                disabled={isSaving}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-60"
+                aria-label="Close position form modal"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={savePosition}
+              className="min-h-0 overflow-y-auto px-4 py-5 sm:px-6"
+              noValidate
+            >
+              {positionFormFields}
+
+              <div className="sticky bottom-0 -mx-4 mt-5 flex flex-col-reverse gap-2 border-t border-slate-200 bg-white px-4 py-4 sm:-mx-6 sm:flex-row sm:justify-end sm:px-6">
+                <button
+                  type="button"
+                  onClick={resetDraft}
+                  disabled={isSaving}
+                  className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#0056b3] px-4 text-sm font-semibold text-white hover:bg-[#003a78] disabled:opacity-60"
+                >
+                  {isSaving ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                  {isEditingPosition ? "Save Changes" : "Add Position"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {positionToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
@@ -2148,6 +2623,11 @@ function ApplicantListSection({
   updateApplicationStatus,
   reviewNotes,
   setReviewNotes,
+  pagination,
+  page,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
   statusLabels,
   formatDate,
   getApplicationDate,
@@ -2169,23 +2649,25 @@ function ApplicantListSection({
         </p>
       </div>
 
-      <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
-        <div className="grid gap-3 lg:grid-cols-[1fr_220px_220px_auto]">
-          <div className="relative">
+      <div className="border-b border-slate-200 bg-slate-50 px-3 py-3 sm:px-5 sm:py-4">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-[minmax(0,1fr)_220px_220px_auto]">
+          <div className="relative col-span-2 lg:col-span-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
 
             <input
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Search applicant, UAN, email, or position"
-              className="h-11 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-3 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Search applicants"
+              aria-label="Search applicants by name, UAN, email, or position"
+              className="h-10 w-full min-w-0 rounded-lg border border-slate-300 bg-white pl-10 pr-3 text-[13px] outline-none focus:ring-2 focus:ring-blue-500 sm:h-11 sm:rounded-xl sm:text-sm"
             />
           </div>
 
           <select
             value={selectedPosition}
             onChange={(event) => setSelectedPosition(event.target.value)}
-            className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            aria-label="Filter by position"
+            className="h-10 min-w-0 rounded-lg border border-slate-300 bg-white px-2 text-[12px] outline-none focus:ring-2 focus:ring-blue-500 sm:h-11 sm:rounded-xl sm:px-3 sm:text-sm"
           >
             <option value="all">All Positions</option>
             {positions.map((position) => (
@@ -2198,7 +2680,8 @@ function ApplicantListSection({
           <select
             value={selectedLocation}
             onChange={(event) => setSelectedLocation(event.target.value)}
-            className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            aria-label="Filter by location"
+            className="h-10 min-w-0 rounded-lg border border-slate-300 bg-white px-2 text-[12px] outline-none focus:ring-2 focus:ring-blue-500 sm:h-11 sm:rounded-xl sm:px-3 sm:text-sm"
           >
             <option value="all">All Locations</option>
             {locations.map((location) => (
@@ -2215,7 +2698,7 @@ function ApplicantListSection({
               setSelectedPosition("all");
               setSelectedLocation("all");
             }}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+            className="col-span-2 inline-flex h-8 w-auto items-center justify-center gap-1.5 justify-self-start rounded-lg border border-slate-300 bg-white px-2.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 sm:col-span-1 sm:h-10 sm:px-3 sm:text-xs lg:col-span-1 lg:h-11 lg:justify-self-stretch"
           >
             <FilterIcon className="h-4 w-4" />
             Clear
@@ -2223,7 +2706,109 @@ function ApplicantListSection({
         </div>
       </div>
 
-      <div className="overflow-x-auto">
+      {!isLoading && filteredApplications.length > 0 && (
+        <div className="grid gap-2 p-2 sm:p-4 md:hidden">
+          {filteredApplications.map((application) => {
+            const isReviewNoteLocked = isApplicationStatusFinal(
+              application.status
+            );
+
+            return (
+              <article
+                key={application.id}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-3 shadow-sm"
+              >
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-blue-700">
+                  {application.uan || "No UAN"}
+                </p>
+                <h3 className="mt-1 break-words text-sm font-bold text-slate-950 [overflow-wrap:anywhere]">
+                  {getApplicantName(application)}
+                </h3>
+                <p className="mt-1 break-all text-xs text-slate-500">
+                  {getApplicantEmail(application)}
+                </p>
+              </div>
+
+              <dl className="mt-3 grid gap-2 text-xs">
+                <div className="grid grid-cols-[72px_minmax(0,1fr)] gap-2">
+                  <dt className="font-semibold text-slate-500">Position</dt>
+                  <dd className="break-words text-right font-semibold text-slate-900 [overflow-wrap:anywhere]">
+                    {getApplicationPosition(application)}
+                  </dd>
+                </div>
+
+                <div className="grid grid-cols-[72px_minmax(0,1fr)] gap-2">
+                  <dt className="font-semibold text-slate-500">Location</dt>
+                  <dd className="break-words text-right font-semibold text-slate-900 [overflow-wrap:anywhere]">
+                    {getApplicationLocation(application)}
+                  </dd>
+                </div>
+
+                <div className="grid grid-cols-[72px_minmax(0,1fr)] gap-2">
+                  <dt className="font-semibold text-slate-500">Date Applied</dt>
+                  <dd className="text-right font-semibold text-slate-900">
+                    {formatDate(getApplicationDate(application))}
+                  </dd>
+                </div>
+              </dl>
+
+              <select
+                value={application.status}
+                disabled={isApplicationStatusFinal(application.status)}
+                onChange={(event) =>
+                  updateApplicationStatus(application, event.target.value).catch(
+                    (err) =>
+                      showToast({
+                        type: "error",
+                        message: err.message || "Failed to update application.",
+                      })
+                  )
+                }
+                className={`mt-3 h-9 w-full cursor-pointer rounded-lg border px-3 text-xs font-semibold outline-none transition ${getStatusBadgeClass(
+                  application.status
+                )} disabled:cursor-not-allowed disabled:opacity-80`}
+              >
+                {getApplicationStatusOptions(application.status).map((value) => (
+                  <option
+                    key={value}
+                    value={value}
+                    className={`font-semibold ${getStatusOptionClass(value)}`}
+                  >
+                    {statusLabels[value]}
+                  </option>
+                ))}
+              </select>
+
+                <textarea
+                  value={
+                    reviewNotes[application.id] ?? application.reviewNotes ?? ""
+                  }
+                  disabled={isReviewNoteLocked}
+                  onChange={(event) =>
+                    setReviewNotes((current) => ({
+                      ...current,
+                      [application.id]: event.target.value,
+                    }))
+                  }
+                  placeholder="Notes from HR"
+                  className="mt-2 min-h-14 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => setViewApplication(application)}
+                  className="oas-action-button oas-card-action-button mt-2"
+                >
+                  View
+                </button>
+              </article>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="hidden overflow-x-auto md:block">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-100 text-xs uppercase text-slate-600">
             <tr>
@@ -2238,11 +2823,16 @@ function ApplicantListSection({
           </thead>
 
           <tbody>
-            {filteredApplications.map((application) => (
-              <tr
-                key={application.id}
-                className="border-t border-slate-100 align-top"
-              >
+            {filteredApplications.map((application) => {
+              const isReviewNoteLocked = isApplicationStatusFinal(
+                application.status
+              );
+
+              return (
+                <tr
+                  key={application.id}
+                  className="border-t border-slate-100 align-top"
+                >
                 <td className="px-5 py-4 font-semibold text-slate-900">
                   {application.uan || "No UAN"}
                 </td>
@@ -2272,6 +2862,7 @@ function ApplicantListSection({
                 <td className="px-5 py-4">
                   <select
                     value={application.status}
+                    disabled={isApplicationStatusFinal(application.status)}
                     onChange={(event) =>
                       updateApplicationStatus(
                         application,
@@ -2286,9 +2877,9 @@ function ApplicantListSection({
                     }
                     className={`h-10 min-w-[155px] cursor-pointer rounded-full border px-3 text-sm font-semibold outline-none transition ${getStatusBadgeClass(
                       application.status
-                    )}`}
+                    )} disabled:cursor-not-allowed disabled:opacity-80`}
                   >
-                    {Object.entries(statusLabels).map(([value, label]) => (
+                    {getApplicationStatusOptions(application.status).map((value) => (
                       <option
                         key={value}
                         value={value}
@@ -2296,26 +2887,27 @@ function ApplicantListSection({
                           value
                         )}`}
                       >
-                        {label}
+                        {statusLabels[value]}
                       </option>
                     ))}
                   </select>
 
-                  <textarea
-                    value={
-                      reviewNotes[application.id] ??
-                      application.reviewNotes ??
-                      ""
-                    }
-                    onChange={(event) =>
-                      setReviewNotes((current) => ({
-                        ...current,
-                        [application.id]: event.target.value,
-                      }))
-                    }
-                    placeholder="Review notes"
-                    className="mt-2 min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                    <textarea
+                      value={
+                        reviewNotes[application.id] ??
+                        application.reviewNotes ??
+                        ""
+                      }
+                      disabled={isReviewNoteLocked}
+                      onChange={(event) =>
+                        setReviewNotes((current) => ({
+                          ...current,
+                          [application.id]: event.target.value,
+                        }))
+                      }
+                      placeholder="Notes from HR"
+                      className="mt-2 min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                    />
                 </td>
 
                 <td className="px-5 py-4 text-right">
@@ -2327,23 +2919,46 @@ function ApplicantListSection({
                     View
                   </button>
                 </td>
-              </tr>
-            ))}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
 
-        {!isLoading && filteredApplications.length === 0 && (
-          <EmptyState label="No applicants found." />
-        )}
-
-        {isLoading && <LoadingState label="Loading applicants..." />}
       </div>
+
+      {!isLoading && filteredApplications.length === 0 && (
+        <EmptyState label="No applicants found." />
+      )}
+
+      {isLoading && <LoadingState label="Loading applicants..." />}
+
+      {!isLoading && filteredApplications.length > 0 && (
+        <PaginationControls
+          page={page}
+          pageSize={pageSize}
+          totalItems={pagination?.total || filteredApplications.length}
+          currentCount={filteredApplications.length}
+          onPageChange={onPageChange}
+          onPageSizeChange={onPageSizeChange}
+          pageSizeOptions={applicantPageSizeOptions}
+          itemLabel="applicants"
+        />
+      )}
     </section>
   );
 }
 
 function JobListingSection({ jobs, isLoading, formatDate }) {
   const [viewJob, setViewJob] = useState(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(9);
+  const totalPages = Math.max(1, Math.ceil(jobs.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const visibleJobs = useMemo(
+    () => jobs.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [currentPage, jobs, pageSize]
+  );
 
   return (
     <section className="oas-panel">
@@ -2361,33 +2976,34 @@ function JobListingSection({ jobs, isLoading, formatDate }) {
         <EmptyState label="No job listings available." />
       ) : (
         <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
-          {jobs.map((job) => (
+          {visibleJobs.map((job) => (
             <article
               key={job.id}
-              className="oas-panel p-5 transition hover:border-blue-200 hover:shadow-md"
+              className="oas-panel flex h-full min-w-0 flex-col p-5 transition hover:border-blue-200 hover:shadow-md"
             >
-              <div>
-                <h3 className="oas-panel-title">
+              <div className="min-w-0">
+                <h3 className="line-clamp-2 min-h-[2.5rem] break-words text-base font-bold leading-5 text-slate-900 [overflow-wrap:anywhere]">
                   {job.title}
                 </h3>
 
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 line-clamp-2 min-h-[2.5rem] break-words text-sm leading-5 text-slate-500 [overflow-wrap:anywhere]">
                   {job.location}
                 </p>
               </div>
 
-              <div className="mt-4 space-y-2 text-sm text-slate-700">
-                <p>
-                  <span className="font-semibold">Vacancy:</span> {job.vacancy}
+              <div className="mt-4 grid gap-2 text-sm text-slate-700">
+                <p className="truncate">
+                  <span className="font-semibold">Vacancy:</span>{" "}
+                  <span>{job.vacancy}</span>
                 </p>
 
-                <p>
+                <p className="truncate">
                   <span className="font-semibold">Deadline:</span>{" "}
                   {formatDate(job.deadline)} {job.deadlineTime || ""}
                 </p>
               </div>
 
-              <div className="mt-5 flex justify-end">
+              <div className="mt-auto flex justify-end pt-5">
                 <button
                   type="button"
                   onClick={() => setViewJob(job)}
@@ -2399,6 +3015,22 @@ function JobListingSection({ jobs, isLoading, formatDate }) {
             </article>
           ))}
         </div>
+      )}
+
+      {!isLoading && jobs.length > 0 && (
+        <PaginationControls
+          page={currentPage}
+          pageSize={pageSize}
+          totalItems={jobs.length}
+          currentCount={visibleJobs.length}
+          onPageChange={setPage}
+          onPageSizeChange={(nextSize) => {
+            setPageSize(nextSize);
+            setPage(1);
+          }}
+          pageSizeOptions={cardPageSizeOptions}
+          itemLabel="job openings"
+        />
       )}
 
       {viewJob && (
@@ -2506,8 +3138,18 @@ function ApplicationFormModal({
   getApplicationPosition,
   getApplicationLocation,
   getApplicationDate,
+  onReviewRequirement,
 }) {
+  const [previewFile, setPreviewFile] = useState(null);
+  const requirements = Array.isArray(application.requirements)
+    ? application.requirements
+    : [];
+  const [requirementDrafts, setRequirementDrafts] = useState(() =>
+    buildRequirementDrafts(requirements)
+  );
+  const [savingRequirementId, setSavingRequirementId] = useState(null);
   const applicationData =
+    application.raw ||
     application.applicationData ||
     application.formData ||
     application.profile ||
@@ -2552,6 +3194,44 @@ function ApplicationFormModal({
       .join(" ") ||
     "Unnamed Applicant";
 
+  const updateRequirementDraft = (requirement, field, value) => {
+    const draftKey = String(requirement.id || requirement.field);
+
+    setRequirementDrafts((current) => ({
+      ...current,
+      [draftKey]: {
+        ...(current[draftKey] || {
+          status: requirement.status || "pending",
+          remarks: requirement.remarks || "",
+        }),
+        [field]: value,
+      },
+    }));
+  };
+
+  const saveRequirementReview = async (requirement) => {
+    if (!onReviewRequirement) return;
+
+    const draftKey = String(requirement.id || requirement.field);
+    const draft = requirementDrafts[draftKey] || {
+      status: requirement.status || "pending",
+      remarks: requirement.remarks || "",
+    };
+
+    setSavingRequirementId(draftKey);
+
+    try {
+      await onReviewRequirement(application, requirement, {
+        status: draft.status,
+        remarks: draft.remarks,
+      });
+    } catch {
+      // Toast is handled by the parent updater.
+    } finally {
+      setSavingRequirementId(null);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-black/50 p-4 sm:p-6">
       <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl sm:max-h-[92vh]">
@@ -2566,8 +3246,8 @@ function ApplicationFormModal({
             </h3>
 
             <p className="mt-1 break-words text-sm text-slate-500 [overflow-wrap:anywhere]">
-              {application.uan || "No UAN"} •{" "}
-              {getApplicationPosition(application)} •{" "}
+              {application.uan || "No UAN"} /{" "}
+              {getApplicationPosition(application)} /{" "}
               {formatDate(getApplicationDate(application))}
             </p>
           </div>
@@ -2730,37 +3410,177 @@ function ApplicationFormModal({
                 ]}
               />
 
-              <div className="mt-4">
-                <h5 className="text-sm font-bold text-slate-800">
-                  Attached Files
-                </h5>
+              {requirements.length > 0 ? (
+                <div className="mt-4">
+                  <h5 className="text-sm font-bold text-slate-800">
+                    Submitted Requirements
+                  </h5>
 
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  {Object.entries(files || {}).length > 0 ? (
-                    Object.entries(files || {}).map(([key, file]) => (
-                      <div
-                        key={key}
-                        className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
-                      >
-                        <p className="break-words font-semibold text-slate-700 [overflow-wrap:anywhere]">
-                          {key}
-                        </p>
+                  <div className="mt-3 space-y-3">
+                    {requirements.map((requirement) => {
+                      const draftKey = String(
+                        requirement.id || requirement.field
+                      );
+                      const draft = requirementDrafts[draftKey] || {
+                        status: requirement.status || "pending",
+                        remarks: requirement.remarks || "",
+                      };
+                      const requirementFile = requirement.file;
+                      const isSaving = savingRequirementId === draftKey;
+                      const hasChanges =
+                        draft.status !== (requirement.status || "pending") ||
+                        draft.remarks !== (requirement.remarks || "");
 
-                        <p className="mt-1 break-words text-slate-500 [overflow-wrap:anywhere]">
-                          {file?.name ||
-                            file?.fileName ||
-                            file?.filename ||
-                            "Not uploaded"}
-                        </p>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-slate-500">
-                      No attachments found.
-                    </p>
-                  )}
+                      return (
+                        <div
+                          key={draftKey}
+                          className="rounded-xl border border-slate-200 bg-slate-50 p-3"
+                        >
+                          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="break-words text-sm font-bold text-slate-900 [overflow-wrap:anywhere]">
+                                  {requirement.label || requirement.field}
+                                  {requirement.required ? (
+                                    <span className="ml-1 text-red-600">*</span>
+                                  ) : null}
+                                </p>
+                                <span
+                                  className={`inline-flex rounded-md border px-2 py-0.5 text-[11px] font-semibold ${getRequirementReviewStatusClass(
+                                    requirement.status
+                                  )}`}
+                                >
+                                  {requirementReviewStatusLabels[
+                                    requirement.status
+                                  ] ||
+                                    requirement.status ||
+                                    "Pending"}
+                                </span>
+                              </div>
+
+                              <p className="mt-1 break-words text-sm text-slate-600 [overflow-wrap:anywhere]">
+                                {getRequirementFileName(requirementFile)}
+                              </p>
+
+                              {requirementFile?.previewUrl && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setPreviewFile({
+                                      ...requirementFile,
+                                      name: getRequirementFileName(
+                                        requirementFile
+                                      ),
+                                    })
+                                  }
+                                  className="mt-2 text-sm font-semibold text-blue-700 hover:underline"
+                                >
+                                  View document
+                                </button>
+                              )}
+                            </div>
+
+                            <div className="grid min-w-0 gap-2 sm:grid-cols-[190px_minmax(0,1fr)_auto] lg:w-[560px]">
+                              <select
+                                value={draft.status}
+                                onChange={(event) =>
+                                  updateRequirementDraft(
+                                    requirement,
+                                    "status",
+                                    event.target.value
+                                  )
+                                }
+                                className={`h-10 rounded-lg border px-3 text-sm font-semibold outline-none ${getRequirementReviewStatusClass(
+                                  draft.status
+                                )}`}
+                              >
+                                {requirementReviewStatuses.map((status) => (
+                                  <option key={status} value={status}>
+                                    {requirementReviewStatusLabels[status]}
+                                  </option>
+                                ))}
+                              </select>
+
+                              <textarea
+                                value={draft.remarks}
+                                onChange={(event) =>
+                                  updateRequirementDraft(
+                                    requirement,
+                                    "remarks",
+                                    event.target.value
+                                  )
+                                }
+                                placeholder="Remarks for this requirement"
+                                className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                              />
+
+                              <button
+                                type="button"
+                                onClick={() => saveRequirementReview(requirement)}
+                                disabled={
+                                  isSaving || !hasChanges || !onReviewRequirement
+                                }
+                                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#0056b3] px-3 text-sm font-semibold text-white transition hover:bg-[#003a78] disabled:cursor-not-allowed disabled:bg-slate-300"
+                              >
+                                {isSaving ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Save className="h-4 w-4" />
+                                )}
+                                Save
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="mt-4">
+                  <h5 className="text-sm font-bold text-slate-800">
+                    Attached Files
+                  </h5>
+
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {Object.entries(files || {}).length > 0 ? (
+                      Object.entries(files || {}).map(([key, file]) => (
+                        <div
+                          key={key}
+                          className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+                        >
+                          <p className="break-words font-semibold text-slate-700 [overflow-wrap:anywhere]">
+                            {key}
+                          </p>
+
+                          <p className="mt-1 break-words text-slate-500 [overflow-wrap:anywhere]">
+                            {getRequirementFileName(file)}
+                          </p>
+
+                          {(file?.previewUrl || file?.dataUrl) && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setPreviewFile({
+                                  ...file,
+                                  name: getRequirementFileName(file),
+                                })
+                              }
+                              className="mt-2 text-sm font-semibold text-blue-700 hover:underline"
+                            >
+                              View document
+                            </button>
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-slate-500">
+                        No attachments found.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
             </ApplicationSection>
           </div>
         </div>
@@ -2775,6 +3595,13 @@ function ApplicationFormModal({
           </button>
         </div>
       </div>
+
+      {previewFile && (
+        <FilePreviewModal
+          file={previewFile}
+          onClose={() => setPreviewFile(null)}
+        />
+      )}
     </div>
   );
 }

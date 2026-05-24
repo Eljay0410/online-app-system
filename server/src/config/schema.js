@@ -66,7 +66,90 @@ export async function ensureDatabaseSchema() {
       ADD COLUMN IF NOT EXISTS deadline_time TIME NOT NULL DEFAULT '23:59',
       ADD COLUMN IF NOT EXISTS position_id INTEGER REFERENCES job_positions(id) ON DELETE SET NULL,
       ADD COLUMN IF NOT EXISTS position_category VARCHAR(40),
-      ADD COLUMN IF NOT EXISTS requirements JSONB NOT NULL DEFAULT '[]'::jsonb;
+      ADD COLUMN IF NOT EXISTS requirements JSONB NOT NULL DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS activity_logs (
+      id BIGSERIAL PRIMARY KEY,
+      actor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      actor_role VARCHAR(40),
+      action VARCHAR(80) NOT NULL,
+      entity_type VARCHAR(80) NOT NULL,
+      entity_id INTEGER,
+      entity_label TEXT,
+      metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS uploaded_files (
+      id UUID PRIMARY KEY,
+      owner_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      applicant_profile_id INTEGER REFERENCES applicant_profiles(id) ON DELETE SET NULL,
+      job_application_id INTEGER REFERENCES job_applications(id) ON DELETE SET NULL,
+      job_opening_id INTEGER REFERENCES job_openings(id) ON DELETE SET NULL,
+      requirement_field VARCHAR(120) NOT NULL,
+      requirement_label TEXT,
+      original_name TEXT NOT NULL,
+      stored_name TEXT NOT NULL,
+      relative_path TEXT NOT NULL,
+      mime_type VARCHAR(160) NOT NULL,
+      size_bytes BIGINT NOT NULL,
+      original_size_bytes BIGINT,
+      checksum_sha256 CHAR(64),
+      image_width INTEGER,
+      image_height INTEGER,
+      status VARCHAR(30) NOT NULL DEFAULT 'active',
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      deleted_at TIMESTAMP WITH TIME ZONE
+    );
+  `);
+
+  await pool.query(`
+    ALTER TABLE uploaded_files
+      ADD COLUMN IF NOT EXISTS job_application_id INTEGER REFERENCES job_applications(id) ON DELETE SET NULL;
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS application_requirements (
+      id BIGSERIAL PRIMARY KEY,
+      job_application_id INTEGER NOT NULL REFERENCES job_applications(id) ON DELETE CASCADE,
+      requirement_field VARCHAR(120) NOT NULL,
+      requirement_label TEXT NOT NULL,
+      requirement_description TEXT,
+      required BOOLEAN NOT NULL DEFAULT TRUE,
+      file_id UUID REFERENCES uploaded_files(id) ON DELETE SET NULL,
+      source_file_id UUID REFERENCES uploaded_files(id) ON DELETE SET NULL,
+      status VARCHAR(40) NOT NULL DEFAULT 'pending',
+      remarks TEXT,
+      submitted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      reviewed_at TIMESTAMP WITH TIME ZONE,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      UNIQUE (job_application_id, requirement_field)
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS application_requirement_history (
+      id BIGSERIAL PRIMARY KEY,
+      application_requirement_id BIGINT REFERENCES application_requirements(id) ON DELETE CASCADE,
+      job_application_id INTEGER REFERENCES job_applications(id) ON DELETE CASCADE,
+      actor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      action VARCHAR(80) NOT NULL,
+      from_status VARCHAR(40),
+      to_status VARCHAR(40),
+      previous_file_id UUID REFERENCES uploaded_files(id) ON DELETE SET NULL,
+      next_file_id UUID REFERENCES uploaded_files(id) ON DELETE SET NULL,
+      remarks TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
   `);
 
   await pool.query(`
@@ -75,8 +158,95 @@ export async function ensureDatabaseSchema() {
   `);
 
   await pool.query(`
+    CREATE INDEX IF NOT EXISTS job_openings_created_at_idx
+      ON job_openings(created_at DESC);
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS job_openings_status_deadline_created_idx
+      ON job_openings(status, (deadline + COALESCE(deadline_time, TIME '23:59')), created_at DESC);
+  `);
+
+  await pool.query(`
     CREATE INDEX IF NOT EXISTS job_positions_category_idx
       ON job_positions(category);
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS job_positions_category_title_idx
+      ON job_positions(category, title);
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS activity_logs_created_at_idx
+      ON activity_logs(created_at DESC);
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS activity_logs_action_created_idx
+      ON activity_logs(action, created_at DESC);
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS activity_logs_entity_idx
+      ON activity_logs(entity_type, entity_id);
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS uploaded_files_owner_status_idx
+      ON uploaded_files(owner_user_id, status, created_at DESC);
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS uploaded_files_profile_idx
+      ON uploaded_files(applicant_profile_id);
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS uploaded_files_application_idx
+      ON uploaded_files(job_application_id);
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS uploaded_files_job_requirement_idx
+      ON uploaded_files(job_opening_id, requirement_field, status);
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS uploaded_files_cleanup_idx
+      ON uploaded_files(status, deleted_at);
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS uploaded_files_owner_job_status_field_idx
+      ON uploaded_files(owner_user_id, job_opening_id, status, requirement_field);
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS uploaded_files_owner_library_field_idx
+      ON uploaded_files(owner_user_id, requirement_field, status, created_at DESC)
+      WHERE job_opening_id IS NULL;
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS uploaded_files_archived_cleanup_idx
+      ON uploaded_files(status, deleted_at)
+      WHERE status IN ('replaced', 'deleted', 'archived');
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS application_requirements_application_idx
+      ON application_requirements(job_application_id);
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS application_requirements_status_idx
+      ON application_requirements(status, updated_at DESC);
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS application_requirement_history_application_idx
+      ON application_requirement_history(job_application_id, created_at DESC);
   `);
 
   await pool.query(`
@@ -107,6 +277,26 @@ export async function ensureDatabaseSchema() {
   `);
 
   await pool.query(`
+    CREATE INDEX IF NOT EXISTS job_applications_status_created_idx
+      ON job_applications(status, created_at DESC);
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS job_applications_user_created_idx
+      ON job_applications(user_id, created_at DESC);
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS job_applications_user_job_status_idx
+      ON job_applications(user_id, job_opening_id, status);
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS job_applications_created_at_idx
+      ON job_applications(created_at DESC);
+  `);
+
+  await pool.query(`
     CREATE INDEX IF NOT EXISTS job_applications_applicant_profile_id_idx
       ON job_applications(applicant_profile_id);
   `);
@@ -125,5 +315,15 @@ export async function ensureDatabaseSchema() {
   await pool.query(`
     CREATE INDEX IF NOT EXISTS rate_limit_buckets_reset_at_idx
       ON rate_limit_buckets(reset_at);
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS users_role_created_at_idx
+      ON users(role, created_at DESC);
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS users_lower_email_idx
+      ON users(LOWER(email));
   `);
 }

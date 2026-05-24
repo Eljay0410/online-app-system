@@ -4,7 +4,7 @@ export const API_BASE_URL =
 const AUTH_TOKEN_KEY = "oas_token";
 const inFlightGetRequests = new Map();
 
-function getAuthToken() {
+export function getAuthToken() {
   try {
     return localStorage.getItem(AUTH_TOKEN_KEY) || "";
   } catch {

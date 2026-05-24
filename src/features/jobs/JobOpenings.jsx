@@ -12,7 +12,12 @@ import { apiRequest } from "../../lib/api";
 import { getAuthenticatedHomePath, normalizeRole, useAuth } from "../auth/auth";
 import SuperAdminSidebar from "../../components/layout/SuperAdminSidebar";
 import FilterIcon from "../../components/ui/FilterIcon";
+import PaginationControls from "../../components/ui/PaginationControls";
 import { findSjdmSchool, sjdmDistricts } from "../../lib/sjdmLocations";
+import {
+  getInitialSidebarCollapsed,
+  getSidebarContentPadding,
+} from "../../lib/sidebar";
 import { useToast } from "../../components/ui/toastContext";
 
 const formatDate = (value) =>
@@ -26,6 +31,8 @@ const formatDate = (value) =>
 
 const formatDeadline = (job) =>
   `${formatDate(job.deadline)} ${job.deadlineTime || ""}`.trim();
+
+const jobPageSizeOptions = [6, 9, 12];
 
 export default function JobOpenings() {
   const navigate = useNavigate();
@@ -41,13 +48,21 @@ export default function JobOpenings() {
   const [isLoading, setIsLoading] = useState(true);
   const [promptJob, setPromptJob] = useState(null);
   const [promptAction, setPromptAction] = useState("apply");
-  const [collapsed, setCollapsed] = useState(false);
+  const [viewJob, setViewJob] = useState(null);
+  const [collapsed, setCollapsed] = useState(getInitialSidebarCollapsed);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(9);
+  const [pagination, setPagination] = useState({
+    limit: 9,
+    offset: 0,
+    total: 0,
+  });
   const { showToast } = useToast();
   const shortSearchNoticeRef = useRef(false);
 
   const isApplicant = user && normalizeRole(user.role) === "applicant";
-  const contentPadding = collapsed ? "lg:pl-20" : "lg:pl-72";
+  const contentPadding = getSidebarContentPadding(collapsed);
   const selectedDistrict = sjdmDistricts.find(
     (district) => district.name === filters.district
   );
@@ -65,6 +80,7 @@ export default function JobOpenings() {
         barangay: filters.barangay,
         school: filters.school.trim(),
       });
+      setPage(1);
     }, 450);
 
     return () => window.clearTimeout(timeout);
@@ -80,6 +96,7 @@ export default function JobOpenings() {
       if (searchTerm && searchTerm.length < 2) {
         setIsLoading(false);
         setJobs([]);
+        setPagination({ limit: pageSize, offset: 0, total: 0 });
         if (!shortSearchNoticeRef.current) {
           showToast({
             type: "info",
@@ -96,6 +113,8 @@ export default function JobOpenings() {
       try {
         const params = new URLSearchParams();
         if (searchTerm) params.set("q", searchTerm);
+        params.set("limit", String(pageSize));
+        params.set("offset", String((page - 1) * pageSize));
         if (debouncedFilters.school) {
           params.set("location", debouncedFilters.school);
         } else if (debouncedFilters.barangay) {
@@ -112,6 +131,13 @@ export default function JobOpenings() {
 
         if (isMounted) {
           setJobs(result.jobs || []);
+          setPagination(
+            result.pagination || {
+              limit: pageSize,
+              offset: (page - 1) * pageSize,
+              total: result.jobs?.length || 0,
+            }
+          );
         }
       } catch (error) {
         if (error?.name === "AbortError") return;
@@ -134,9 +160,11 @@ export default function JobOpenings() {
       isMounted = false;
       controller.abort();
     };
-  }, [debouncedFilters, showToast]);
+  }, [debouncedFilters, page, pageSize, showToast]);
 
   const handleApply = (job) => {
+    if (job.applied) return;
+
     if (!user) {
       setPromptAction("apply");
       setPromptJob(job);
@@ -163,7 +191,7 @@ export default function JobOpenings() {
       return;
     }
 
-    navigate(`/jobs/${job.id}`);
+    setViewJob(job);
   };
 
   const handleSchoolFilterChange = (value) => {
@@ -357,40 +385,45 @@ export default function JobOpenings() {
             No job openings match your filters.
           </div>
         ) : (
+          <>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {jobs.map((job) => (
               <article
                 key={job.id}
-                className="oas-panel p-5 transition hover:border-blue-200 hover:shadow-md"
+                className="oas-panel flex h-full min-w-0 flex-col p-5 transition hover:border-blue-200 hover:shadow-md"
               >
                 <div className="min-w-0">
-                  <h2 className="oas-panel-title">
+                  <h2 className="line-clamp-2 min-h-[2.5rem] break-words text-sm font-bold leading-5 text-slate-950 [overflow-wrap:anywhere]">
                     {job.title}
                   </h2>
                 </div>
 
                 <div className="mt-4 space-y-3 text-sm text-slate-700">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-slate-400" />
-                    <span>{job.location}</span>
+                  <div className="flex min-w-0 items-start gap-2">
+                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                    <span className="line-clamp-2 min-h-10 break-words leading-5 [overflow-wrap:anywhere]">
+                      {job.location}
+                    </span>
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <BriefcaseBusiness className="h-4 w-4 text-slate-400" />
+                    <BriefcaseBusiness className="h-4 w-4 shrink-0 text-slate-400" />
                     <span>{job.vacancy} vacancy(ies)</span>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <CalendarDays className="h-4 w-4 text-slate-400" />
-                    <span>Deadline {formatDeadline(job)}</span>
+                  <div className="flex min-w-0 items-start gap-2">
+                    <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                    <span className="line-clamp-2 break-words [overflow-wrap:anywhere]">
+                      Deadline {formatDeadline(job)}
+                    </span>
                   </div>
                 </div>
 
-                <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+                <div className="mt-auto grid grid-cols-2 gap-2 pt-5">
                   <button
                     type="button"
                     onClick={() => handleViewDetails(job)}
-                    className="oas-action-button flex-1"
+                    className="oas-action-button oas-card-action-button"
                   >
                     View
                   </button>
@@ -398,17 +431,46 @@ export default function JobOpenings() {
                   <button
                     type="button"
                     onClick={() => handleApply(job)}
-                    className="oas-action-button flex-1"
+                    disabled={job.applied}
+                    className={`oas-action-button oas-card-action-button ${
+                      job.applied
+                        ? "cursor-not-allowed bg-slate-200 text-slate-500 hover:bg-slate-200"
+                        : ""
+                    }`}
                   >
-                    Apply
+                    {job.applied ? "Applied" : "Apply"}
                   </button>
                 </div>
               </article>
             ))}
           </div>
+
+          <PaginationControls
+            page={page}
+            pageSize={pageSize}
+            totalItems={pagination.total || jobs.length}
+            currentCount={jobs.length}
+            onPageChange={setPage}
+            onPageSizeChange={(nextSize) => {
+              setPageSize(nextSize);
+              setPage(1);
+            }}
+            pageSizeOptions={jobPageSizeOptions}
+            itemLabel="job openings"
+            className="rounded-xl border border-slate-200 shadow-sm"
+          />
+          </>
         )}
         </div>
       </section>
+
+      {viewJob && (
+        <JobDetailsModal
+          job={viewJob}
+          onClose={() => setViewJob(null)}
+          onApply={() => handleApply(viewJob)}
+        />
+      )}
 
       {promptJob && (
         <div className="fixed inset-0 z-[80] flex items-end justify-center overflow-y-auto bg-slate-950/50 p-4 sm:items-center">
@@ -455,5 +517,118 @@ export default function JobOpenings() {
         </div>
       )}
     </main>
+  );
+}
+
+function JobDetailsModal({ job, onClose, onApply }) {
+  return (
+    <div className="fixed inset-0 z-[80] flex items-end justify-center overflow-y-auto bg-slate-950/50 p-4 sm:items-center">
+      <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
+          <div className="min-w-0">
+            <h3 className="break-words text-lg font-bold text-slate-950 [overflow-wrap:anywhere]">
+              {job.title}
+            </h3>
+            <p className="mt-1 break-words text-sm text-slate-500 [overflow-wrap:anywhere]">
+              {job.location || "Location not set"}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+            aria-label="Close job details"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="min-h-0 overflow-y-auto px-5 py-4">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <JobModalInfo label="Vacancies" value={job.vacancy} />
+            <JobModalInfo label="Deadline" value={formatDeadline(job)} />
+            <JobModalInfo
+              label="Status"
+              value={job.applied ? "Applied" : "Open"}
+            />
+          </div>
+
+          <section className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <h4 className="text-sm font-bold text-slate-900">Description</h4>
+            <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-slate-600 [overflow-wrap:anywhere]">
+              {job.description || "No description provided yet."}
+            </p>
+          </section>
+
+          <section className="mt-5 rounded-xl border border-slate-200 bg-white p-4">
+            <h4 className="text-sm font-bold text-slate-900">
+              Upload Requirements
+            </h4>
+            {job.requirements?.length ? (
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {job.requirements.map((requirement) => (
+                  <div
+                    key={requirement.field || requirement.label}
+                    className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                  >
+                    <p className="break-words text-sm font-semibold text-slate-800 [overflow-wrap:anywhere]">
+                      {requirement.label}
+                      <span
+                        className={`ml-2 rounded-md px-1.5 py-0.5 text-[10px] uppercase ${
+                          requirement.required === false
+                            ? "bg-slate-100 text-slate-600"
+                            : "bg-red-50 text-red-700"
+                        }`}
+                      >
+                        {requirement.required === false ? "Optional" : "Required"}
+                      </span>
+                    </p>
+                    {requirement.description && (
+                      <p className="mt-1 break-words text-xs leading-5 text-slate-500 [overflow-wrap:anywhere]">
+                        {requirement.description}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-3 text-sm text-slate-500">
+                No upload requirements configured.
+              </p>
+            )}
+          </section>
+        </div>
+
+        <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-200 px-5 py-4 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 px-4 font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            Close
+          </button>
+          <button
+            type="button"
+            onClick={onApply}
+            disabled={job.applied}
+            className="inline-flex h-11 items-center justify-center rounded-xl bg-[#0056b3] px-4 font-semibold text-white transition hover:bg-[#003a78] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
+          >
+            {job.applied ? "Applied" : "Apply"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function JobModalInfo({ label, value }) {
+  return (
+    <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <p className="text-xs font-bold uppercase text-slate-500">{label}</p>
+      <p className="mt-1 break-words text-sm font-semibold text-slate-900 [overflow-wrap:anywhere]">
+        {value}
+      </p>
+    </div>
   );
 }

@@ -1,14 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, Plus, X } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import { Loader2, MailCheck, Plus, X } from "lucide-react";
 import { apiRequest } from "../../lib/api";
+import ActivityLogSection from "./ActivityLogSection";
 import SuperAdminSidebar from "../../components/layout/SuperAdminSidebar";
+import PaginationControls from "../../components/ui/PaginationControls";
 import { useToast } from "../../components/ui/toastContext";
+import {
+  getInitialSidebarCollapsed,
+  getSidebarContentPadding,
+} from "../../lib/sidebar";
+import { useAuth } from "../auth/auth";
 
 const emptyAdminForm = {
   firstName: "",
   lastName: "",
   email: "",
-  password: "",
 };
 
 const pageMeta = {
@@ -28,10 +35,22 @@ const pageMeta = {
     title: "Job Listing",
     description: "View posted job openings from HR/Admin.",
   },
+  "activity-logs": {
+    title: "Activity Logs",
+    description: "Backtrack admin changes across postings, positions, and applications.",
+  },
 };
+
+const superAdminSections = new Set(Object.keys(pageMeta));
+
+function normalizeSuperAdminSection(section) {
+  return superAdminSections.has(section) ? section : "dashboard";
+}
 
 const buttonClass =
   "inline-flex h-9 items-center justify-center rounded-lg px-4 text-sm font-semibold transition";
+const accountPageSizeOptions = [10, 25, 50];
+const jobCardPageSizeOptions = [6, 9, 12];
 
 const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
@@ -54,6 +73,36 @@ const fullName = (user) =>
   user?.email ||
   "Unnamed account";
 
+const normalizeAccountEmail = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase();
+
+function isSameAccount(account, currentUser) {
+  if (!account || !currentUser) return false;
+
+  if (account.id && currentUser.id) {
+    return Number(account.id) === Number(currentUser.id);
+  }
+
+  return (
+    normalizeAccountEmail(account.email) === normalizeAccountEmail(currentUser.email)
+  );
+}
+
+function filterVisibleAccounts(users = [], currentUser, allowedRoles = []) {
+  const roleSet = new Set(allowedRoles.map((role) => role.toLowerCase()));
+
+  return users.filter((account) => {
+    const role = String(account.role || "").toLowerCase();
+
+    if (role === "superadmin") return false;
+    if (roleSet.size > 0 && !roleSet.has(role)) return false;
+
+    return !isSameAccount(account, currentUser);
+  });
+}
+
 function validateAdminAccountForm(form) {
   const errors = {};
 
@@ -69,12 +118,6 @@ function validateAdminAccountForm(form) {
     errors.email = "Email is required.";
   } else if (!isValidEmail(form.email)) {
     errors.email = "Please enter a valid email address.";
-  }
-
-  if (!form.password) {
-    errors.password = "Temporary password is required.";
-  } else if (form.password.length < 8) {
-    errors.password = "Password must be at least 8 characters.";
   }
 
   return errors;
@@ -132,6 +175,9 @@ function hasAccountChanges(original = {}, next = {}) {
 }
 
 export default function SuperAdminDashboard() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const sectionParam = searchParams.get("section");
+  const activeTab = normalizeSuperAdminSection(sectionParam);
   const [overview, setOverview] = useState({
     users: [],
     jobs: [],
@@ -142,22 +188,56 @@ export default function SuperAdminDashboard() {
   const [jobListings, setJobListings] = useState([]);
   const [adminForm, setAdminForm] = useState(emptyAdminForm);
   const [adminErrors, setAdminErrors] = useState({});
-  const [activeTab, setActiveTab] = useState("dashboard");
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(getInitialSidebarCollapsed);
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [modalMode, setModalMode] = useState("view");
   const [isCreateAdminOpen, setIsCreateAdminOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [applicantPage, setApplicantPage] = useState(1);
+  const [applicantPageSize, setApplicantPageSize] = useState(10);
+  const [applicantPagination, setApplicantPagination] = useState({
+    limit: 10,
+    offset: 0,
+    total: 0,
+  });
+  const [officePage, setOfficePage] = useState(1);
+  const [officePageSize, setOfficePageSize] = useState(10);
+  const [officePagination, setOfficePagination] = useState({
+    limit: 10,
+    offset: 0,
+    total: 0,
+  });
+  const [jobPage, setJobPage] = useState(1);
+  const [jobPageSize, setJobPageSize] = useState(9);
+  const [jobPagination, setJobPagination] = useState({
+    limit: 9,
+    offset: 0,
+    total: 0,
+  });
   const { showToast } = useToast();
+  const { user: currentUser } = useAuth();
 
   const loadDashboard = useCallback(async () => {
+    const applicantParams = new URLSearchParams({
+      limit: String(applicantPageSize),
+      offset: String((applicantPage - 1) * applicantPageSize),
+    });
+    const officeParams = new URLSearchParams({
+      limit: String(officePageSize),
+      offset: String((officePage - 1) * officePageSize),
+    });
+    const jobParams = new URLSearchParams({
+      limit: String(jobPageSize),
+      offset: String((jobPage - 1) * jobPageSize),
+    });
+
     const [overviewResult, applicantResult, officeResult, jobResult] =
       await Promise.all([
         apiRequest("/api/superadmin/overview"),
-        apiRequest("/api/superadmin/user-accounts"),
-        apiRequest("/api/superadmin/office-accounts"),
-        apiRequest("/api/superadmin/job-openings"),
+        apiRequest(`/api/superadmin/user-accounts?${applicantParams.toString()}`),
+        apiRequest(`/api/superadmin/office-accounts?${officeParams.toString()}`),
+        apiRequest(`/api/superadmin/job-openings?${jobParams.toString()}`),
       ]);
 
     setOverview({
@@ -168,7 +248,35 @@ export default function SuperAdminDashboard() {
     setApplicantUsers(applicantResult.users || []);
     setOfficeUsers(officeResult.users || []);
     setJobListings(jobResult.jobs || []);
-  }, []);
+    setApplicantPagination(
+      applicantResult.pagination || {
+        limit: applicantPageSize,
+        offset: (applicantPage - 1) * applicantPageSize,
+        total: applicantResult.users?.length || 0,
+      }
+    );
+    setOfficePagination(
+      officeResult.pagination || {
+        limit: officePageSize,
+        offset: (officePage - 1) * officePageSize,
+        total: officeResult.users?.length || 0,
+      }
+    );
+    setJobPagination(
+      jobResult.pagination || {
+        limit: jobPageSize,
+        offset: (jobPage - 1) * jobPageSize,
+        total: jobResult.jobs?.length || 0,
+      }
+    );
+  }, [
+    applicantPage,
+    applicantPageSize,
+    jobPage,
+    jobPageSize,
+    officePage,
+    officePageSize,
+  ]);
 
   useEffect(() => {
     let isMounted = true;
@@ -201,6 +309,16 @@ export default function SuperAdminDashboard() {
     };
   }, [overview]);
 
+  const visibleApplicantUsers = useMemo(
+    () => filterVisibleAccounts(applicantUsers, currentUser, ["applicant"]),
+    [applicantUsers, currentUser]
+  );
+
+  const visibleOfficeUsers = useMemo(
+    () => filterVisibleAccounts(officeUsers, currentUser, ["admin"]),
+    [officeUsers, currentUser]
+  );
+
   const updateAdminForm = (field, value) => {
     setAdminForm((current) => ({ ...current, [field]: value }));
     setAdminErrors((current) => {
@@ -231,7 +349,13 @@ export default function SuperAdminDashboard() {
   };
 
   const changeTab = (tab) => {
-    setActiveTab(tab);
+    const nextTab = normalizeSuperAdminSection(tab);
+
+    setSearchParams((currentParams) => {
+      const nextParams = new URLSearchParams(currentParams);
+      nextParams.set("section", nextTab);
+      return nextParams;
+    });
     setIsCreateAdminOpen(false);
     resetCreateAdminForm();
   };
@@ -255,14 +379,23 @@ export default function SuperAdminDashboard() {
     setAdminErrors({});
 
     try {
-      await apiRequest("/api/superadmin/admins", {
+      const result = await apiRequest("/api/superadmin/admins", {
         method: "POST",
-        body: JSON.stringify(adminForm),
+        body: JSON.stringify({
+          firstName: adminForm.firstName,
+          lastName: adminForm.lastName,
+          email: adminForm.email,
+        }),
       });
       setAdminForm(emptyAdminForm);
       setAdminErrors({});
       setIsCreateAdminOpen(false);
-      showToast({ type: "success", message: "Office account created." });
+      showToast({
+        type: result.emailSent ? "success" : "warning",
+        message:
+          result.message ||
+          "Office account created. A password setup email was sent.",
+      });
       await loadDashboard();
     } catch (err) {
       const errorMessage = err.message || "Failed to create office account.";
@@ -270,8 +403,6 @@ export default function SuperAdminDashboard() {
 
       if (normalizedMessage.includes("email")) {
         setAdminErrors({ email: errorMessage });
-      } else if (normalizedMessage.includes("password")) {
-        setAdminErrors({ password: errorMessage });
       } else if (normalizedMessage.includes("first name")) {
         setAdminErrors({ firstName: errorMessage });
       } else if (normalizedMessage.includes("last name")) {
@@ -298,7 +429,9 @@ export default function SuperAdminDashboard() {
     setOfficeUsers((current) =>
       current.map((user) => (user.id === updatedUser.id ? updatedUser : user))
     );
-    setSelectedAccount(updatedUser);
+    setSelectedAccount((current) =>
+      current?.id === updatedUser.id ? updatedUser : current
+    );
   };
 
   const saveAccount = async (account) => {
@@ -358,7 +491,7 @@ export default function SuperAdminDashboard() {
     }
   };
 
-  const contentPadding = collapsed ? "lg:pl-20" : "lg:pl-72";
+  const contentPadding = getSidebarContentPadding(collapsed);
   const currentPage = pageMeta[activeTab] || pageMeta.dashboard;
 
   return (
@@ -391,9 +524,19 @@ export default function SuperAdminDashboard() {
               {activeTab === "user-management" && (
                 <AccountTable
                   title="Registered Users"
-                  users={applicantUsers}
+                  users={visibleApplicantUsers}
+                  pagination={applicantPagination}
+                  page={applicantPage}
+                  pageSize={applicantPageSize}
+                  onPageChange={setApplicantPage}
+                  onPageSizeChange={(nextSize) => {
+                    setApplicantPageSize(nextSize);
+                    setApplicantPage(1);
+                  }}
+                  itemLabel="registered users"
                   emptyLabel="No applicant users yet."
                   onView={(user) => openAccount(user, "view")}
+                  onEdit={(user) => openAccount(user, "edit")}
                   onToggleStatus={toggleStatus}
                   isSaving={isSaving}
                 />
@@ -414,9 +557,19 @@ export default function SuperAdminDashboard() {
 
                   <AccountTable
                     title="Office Accounts"
-                    users={officeUsers}
+                    users={visibleOfficeUsers}
+                    pagination={officePagination}
+                    page={officePage}
+                    pageSize={officePageSize}
+                    onPageChange={setOfficePage}
+                    onPageSizeChange={(nextSize) => {
+                      setOfficePageSize(nextSize);
+                      setOfficePage(1);
+                    }}
+                    itemLabel="office accounts"
                     emptyLabel="No office accounts yet."
                     onView={(user) => openAccount(user, "view")}
+                    onEdit={(user) => openAccount(user, "edit")}
                     onToggleStatus={toggleStatus}
                     isSaving={isSaving}
                   />
@@ -426,9 +579,19 @@ export default function SuperAdminDashboard() {
               {activeTab === "job-listing" && (
                 <JobListingSection
                   jobs={jobListings}
+                  pagination={jobPagination}
+                  page={jobPage}
+                  pageSize={jobPageSize}
+                  onPageChange={setJobPage}
+                  onPageSizeChange={(nextSize) => {
+                    setJobPageSize(nextSize);
+                    setJobPage(1);
+                  }}
                   formatDate={formatDate}
                 />
               )}
+
+              {activeTab === "activity-logs" && <ActivityLogSection />}
             </>
           )}
         </div>
@@ -436,6 +599,7 @@ export default function SuperAdminDashboard() {
 
       {selectedAccount && (
         <AccountModal
+          key={`${selectedAccount.id}-${modalMode}`}
           account={selectedAccount}
           mode={modalMode}
           isSaving={isSaving}
@@ -462,7 +626,7 @@ export default function SuperAdminDashboard() {
 function Overview({ totals, overview }) {
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
         <Stat label="Users" value={totals.users} />
         <Stat label="Job Postings" value={totals.jobs} />
         <Stat label="Applications" value={totals.applications} />
@@ -483,9 +647,13 @@ function Overview({ totals, overview }) {
 
 function Stat({ label, value }) {
   return (
-    <div className="oas-panel p-5">
-      <p className="text-sm font-semibold text-slate-500">{label}</p>
-      <p className="mt-2 text-2xl font-bold text-slate-950">{value}</p>
+    <div className="oas-panel p-3 sm:p-5">
+      <p className="text-[11px] font-semibold leading-tight text-slate-500 sm:text-sm">
+        {label}
+      </p>
+      <p className="mt-1 text-xl font-bold leading-none text-slate-950 sm:mt-2 sm:text-2xl">
+        {value}
+      </p>
     </div>
   );
 }
@@ -534,7 +702,7 @@ function CreateOfficeAccountModal({
               Create HR/Admin Account
             </h2>
             <p className="mt-1 text-sm text-slate-500">
-              Add a new office account with a temporary password.
+              Add an office account and email a secure password setup link.
             </p>
           </div>
 
@@ -576,15 +744,19 @@ function CreateOfficeAccountModal({
             error={errors.email}
             required
           />
-          <Input
-            label="Temporary Password"
-            type="password"
-            value={form.password}
-            onChange={(value) => onChange("password", value)}
-            error={errors.password}
-            required
-          />
-          <div className="flex justify-end gap-2 md:col-span-2">
+
+          <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900 md:col-span-2">
+            <div className="flex gap-3">
+              <MailCheck className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" />
+              <p className="leading-6">
+                No temporary password is stored. The account stays inactive
+                until the recipient opens the emailed setup link and chooses a
+                password.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col-reverse gap-2 md:col-span-2 md:flex-row md:justify-end">
             <button
               type="button"
               onClick={onClose}
@@ -610,6 +782,12 @@ function CreateOfficeAccountModal({
 function AccountTable({
   title,
   users,
+  pagination,
+  page,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
+  itemLabel = "users",
   emptyLabel,
   onView,
   onToggleStatus,
@@ -620,7 +798,80 @@ function AccountTable({
       <div className="oas-panel-header">
         <h2 className="oas-panel-title">{title}</h2>
       </div>
-      <div className="overflow-x-auto">
+
+      {users.length === 0 ? (
+        <p className="p-6 text-center text-sm text-slate-500">{emptyLabel}</p>
+      ) : (
+        <>
+          <div className="grid gap-2 p-2 sm:p-4 md:hidden">
+            {users.map((user) => (
+              <article
+                key={user.id}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-3 shadow-sm"
+              >
+                <div className="min-w-0">
+                  <h3 className="break-words text-sm font-bold text-slate-950 [overflow-wrap:anywhere]">
+                    {fullName(user)}
+                  </h3>
+                  <p className="mt-1 break-all text-xs font-medium text-slate-500">
+                    {user.email}
+                  </p>
+                </div>
+
+                <dl className="mt-3 grid gap-2 text-xs">
+                  <div className="flex items-center justify-between gap-3">
+                    <dt className="font-semibold text-slate-500">Role</dt>
+                    <dd className="text-right font-semibold capitalize text-slate-800">
+                      {String(user.role).replaceAll("_", " ")}
+                    </dd>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3">
+                    <dt className="font-semibold text-slate-500">Status</dt>
+                    <dd>
+                      <StatusPill
+                        active={user.isActive}
+                        hasPassword={user.hasPassword}
+                      />
+                    </dd>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3">
+                    <dt className="font-semibold text-slate-500">Last Login</dt>
+                    <dd className="text-right font-semibold text-slate-800">
+                      {formatDate(user.lastLogin)}
+                    </dd>
+                  </div>
+                </dl>
+
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onView(user)}
+                    className="oas-action-button oas-card-action-button"
+                  >
+                    View
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSaving || isPendingSetupAccount(user)}
+                    onClick={() => onToggleStatus(user)}
+                    className={`oas-card-action-button ${buttonClass} px-2 ${
+                      isPendingSetupAccount(user)
+                        ? "border border-blue-200 bg-blue-50 text-blue-700"
+                        : user.isActive
+                        ? "border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                        : "border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                    } disabled:cursor-not-allowed disabled:opacity-70`}
+                  >
+                    {getStatusActionLabel(user)}
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-50">
             <tr>
@@ -643,7 +894,10 @@ function AccountTable({
                   {String(user.role).replaceAll("_", " ")}
                 </td>
                 <td className="px-5 py-4">
-                  <StatusPill active={user.isActive} />
+                  <StatusPill
+                    active={user.isActive}
+                    hasPassword={user.hasPassword}
+                  />
                 </td>
                 <td className="px-5 py-4 text-slate-700">
                   {formatDate(user.lastLogin)}
@@ -652,29 +906,30 @@ function AccountTable({
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
-                      onClick={() => onView(user)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onView(user);
+                      }}
                       className="oas-action-button"
                     >
                       View
                     </button>
                     <button
                       type="button"
-                      onClick={() => onEdit(user)}
-                      className={`${buttonClass} border border-slate-300 bg-white text-slate-700 hover:bg-slate-50`}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isSaving}
-                      onClick={() => onToggleStatus(user)}
+                      disabled={isSaving || isPendingSetupAccount(user)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onToggleStatus(user);
+                      }}
                       className={`${buttonClass} ${
-                        user.isActive
+                        isPendingSetupAccount(user)
+                          ? "border border-blue-200 bg-blue-50 text-blue-700"
+                          : user.isActive
                           ? "border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
                           : "border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                       } disabled:cursor-not-allowed disabled:opacity-70`}
                     >
-                      {user.isActive ? "Suspend" : "Activate"}
+                      {getStatusActionLabel(user)}
                     </button>
                   </div>
                 </td>
@@ -682,15 +937,33 @@ function AccountTable({
             ))}
           </tbody>
         </table>
-        {users.length === 0 && (
-          <p className="p-6 text-center text-sm text-slate-500">{emptyLabel}</p>
-        )}
-      </div>
+          </div>
+
+          <PaginationControls
+            page={page}
+            pageSize={pageSize}
+            totalItems={pagination?.total || users.length}
+            currentCount={users.length}
+            onPageChange={onPageChange}
+            onPageSizeChange={onPageSizeChange}
+            pageSizeOptions={accountPageSizeOptions}
+            itemLabel={itemLabel}
+          />
+        </>
+      )}
     </section>
   );
 }
 
-function JobListingSection({ jobs, formatDate }) {
+function JobListingSection({
+  jobs,
+  pagination,
+  page,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
+  formatDate,
+}) {
   const [selectedJob, setSelectedJob] = useState(null);
 
   return (
@@ -698,63 +971,69 @@ function JobListingSection({ jobs, formatDate }) {
       <div className="oas-panel-header">
         <h2 className="oas-panel-title">Job Listing</h2>
         <p className="mt-1 text-sm text-slate-500">
-          View-only list of job openings posted by HR/Admin.
+          View all posted job openings and open their full details.
         </p>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-50">
-            <tr>
-              <TableHead>Job Title</TableHead>
-              <TableHead>Barangay</TableHead>
-              <TableHead>Vacancies</TableHead>
-              <TableHead>Deadline</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Actions</TableHead>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200 bg-white">
-            {jobs.map((job) => (
-              <tr key={job.id} className="hover:bg-slate-50">
-                <td className="px-5 py-4">
-                  <p className="font-semibold text-slate-950">{job.title}</p>
-                  {job.positionCategory && (
-                    <p className="mt-1 text-xs font-semibold text-slate-500">
-                      {job.positionCategory}
-                    </p>
-                  )}
-                </td>
-                <td className="px-5 py-4 text-slate-700">
-                  {job.barangay || job.location || "Not set"}
-                </td>
-                <td className="px-5 py-4 text-slate-700">{job.vacancy}</td>
-                <td className="px-5 py-4 text-slate-700">
-                  {formatDeadline(job, formatDate)}
-                </td>
-                <td className="px-5 py-4">
-                  <JobStatusPill status={job.status} />
-                </td>
-                <td className="px-5 py-4 text-right">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedJob(job)}
-                    className="oas-action-button"
-                  >
-                    View
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {jobs.length === 0 ? (
+        <p className="p-6 text-center text-sm text-slate-500">
+          No job listings available.
+        </p>
+      ) : (
+        <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
+          {jobs.map((job) => (
+            <article
+              key={job.id}
+              className="oas-panel flex h-full min-w-0 flex-col p-5 transition hover:border-blue-200 hover:shadow-md"
+            >
+              <div className="min-w-0">
+                <h3 className="line-clamp-2 min-h-[2.5rem] break-words text-base font-bold leading-5 text-slate-950 [overflow-wrap:anywhere]">
+                  {job.title}
+                </h3>
 
-        {jobs.length === 0 && (
-          <p className="p-6 text-center text-sm text-slate-500">
-            No job listings available.
-          </p>
-        )}
-      </div>
+                <p className="mt-1 line-clamp-2 min-h-[2.5rem] break-words text-sm leading-5 text-slate-500 [overflow-wrap:anywhere]">
+                  {job.location || job.barangay || "Location not set"}
+                </p>
+              </div>
+
+              <div className="mt-4 grid gap-2 text-sm text-slate-700">
+                <p className="truncate">
+                  <span className="font-semibold">Vacancy:</span>{" "}
+                  <span>{job.vacancy}</span>
+                </p>
+
+                <p className="truncate">
+                  <span className="font-semibold">Deadline:</span>{" "}
+                  {formatDeadline(job, formatDate)}
+                </p>
+              </div>
+
+              <div className="mt-auto flex justify-end pt-5">
+                <button
+                  type="button"
+                  onClick={() => setSelectedJob(job)}
+                  className="oas-action-button"
+                >
+                  View
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+
+      {jobs.length > 0 && (
+        <PaginationControls
+          page={page}
+          pageSize={pageSize}
+          totalItems={pagination?.total || jobs.length}
+          currentCount={jobs.length}
+          onPageChange={onPageChange}
+          onPageSizeChange={onPageSizeChange}
+          pageSizeOptions={jobCardPageSizeOptions}
+          itemLabel="job openings"
+        />
+      )}
 
       {selectedJob && (
         <JobDetailsModal
@@ -769,8 +1048,8 @@ function JobListingSection({ jobs, formatDate }) {
 
 function JobDetailsModal({ job, formatDate, onClose }) {
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-black/50 p-4 sm:p-6">
-      <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white sm:max-h-[92vh]">
+    <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/50 p-3 sm:items-center sm:p-6">
+      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl sm:max-h-[92dvh]">
         <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
           <div className="min-w-0">
             <h3 className="break-words text-lg font-bold text-slate-950 [overflow-wrap:anywhere]">
@@ -791,14 +1070,13 @@ function JobDetailsModal({ job, formatDate, onClose }) {
         </div>
 
         <div className="min-h-0 overflow-y-auto p-5">
-          <div className="grid gap-3 sm:grid-cols-4">
-            <JobDetailItem label="Category" value={job.positionCategory || "Not set"} />
-            <JobDetailItem label="Barangay" value={job.barangay || "Not set"} />
+          <div className="grid gap-3 sm:grid-cols-3">
             <JobDetailItem label="Vacancies" value={job.vacancy} />
             <JobDetailItem
-              label="Deadline"
+              label="Application Deadline"
               value={formatDeadline(job, formatDate)}
             />
+            <JobDetailItem label="Status" value={<JobStatusPill status={job.status} />} />
           </div>
 
           <section className="mt-5 rounded-lg border border-slate-200 p-4">
@@ -917,16 +1195,31 @@ function AccountModal({ account, mode, isSaving, onClose, onEdit, onSave }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-2xl overflow-hidden rounded-xl bg-white">
-        <div className="border-b border-slate-200 px-5 py-4">
-          <h3 className="text-lg font-bold text-slate-950">
-            {isEditing ? "Edit Account" : "Account Details"}
-          </h3>
-          <p className="mt-1 text-sm text-slate-500">{account.email}</p>
+    <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-black/50 p-3 sm:items-center sm:p-6">
+      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl sm:max-h-[92dvh]">
+        <div className="shrink-0 border-b border-slate-200 px-5 py-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h3 className="break-words text-lg font-bold text-slate-950 [overflow-wrap:anywhere]">
+                {isEditing ? "Edit Account" : "Account Details"}
+              </h3>
+              <p className="mt-1 break-words text-sm text-slate-500 [overflow-wrap:anywhere]">
+                {account.email}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+              aria-label="Close account details"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
-        <div className="grid gap-4 p-5 md:grid-cols-2">
+        <div className="grid min-h-0 gap-4 overflow-y-auto p-5 md:grid-cols-2">
           <Input
             label="First Name"
             value={displayedAccount.firstName}
@@ -981,7 +1274,7 @@ function AccountModal({ account, mode, isSaving, onClose, onEdit, onSave }) {
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
+        <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-200 px-5 py-4 sm:flex-row sm:justify-end">
           <button
             type="button"
             onClick={onClose}
@@ -993,7 +1286,7 @@ function AccountModal({ account, mode, isSaving, onClose, onEdit, onSave }) {
             <button
               type="button"
               disabled={isSaving}
-              onClick={() => onSave(draft)}
+              onClick={handleSave}
               className={`${buttonClass} bg-[#0056b3] text-white hover:bg-[#003a78] disabled:cursor-not-allowed disabled:opacity-70`}
             >
               {isSaving ? "Saving..." : "Save Changes"}
@@ -1049,16 +1342,29 @@ function Input({
   );
 }
 
-function StatusPill({ active }) {
+function isPendingSetupAccount(user) {
+  return !user.isActive && !user.hasPassword;
+}
+
+function getStatusActionLabel(user) {
+  if (isPendingSetupAccount(user)) return "Awaiting Setup";
+  return user.isActive ? "Suspend" : "Activate";
+}
+
+function StatusPill({ active, hasPassword }) {
+  const isPendingSetup = !active && !hasPassword;
+
   return (
     <span
       className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${
-        active
+        isPendingSetup
+          ? "border-blue-200 bg-blue-50 text-blue-700"
+          : active
           ? "border-emerald-200 bg-emerald-50 text-emerald-700"
           : "border-red-200 bg-red-50 text-red-700"
       }`}
     >
-      {active ? "Active" : "Suspended"}
+      {isPendingSetup ? "Pending Setup" : active ? "Active" : "Suspended"}
     </span>
   );
 }

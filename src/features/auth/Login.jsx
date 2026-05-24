@@ -161,11 +161,12 @@ export default function Login() {
       }
 
       if (!result.hasPassword) {
-        goToStep("forgot");
+        setResendKind("setup");
+        goToStep("resend");
         showToast({
           type: "info",
           message:
-            "This account does not have a password yet. Use the setup link below to continue.",
+            "This account does not have a password yet. We'll email you a secure setup link.",
         });
         return;
       }
@@ -332,11 +333,11 @@ export default function Login() {
     : "Resend verification email";
 
   return (
-    <main className="min-h-screen overflow-hidden bg-white pt-[96px]">
-      <div className="grid min-h-[calc(100vh-96px)] grid-cols-1 lg:grid-cols-[30.5%_69.5%]">
+    <main className="min-h-screen overflow-x-hidden bg-white pt-[96px]">
+      <div className="grid min-h-[calc(100dvh-96px)] grid-cols-1 lg:grid-cols-[30.5%_69.5%]">
         {/* LEFT LOGIN AREA */}
         <section className="min-w-0 bg-white">
-          <div className="flex min-h-[calc(100vh-96px)] w-full items-center justify-center px-5 py-7">
+          <div className="flex min-h-[calc(100dvh-96px)] w-full items-start justify-center px-5 py-7 sm:items-center">
             <div className="w-full max-w-[340px]">
               {step !== "email" && (
                 <BackButton onClick={goToEmailStep} className="mb-6" />
@@ -450,7 +451,7 @@ export default function Login() {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="mt-4 inline-flex h-[44px] w-full items-center justify-center gap-2 rounded-lg bg-[#244a96] text-[14px] font-semibold text-white shadow-sm transition hover:bg-[#183978] disabled:cursor-not-allowed disabled:opacity-70"
+                  className="mt-4 inline-flex h-[44px] w-auto min-w-[132px] items-center justify-center gap-2 rounded-lg bg-[#244a96] px-6 text-[14px] font-semibold text-white shadow-sm transition hover:bg-[#183978] disabled:cursor-not-allowed disabled:opacity-70 sm:w-full sm:px-4"
                 >
                   {isSubmitting ? (
                     <Loader2 className="h-4 w-4 animate-spin" />

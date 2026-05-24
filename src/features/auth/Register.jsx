@@ -117,11 +117,11 @@ export default function Register() {
   };
 
   return (
-    <main className="min-h-screen overflow-hidden bg-white pt-[96px]">
-      <div className="grid min-h-[calc(100vh-96px)] grid-cols-1 lg:grid-cols-[30.5%_69.5%]">
+    <main className="min-h-screen overflow-x-hidden bg-white pt-[96px]">
+      <div className="grid min-h-[calc(100dvh-96px)] grid-cols-1 lg:grid-cols-[30.5%_69.5%]">
         {/* LEFT REGISTER AREA */}
         <section className="min-w-0 bg-white">
-          <div className="flex min-h-[calc(100vh-96px)] w-full items-center justify-center px-5 py-7">
+          <div className="flex min-h-[calc(100dvh-96px)] w-full items-start justify-center px-5 py-7 sm:items-center">
             <div className="w-full max-w-[340px]">
               <BackButton
                 onClick={() => navigate("/login")}
@@ -235,7 +235,7 @@ export default function Register() {
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="mt-4 inline-flex h-[44px] w-full items-center justify-center gap-2 rounded-lg bg-[#244a96] text-[14px] font-semibold text-white shadow-sm transition hover:bg-[#183978] disabled:cursor-not-allowed disabled:opacity-70"
+                    className="mt-4 inline-flex h-[44px] w-auto min-w-[152px] items-center justify-center gap-2 rounded-lg bg-[#244a96] px-6 text-[14px] font-semibold text-white shadow-sm transition hover:bg-[#183978] disabled:cursor-not-allowed disabled:opacity-70 sm:w-full sm:px-4"
                   >
                     {isSubmitting ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -248,7 +248,7 @@ export default function Register() {
                   <button
                     type="button"
                     onClick={() => navigate("/login", { replace: true })}
-                    className="inline-flex h-[44px] w-full items-center justify-center rounded-lg bg-[#244a96] text-[14px] font-semibold text-white shadow-sm transition hover:bg-[#183978]"
+                    className="inline-flex h-[44px] w-auto min-w-[132px] items-center justify-center rounded-lg bg-[#244a96] px-6 text-[14px] font-semibold text-white shadow-sm transition hover:bg-[#183978] sm:w-full sm:px-4"
                   >
                     Go to Login
                   </button>
@@ -258,7 +258,7 @@ export default function Register() {
                     onClick={() => {
                       setSuccess(false);
                     }}
-                    className="inline-flex h-[44px] w-full items-center justify-center rounded-lg bg-slate-100 text-[14px] font-semibold text-slate-700 transition hover:bg-slate-200"
+                    className="inline-flex h-[44px] w-auto min-w-[176px] items-center justify-center rounded-lg bg-slate-100 px-6 text-[14px] font-semibold text-slate-700 transition hover:bg-slate-200 sm:w-full sm:px-4"
                   >
                     Register another account
                   </button>

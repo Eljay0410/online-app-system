@@ -1,10 +1,14 @@
 import { useState } from "react";
 import SuperAdminSidebar from "../../components/layout/SuperAdminSidebar";
+import {
+  getInitialSidebarCollapsed,
+  getSidebarContentPadding,
+} from "../../lib/sidebar";
 import ApplicantProfile from "./ApplicantProfile";
 
 export default function ApplicantInformation() {
-  const [collapsed, setCollapsed] = useState(false);
-  const contentPadding = collapsed ? "lg:pl-20" : "lg:pl-72";
+  const [collapsed, setCollapsed] = useState(getInitialSidebarCollapsed);
+  const contentPadding = getSidebarContentPadding(collapsed);
 
   return (
     <main className={`min-h-screen bg-slate-100 pt-24 ${contentPadding}`}>

@@ -98,10 +98,10 @@ export function requireJsonContent(req, res, next) {
     return next();
   }
 
-  if (!req.is("application/json")) {
+  if (!req.is("application/json") && !req.is("multipart/form-data")) {
     return res.status(415).json({
       success: false,
-      message: "Requests with a body must use application/json.",
+      message: "Requests with a body must use application/json or multipart/form-data.",
     });
   }
 
@@ -124,6 +124,20 @@ export function errorHandler(error, _req, res, _next) {
     return res.status(413).json({
       success: false,
       message: "Request body is too large.",
+    });
+  }
+
+  if (error?.code === "LIMIT_FILE_SIZE") {
+    return res.status(413).json({
+      success: false,
+      message: "Uploaded file is too large.",
+    });
+  }
+
+  if (error?.code?.startsWith?.("LIMIT_")) {
+    return res.status(400).json({
+      success: false,
+      message: "Upload request exceeded the allowed limits.",
     });
   }
 

@@ -59,6 +59,37 @@ export const clientUrl = (
 
 export const jsonBodyLimit = process.env.JSON_BODY_LIMIT || "10mb";
 
+function envInt(name, fallback) {
+  const value = Number.parseInt(process.env[name] || "", 10);
+  return Number.isInteger(value) && value > 0 ? value : fallback;
+}
+
+export const uploadRoot = path.resolve(
+  process.env.UPLOAD_ROOT ||
+    process.env.OAS_UPLOAD_ROOT ||
+    path.resolve(__dirname, "../../../storage/uploads")
+);
+
+export const uploadMaxFileSizeBytes = envInt(
+  "UPLOAD_MAX_FILE_SIZE_BYTES",
+  15 * 1024 * 1024
+);
+
+export const uploadImageMaxWidth = envInt("UPLOAD_IMAGE_MAX_WIDTH", 1600);
+export const uploadImageMaxHeight = envInt("UPLOAD_IMAGE_MAX_HEIGHT", 1600);
+export const uploadImageQuality = Math.min(
+  Math.max(envInt("UPLOAD_IMAGE_QUALITY", 82), 50),
+  95
+);
+export const uploadDiskWarnPercent = Math.min(
+  Math.max(envInt("UPLOAD_DISK_WARN_PERCENT", 85), 50),
+  99
+);
+export const uploadCleanupRetentionDays = envInt(
+  "UPLOAD_CLEANUP_RETENTION_DAYS",
+  30
+);
+
 export const trustProxy = (() => {
   const rawValue = String(
     process.env.TRUST_PROXY || (isProduction ? "1" : "false")

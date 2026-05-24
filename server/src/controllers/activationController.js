@@ -6,8 +6,16 @@ import {
   TOKEN_PURPOSES,
 } from "../services/activationService.js";
 import { revokeUserSessions } from "../services/sessionService.js";
+import {
+  hasPasswordStrength,
+  passwordPolicyMessage,
+} from "../utils/password.js";
 
 const legacyPlainTokenPattern = /^[a-f0-9]{64}$/i;
+const passwordTokenPurposes = new Set([
+  TOKEN_PURPOSES.PASSWORD_RESET,
+  TOKEN_PURPOSES.PASSWORD_SETUP,
+]);
 
 function hashToken(token) {
   return `sha256:${createHash("sha256").update(token).digest("hex")}`;
@@ -150,10 +158,10 @@ export async function activateAccount(req, res) {
 
     const wasInactive = activationToken.is_active === false;
 
-    if (purpose === TOKEN_PURPOSES.PASSWORD_RESET) {
-      if (!password || String(password).length < 8) {
+    if (passwordTokenPurposes.has(purpose)) {
+      if (!hasPasswordStrength(password)) {
         await client.query("ROLLBACK");
-        return tokenError(res, "Password must be at least 8 characters.");
+        return tokenError(res, passwordPolicyMessage);
       }
 
       const hash = await bcrypt.hash(String(password), 10);
@@ -162,7 +170,7 @@ export async function activateAccount(req, res) {
         "updated_at = NOW()",
       ];
 
-      if (wasInactive) {
+      if (wasInactive || purpose === TOKEN_PURPOSES.PASSWORD_SETUP) {
         updateFields.push(
           "is_active = TRUE",
           "email_verified_at = COALESCE(email_verified_at, NOW())"
@@ -204,8 +212,8 @@ export async function activateAccount(req, res) {
       success: true,
       purpose,
       message:
-        purpose === TOKEN_PURPOSES.PASSWORD_RESET
-          ? wasInactive
+        passwordTokenPurposes.has(purpose)
+          ? purpose === TOKEN_PURPOSES.PASSWORD_SETUP || wasInactive
             ? "Account activated successfully."
             : "Password reset successfully."
           : "Email verified successfully.",

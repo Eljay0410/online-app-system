@@ -4,8 +4,10 @@ import {
   getApplicantProfile,
   listAdminApplications,
   listApplicantApplications,
+  replaceApplicationRequirementFile,
   saveApplicantProfile,
   submitApplication,
+  updateApplicationRequirementReview,
   updateApplicationStatus,
 } from "../controllers/applicationController.js";
 import { requireAuth, requireRoles } from "../middleware/auth.js";
@@ -28,11 +30,27 @@ router.patch(
   updateApplicationStatus
 );
 
+router.patch(
+  "/admin/applications/:id/requirements/:requirementId",
+  requireAuth,
+  authenticatedWriteLimiter,
+  requireRoles("admin"),
+  updateApplicationRequirementReview
+);
+
 router.get(
   "/applicant/applications",
   requireAuth,
   requireRoles("applicant"),
   listApplicantApplications
+);
+
+router.patch(
+  "/applicant/applications/:id/requirements/:requirementId",
+  requireAuth,
+  authenticatedWriteLimiter,
+  requireRoles("applicant"),
+  replaceApplicationRequirementFile
 );
 
 router.get(

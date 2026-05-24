@@ -3,6 +3,10 @@ import { Lock, Mail, Pencil, User } from "lucide-react";
 import { normalizeRole, useAuth } from "../auth/auth";
 import SuperAdminSidebar from "../../components/layout/SuperAdminSidebar";
 import { apiRequest } from "../../lib/api";
+import {
+  getInitialSidebarCollapsed,
+  getSidebarContentPadding,
+} from "../../lib/sidebar";
 import { useToast } from "../../components/ui/toastContext";
 
 const emptyAccountForm = {
@@ -24,7 +28,7 @@ export default function Profile() {
   const { user, updateUser } = useAuth();
   const { showToast } = useToast();
 
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(getInitialSidebarCollapsed);
 
   const role = normalizeRole(user?.role);
   const isApplicant = role === "applicant";
@@ -130,7 +134,7 @@ export default function Profile() {
 
   const uanDisplay = uan ? uan : "Not assigned";
 
-  const contentPadding = collapsed ? "lg:pl-20" : "lg:pl-72";
+  const contentPadding = getSidebarContentPadding(collapsed);
   const memberSince = formatDate(user?.createdAt) || "Not available";
 
   const updateField = (field, value) => {

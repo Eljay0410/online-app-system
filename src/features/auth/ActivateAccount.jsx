@@ -10,12 +10,20 @@ import { apiRequest } from "../../lib/api";
 import BackButton from "../../components/ui/BackButton";
 import { useToast } from "../../components/ui/toastContext";
 
+const passwordResetPurpose = "password_reset";
+const passwordSetupPurpose = "password_setup";
+const passwordPolicyText =
+  "Password must be at least 8 characters and include uppercase, lowercase, and a number.";
+const hasPasswordStrength = (value) =>
+  value.length >= 8 && /[a-z]/.test(value) && /[A-Z]/.test(value) && /\d/.test(value);
+
 export default function ActivateAccount() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { showToast } = useToast();
   const token = useMemo(() => searchParams.get("token") || "", [searchParams]);
   const [purpose, setPurpose] = useState("");
+  const [expiresAt, setExpiresAt] = useState("");
   const [alreadyActive, setAlreadyActive] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -40,6 +48,7 @@ export default function ActivateAccount() {
         const result = await apiRequest(`/api/activate?token=${encodeURIComponent(token)}`);
         if (!isMounted) return;
         setPurpose(result.purpose || "");
+        setExpiresAt(result.expiresAt || "");
         setAlreadyActive(Boolean(result.alreadyActive));
       } catch (error) {
         if (!isMounted) return;
@@ -66,11 +75,11 @@ export default function ActivateAccount() {
       next.form = "Missing activation token.";
     }
 
-    if (purpose === "password_reset") {
+    if (requiresPassword) {
       if (!password) {
         next.password = "Password is required.";
-      } else if (password.length < 8) {
-        next.password = "Password must be at least 8 characters.";
+      } else if (!hasPasswordStrength(password)) {
+        next.password = passwordPolicyText;
       }
 
       if (!confirmPassword) {
@@ -84,7 +93,41 @@ export default function ActivateAccount() {
     return Object.keys(next).length === 0;
   };
 
-  const isAccountSetup = purpose === "password_reset" && !alreadyActive;
+  const requiresPassword =
+    purpose === passwordResetPurpose || purpose === passwordSetupPurpose;
+  const isAccountSetup =
+    purpose === passwordSetupPurpose ||
+    (purpose === passwordResetPurpose && !alreadyActive);
+  const isPasswordReset = purpose === passwordResetPurpose && !isAccountSetup;
+  const successTitle = isAccountSetup
+    ? "Account activated"
+    : isPasswordReset
+    ? "Password updated"
+    : "Email verified";
+  const pageTitle = isAccountSetup
+    ? "Create your password"
+    : isPasswordReset
+    ? "Set a new password"
+    : "Verify your email";
+  const pageDescription = isAccountSetup
+    ? "Choose a password to activate your account."
+    : isPasswordReset
+    ? "Choose a new password to finish the reset."
+    : "Confirm your account to start using the system.";
+  const primaryLabel = isAccountSetup
+    ? "Set Password"
+    : isPasswordReset
+    ? "Update Password"
+    : "Verify Email";
+  const expiryText = expiresAt
+    ? new Date(expiresAt).toLocaleString("en-PH", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : "";
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -104,19 +147,14 @@ export default function ActivateAccount() {
         method: "POST",
         body: JSON.stringify({
           token,
-          ...(purpose === "password_reset" ? { password } : {}),
+          ...(requiresPassword ? { password } : {}),
         }),
       });
 
       setIsDone(true);
       showToast({
         type: "success",
-        message:
-          purpose === "password_reset"
-            ? isAccountSetup
-              ? "Account activated."
-              : "Password updated."
-            : "Email verified.",
+        message: `${successTitle}.`,
       });
       window.setTimeout(() => navigate("/login", { replace: true }), 1600);
     } catch (error) {
@@ -150,11 +188,7 @@ export default function ActivateAccount() {
               <BackButton to="/login" ariaLabel="Back to login" />
             </div>
             <h1 className="mt-4 text-[28px] font-semibold tracking-tight text-slate-900">
-              {purpose === "password_reset"
-                ? isAccountSetup
-                  ? "Account activated"
-                  : "Password updated"
-                : "Email verified"}
+              {successTitle}
             </h1>
             <p className="mt-2 text-[14px] text-slate-500">
               Redirecting to login...
@@ -167,23 +201,20 @@ export default function ActivateAccount() {
                 <BackButton to="/login" ariaLabel="Back to login" />
               </div>
               <h1 className="text-[28px] font-semibold tracking-tight text-slate-900">
-                {purpose === "password_reset"
-                  ? isAccountSetup
-                    ? "Create your password"
-                    : "Set a new password"
-                  : "Verify your email"}
+                {pageTitle}
               </h1>
               <p className="mx-auto mt-2 max-w-[36ch] text-[14px] leading-6 text-slate-500">
-                {purpose === "password_reset"
-                  ? isAccountSetup
-                    ? "Set a password to activate your account."
-                    : "Choose a new password to finish the reset."
-                  : "Confirm your account to start using the system."}
+                {pageDescription}
               </p>
+              {expiryText && (
+                <p className="mx-auto mt-2 max-w-[36ch] text-[12px] font-medium text-slate-400">
+                  This secure link expires on {expiryText}.
+                </p>
+              )}
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4 text-left" noValidate>
-              {purpose === "password_reset" && (
+              {requiresPassword && (
                 <>
                   <Field
                     label="Password"
@@ -259,14 +290,10 @@ export default function ActivateAccount() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="inline-flex h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-[#244a96] px-4 text-[14px] font-semibold text-white transition hover:bg-[#183978] disabled:cursor-not-allowed disabled:opacity-70"
+                className="inline-flex h-[44px] w-auto min-w-[132px] items-center justify-center gap-2 rounded-xl bg-[#244a96] px-6 text-[14px] font-semibold text-white transition hover:bg-[#183978] disabled:cursor-not-allowed disabled:opacity-70 sm:w-full sm:px-4"
               >
                 {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                {purpose === "password_reset"
-                  ? isAccountSetup
-                    ? "Set Password"
-                    : "Update Password"
-                  : "Verify Email"}
+                {primaryLabel}
               </button>
             </form>
 

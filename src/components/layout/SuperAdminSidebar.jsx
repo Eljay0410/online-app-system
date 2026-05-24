@@ -3,6 +3,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardList,
+  History,
   LayoutDashboard,
   LogOut,
   User,
@@ -54,28 +55,35 @@ const roleNavItems = {
       label: "Manage Job Openings",
       mobileLabel: "Manage",
       icon: Briefcase,
-      path: "/admin",
+      path: "/admin?section=job-posting",
     },
     {
       id: "positions",
       label: "Positions",
       mobileLabel: "Positions",
       icon: ClipboardList,
-      path: "/admin",
+      path: "/admin?section=positions",
     },
     {
       id: "applicant-list",
       label: "Applicant List",
       mobileLabel: "Applicants",
       icon: UserCog,
-      path: "/admin",
+      path: "/admin?section=applicant-list",
     },
     {
       id: "job-listing",
       label: "Job Listing",
       mobileLabel: "Jobs",
       icon: ClipboardList,
-      path: "/admin",
+      path: "/admin?section=job-listing",
+    },
+    {
+      id: "activity-logs",
+      label: "Activity Logs",
+      mobileLabel: "Logs",
+      icon: History,
+      path: "/admin?section=activity-logs",
     },
   ],
   superadmin: [
@@ -83,28 +91,35 @@ const roleNavItems = {
       id: "dashboard",
       label: "Dashboard",
       icon: LayoutDashboard,
-      path: "/superadmin",
+      path: "/superadmin?section=dashboard",
     },
     {
       id: "user-management",
       label: "User Management",
       mobileLabel: "Users",
       icon: Users,
-      path: "/superadmin",
+      path: "/superadmin?section=user-management",
     },
     {
       id: "office-management",
       label: "Office Management",
       mobileLabel: "Accounts",
       icon: UserCog,
-      path: "/superadmin",
+      path: "/superadmin?section=office-management",
     },
     {
       id: "job-listing",
       label: "Job Listing",
       mobileLabel: "Jobs",
       icon: Briefcase,
-      path: "/superadmin",
+      path: "/superadmin?section=job-listing",
+    },
+    {
+      id: "activity-logs",
+      label: "Activity Logs",
+      mobileLabel: "Logs",
+      icon: History,
+      path: "/superadmin?section=activity-logs",
     },
   ],
 };
@@ -124,6 +139,11 @@ export default function SuperAdminSidebar({
   const navItems = roleNavItems[resolvedRole] || roleNavItems.applicant;
   const isProfileActive =
     activeTab === "profile" || location.pathname === "/profile";
+  const sidebarWidthClass = collapsed
+    ? "w-20"
+    : "w-[min(18rem,calc(100vw-1rem))] sm:w-72";
+  const labelClass = collapsed ? "hidden" : "block";
+  const navItemClass = collapsed ? "justify-center px-0" : "px-5";
 
   const selectItem = (item) => {
     if (location.pathname === "/profile" || !setActiveTab) {
@@ -132,6 +152,13 @@ export default function SuperAdminSidebar({
     }
 
     setActiveTab(item.id);
+
+    if (
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 639px)").matches
+    ) {
+      setCollapsed?.(true);
+    }
   };
 
   const handleLogout = async () => {
@@ -147,10 +174,17 @@ export default function SuperAdminSidebar({
 
   return (
     <>
+      {!collapsed && (
+        <button
+          type="button"
+          aria-label="Collapse sidebar overlay"
+          onClick={() => setCollapsed(true)}
+          className="fixed inset-x-0 bottom-0 top-24 z-40 bg-slate-950/35 backdrop-blur-sm sm:hidden"
+        />
+      )}
+
       <aside
-        className={`fixed left-0 top-24 z-30 hidden h-[calc(100vh-96px)] border-r border-slate-200 bg-white transition-all duration-300 lg:flex lg:flex-col ${
-          collapsed ? "w-20" : "w-72"
-        }`}
+        className={`fixed left-0 top-24 z-50 flex h-[calc(100dvh-96px)] flex-col border-r border-slate-200 bg-white shadow-xl transition-all duration-300 sm:shadow-none ${sidebarWidthClass}`}
       >
         <div className="flex items-center border-b border-slate-200 px-4 py-3">
           <div className="flex w-full items-center justify-end">
@@ -185,12 +219,13 @@ export default function SuperAdminSidebar({
                   key={item.id}
                   type="button"
                   onClick={() => selectItem(item)}
-                  title={collapsed ? item.label : ""}
-                  className={`group flex w-full items-center gap-4 rounded-2xl py-3 text-left transition-all duration-200 ${
+                  title={item.label}
+                  aria-label={item.label}
+                  className={`oas-sidebar-button group flex w-full items-center gap-4 rounded-2xl py-3 text-left transition-all duration-200 ${
                     isActive
                       ? "bg-blue-700 text-white shadow-sm"
                       : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
-                  } ${collapsed ? "justify-center px-0" : "px-5"}`}
+                  } ${navItemClass}`}
                 >
                   <Icon
                     className={`h-5 w-5 shrink-0 ${
@@ -199,7 +234,9 @@ export default function SuperAdminSidebar({
                   />
 
                   {!collapsed && (
-                    <span className="truncate text-sm font-semibold">
+                    <span
+                      className={`${labelClass} truncate text-sm font-semibold`}
+                    >
                       {item.label}
                     </span>
                   )}
@@ -214,14 +251,13 @@ export default function SuperAdminSidebar({
             <button
               type="button"
               onClick={() => navigate("/profile")}
-              title={collapsed ? "Profile" : ""}
-              className={`group flex w-full items-center gap-4 rounded-2xl py-3 text-left transition-all duration-200 ${
+              title="Profile"
+              aria-label="Profile"
+              className={`oas-sidebar-button group flex w-full items-center gap-4 rounded-2xl py-3 text-left transition-all duration-200 ${
                 isProfileActive
                   ? "bg-blue-700 text-white shadow-sm"
                   : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
-              } ${
-                collapsed ? "justify-center px-0" : "px-5"
-              }`}
+              } ${navItemClass}`}
             >
               <User
                 className={`h-5 w-5 shrink-0 ${
@@ -230,7 +266,9 @@ export default function SuperAdminSidebar({
               />
 
               {!collapsed && (
-                <span className="truncate text-sm font-semibold">
+                <span
+                  className={`${labelClass} truncate text-sm font-semibold`}
+                >
                   Profile
                 </span>
               )}
@@ -239,15 +277,18 @@ export default function SuperAdminSidebar({
             <button
               type="button"
               onClick={handleLogout}
-              title={collapsed ? "Logout" : ""}
-              className={`group flex w-full items-center gap-4 rounded-2xl py-3 text-left text-red-600 transition-all duration-200 hover:bg-red-50 ${
-                collapsed ? "justify-center px-0" : "px-5"
+              title="Logout"
+              aria-label="Logout"
+              className={`oas-sidebar-button group flex w-full items-center gap-4 rounded-2xl py-3 text-left text-red-600 transition-all duration-200 hover:bg-red-50 ${
+                navItemClass
               }`}
             >
               <LogOut className="h-5 w-5 shrink-0" />
 
               {!collapsed && (
-                <span className="truncate text-sm font-semibold">
+                <span
+                  className={`${labelClass} truncate text-sm font-semibold`}
+                >
                   Logout
                 </span>
               )}
@@ -255,59 +296,6 @@ export default function SuperAdminSidebar({
           </div>
         </div>
       </aside>
-
-      <div className="border-b border-slate-200 bg-white px-4 py-3 shadow-sm lg:hidden">
-        <div
-          className="grid gap-2"
-          style={{
-            gridTemplateColumns: "repeat(auto-fit, minmax(88px, 1fr))",
-          }}
-        >
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
-
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => selectItem(item)}
-                className={`flex flex-col items-center justify-center gap-1 rounded-xl px-3 py-3 text-xs font-bold transition ${
-                  isActive
-                    ? "bg-blue-700 text-white"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-
-                <span>{item.mobileLabel || item.label}</span>
-              </button>
-            );
-          })}
-
-          <button
-            type="button"
-            onClick={() => navigate("/profile")}
-            className={`flex flex-col items-center justify-center gap-1 rounded-xl px-3 py-3 text-xs font-bold transition ${
-              isProfileActive
-                ? "bg-blue-700 text-white"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            }`}
-          >
-            <User className="h-4 w-4" />
-            <span>Profile</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="flex flex-col items-center justify-center gap-1 rounded-xl bg-red-50 px-3 py-3 text-xs font-bold text-red-600 transition hover:bg-red-100"
-          >
-            <LogOut className="h-4 w-4" />
-            <span>Logout</span>
-          </button>
-        </div>
-      </div>
     </>
   );
 }

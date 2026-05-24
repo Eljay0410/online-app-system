@@ -1,4 +1,5 @@
 import { assignUan } from "./uanService.js";
+import { copyUploadedFileSnapshot } from "./fileStorageService.js";
 import { normalizeEmail } from "../utils/formatters.js";
 
 const profileSections = [
@@ -14,6 +15,59 @@ const profileSections = [
 
 function getPersonalInfo(data = {}) {
   return data.personalInfo || data.profileData?.personalInfo || {};
+}
+
+function trim(value) {
+  return String(value || "").trim();
+}
+
+export function getApplicationProfileGaps(data = {}) {
+  const personal = getPersonalInfo(data);
+  const education = data.educationalBackground || {};
+  const eligibility = data.eligibility || {};
+  const firstBachelor = (education.bachelors || []).find(
+    (item) => trim(item?.school) || trim(item?.course) || trim(item?.year)
+  );
+  const firstEligibility = (eligibility.eligibilities || []).find(
+    (item) => trim(item?.type) || trim(item?.rating) || trim(item?.examDate)
+  );
+  const missing = [];
+
+  if (
+    !trim(personal.firstName) ||
+    (!personal.noMiddleName && !trim(personal.middleName)) ||
+    !trim(personal.lastName) ||
+    !trim(personal.address) ||
+    !trim(personal.contactNumber) ||
+    !trim(personal.emailAddress) ||
+    !trim(personal.dob) ||
+    !trim(personal.sex) ||
+    !trim(personal.civilStatus) ||
+    !trim(personal.nationality) ||
+    !trim(personal.religion)
+  ) {
+    missing.push("Personal information");
+  }
+
+  if (
+    !firstBachelor ||
+    !trim(firstBachelor.school) ||
+    !trim(firstBachelor.course) ||
+    !trim(firstBachelor.year)
+  ) {
+    missing.push("Educational background - bachelor's degree");
+  }
+
+  if (
+    !firstEligibility ||
+    !trim(firstEligibility.type) ||
+    !trim(firstEligibility.rating) ||
+    !trim(firstEligibility.examDate)
+  ) {
+    missing.push("Eligibility");
+  }
+
+  return missing;
 }
 
 export function getApplicantEmail(data = {}) {
@@ -206,7 +260,7 @@ export async function upsertApplicantProfile(client, incomingData = {}) {
 
 export async function createJobApplicationFromProfile(
   client,
-  { user, profile, jobOpeningId, applicationData = {} }
+  { user, profile, jobOpeningId, applicationData = {}, requirementFiles = {} }
 ) {
   const jobId = Number.parseInt(jobOpeningId, 10);
 
@@ -243,16 +297,36 @@ export async function createJobApplicationFromProfile(
   }
 
   const jobRequirements = Array.isArray(job.requirements) ? job.requirements : [];
-  const jobPosition = profile.data?.jobPosition || {};
-  const uploadedFiles = jobPosition.files || {};
-  const hasSelectedJobUploads = String(jobPosition.jobOpeningId || "") === String(job.id);
-  const missingRequirements = jobRequirements.filter(
-    (requirement) => requirement.required !== false && !uploadedFiles[requirement.field]
+  const profileGaps = getApplicationProfileGaps(profile.data || {});
+  const selectedRequirementFiles =
+    requirementFiles && typeof requirementFiles === "object"
+      ? requirementFiles
+      : {};
+  const requiredRequirements = jobRequirements.filter(
+    (requirement) => requirement.required !== false
   );
 
-  if (jobRequirements.length > 0 && (!hasSelectedJobUploads || missingRequirements.length > 0)) {
+  if (profileGaps.length > 0) {
     const error = new Error(
-      "Please upload the requirements for this job opening before applying."
+      `Complete these profile sections before applying: ${profileGaps.join(", ")}.`
+    );
+    error.statusCode = 409;
+    error.details = { missingProfileSections: profileGaps };
+    throw error;
+  }
+
+  const missingRequirements = requiredRequirements.filter(
+    (requirement) => !selectedRequirementFiles[requirement.field]
+  );
+
+  if (missingRequirements.length > 0) {
+    const missingLabels = missingRequirements
+      .map((requirement) => requirement.label)
+      .filter(Boolean);
+    const error = new Error(
+      missingLabels.length > 0
+        ? `Please upload the current requirements for this job opening before applying: ${missingLabels.join(", ")}.`
+        : "Please upload the current requirements for this job opening before applying."
     );
     error.statusCode = 409;
     throw error;
@@ -286,8 +360,8 @@ export async function createJobApplicationFromProfile(
        created_at,
        updated_at
      )
-     VALUES ($1, $2, $3, $4, $5, 'submitted', NOW(), NOW())
-     RETURNING id, user_id, applicant_profile_id, job_opening_id, uan, data, status, created_at, updated_at`,
+      VALUES ($1, $2, $3, $4, $5, 'submitted', NOW(), NOW())
+      RETURNING id, user_id, applicant_profile_id, job_opening_id, uan, data, status, created_at, updated_at`,
     [
       user.id,
       profile.id,
@@ -313,9 +387,129 @@ export async function createJobApplicationFromProfile(
       },
     ]
   );
+  const application = result.rows[0];
+  const storedSnapshotPaths = [];
+
+  for (const requirement of jobRequirements) {
+    const selectedFileId = selectedRequirementFiles[requirement.field];
+    let snapshotFileId = null;
+    let sourceFileId = null;
+    let requirementStatus = "missing";
+
+    if (selectedFileId) {
+      const sourceResult = await client.query(
+        `SELECT *
+         FROM uploaded_files
+         WHERE id = $1
+           AND owner_user_id = $2
+           AND requirement_field = $3
+           AND job_opening_id IS NULL
+           AND status = 'active'
+         LIMIT 1`,
+        [selectedFileId, user.id, requirement.field]
+      );
+      const sourceFile = sourceResult.rows[0];
+
+      if (!sourceFile) {
+        const error = new Error(
+          `Selected file for ${requirement.label || requirement.field} was not found.`
+        );
+        error.statusCode = 409;
+        throw error;
+      }
+
+      const copiedFile = await copyUploadedFileSnapshot({
+        sourceFile,
+        ownerUserId: user.id,
+        jobOpeningId: job.id,
+        jobApplicationId: application.id,
+        requirementField: requirement.field,
+      });
+      storedSnapshotPaths.push(copiedFile.relativePath);
+
+      const insertedFile = await client.query(
+        `INSERT INTO uploaded_files (
+           id,
+           owner_user_id,
+           applicant_profile_id,
+           job_application_id,
+           job_opening_id,
+           requirement_field,
+           requirement_label,
+           original_name,
+           stored_name,
+           relative_path,
+           mime_type,
+           size_bytes,
+           original_size_bytes,
+           checksum_sha256,
+           image_width,
+           image_height,
+           status,
+           created_at,
+           updated_at
+         )
+         VALUES (
+           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+           $11, $12, $13, $14, $15, $16, 'submitted', NOW(), NOW()
+         )
+         RETURNING id`,
+        [
+          copiedFile.id,
+          user.id,
+          profile.id,
+          application.id,
+          job.id,
+          requirement.field,
+          requirement.label || requirement.field,
+          copiedFile.originalName,
+          copiedFile.storedName,
+          copiedFile.relativePath,
+          copiedFile.mimeType,
+          copiedFile.sizeBytes,
+          copiedFile.originalSizeBytes,
+          copiedFile.checksumSha256,
+          copiedFile.width,
+          copiedFile.height,
+        ]
+      );
+
+      snapshotFileId = insertedFile.rows[0].id;
+      sourceFileId = sourceFile.id;
+      requirementStatus = "pending";
+    }
+
+    await client.query(
+      `INSERT INTO application_requirements (
+         job_application_id,
+         requirement_field,
+         requirement_label,
+         requirement_description,
+         required,
+         file_id,
+         source_file_id,
+         status,
+         submitted_at,
+         created_at,
+         updated_at
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW(), NOW())`,
+      [
+        application.id,
+        requirement.field,
+        requirement.label || requirement.field,
+        requirement.description || "",
+        requirement.required !== false,
+        snapshotFileId,
+        sourceFileId,
+        requirementStatus,
+      ]
+    );
+  }
 
   return {
-    application: result.rows[0],
+    application,
     job,
+    storedSnapshotPaths,
   };
 }

@@ -13,7 +13,7 @@ export const MAIL_PASS = process.env.MAIL_PASSWORD || process.env.SMTP_PASS;
 export const MAIL_FROM_ADDRESS =
   process.env.MAIL_FROM_ADDRESS ||
   process.env.SMTP_FROM ||
-  "no-reply@example.com";
+  "no-reply@depedcsjdm.org";
 export const MAIL_FROM_NAME =
   process.env.MAIL_FROM_NAME || process.env.SMTP_FROM_NAME || "";
 

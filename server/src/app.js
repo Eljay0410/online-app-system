@@ -6,9 +6,11 @@ import {
   jsonBodyLimit,
   trustProxy,
 } from "./config/env.js";
+import activityLogRoutes from "./routes/activityLogRoutes.js";
 import activationRoutes from "./routes/activationRoutes.js";
 import applicationRoutes from "./routes/applicationRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
+import fileRoutes from "./routes/fileRoutes.js";
 import healthRoutes from "./routes/healthRoutes.js";
 import jobOpeningRoutes from "./routes/jobOpeningRoutes.js";
 import superAdminRoutes from "./routes/superAdminRoutes.js";
@@ -44,6 +46,8 @@ app.get("/", (_req, res) => {
 app.use("/api", healthRoutes);
 app.use("/api", apiLimiter);
 app.use("/api", authRoutes);
+app.use("/api", activityLogRoutes);
+app.use("/api", fileRoutes);
 app.use("/api", jobOpeningRoutes);
 app.use("/api", applicationRoutes);
 app.use("/api", superAdminRoutes);
