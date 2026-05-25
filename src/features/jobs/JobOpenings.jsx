@@ -423,7 +423,7 @@ export default function JobOpenings() {
                   <button
                     type="button"
                     onClick={() => handleViewDetails(job)}
-                    className="oas-action-button oas-card-action-button"
+                    className="oas-action-button oas-card-action-button border border-[#0056b3] bg-white text-[#0056b3] transition hover:bg-blue-50"
                   >
                     View
                   </button>
