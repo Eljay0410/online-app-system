@@ -218,6 +218,13 @@ export const authLimiters = {
     keyPrefix: "auth:register",
     message: "Too many registration attempts. Please try again in 1 hour.",
   }),
+  registerIp: rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: envInt("RATE_LIMIT_REGISTER_IP_MAX", 5),
+    keyPrefix: "auth:register-ip",
+    includeBodyIdentity: false,
+    message: "Too many registrations from this network. Please try again in 1 hour.",
+  }),
   login: rateLimit({
     windowMs: 15 * 60 * 1000,
     max: envInt("RATE_LIMIT_LOGIN_MAX", 5),
@@ -231,10 +238,32 @@ export const authLimiters = {
     message: "Too many login attempts. Please try again in 15 minutes.",
   }),
   emailAction: rateLimit({
-    windowMs: 60 * 60 * 1000,
+    windowMs: 15 * 60 * 1000,
     max: envInt("RATE_LIMIT_EMAIL_ACTION_MAX", 5),
     keyPrefix: "auth:email-action",
-    message: "Too many email requests. Please try again in 1 hour.",
+    message: "Too many email requests. Please try again in 15 minutes.",
+  }),
+  emailActionIp: rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: envInt("RATE_LIMIT_EMAIL_ACTION_IP_MAX", 20),
+    keyPrefix: "auth:email-action-ip",
+    includeBodyIdentity: false,
+    includePath: true,
+    message: "Too many email requests from this network. Please try again in 15 minutes.",
+  }),
+  passwordReset: rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: envInt("RATE_LIMIT_PASSWORD_RESET_MAX", 5),
+    keyPrefix: "auth:password-reset",
+    includePath: true,
+    message: "Too many password reset requests. Please try again in 15 minutes.",
+  }),
+  resendActivation: rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: envInt("RATE_LIMIT_RESEND_ACTIVATION_MAX", 5),
+    keyPrefix: "auth:resend-activation",
+    includePath: true,
+    message: "Too many verification email requests. Please try again in 15 minutes.",
   }),
   activation: rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -243,6 +272,33 @@ export const authLimiters = {
     message: "Too many verification attempts. Please try again in 15 minutes.",
   }),
 };
+
+export function emailActionBotGuard(req, res, next) {
+  const honeypotValues = [
+    req.body?.website,
+    req.body?.url,
+    req.body?.homepage,
+    req.body?.company,
+    req.body?.fax,
+  ];
+  const startedAt = Number(req.body?.formStartedAt || req.body?.startedAt || 0);
+
+  if (honeypotValues.some((value) => String(value || "").trim())) {
+    return res.status(202).json({
+      success: true,
+      message: "If the account exists, email instructions will be sent.",
+    });
+  }
+
+  if (startedAt && Date.now() - startedAt < 1200) {
+    return res.status(429).json({
+      success: false,
+      message: "Please wait a moment before requesting another email.",
+    });
+  }
+
+  return next();
+}
 
 export const authenticatedWriteLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,

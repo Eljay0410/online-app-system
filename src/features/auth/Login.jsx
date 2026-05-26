@@ -56,6 +56,7 @@ export default function Login() {
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [resendKind, setResendKind] = useState("verify");
+  const [formStartedAt] = useState(() => Date.now());
 
   const validateEmailOnly = () => {
     const nextErrors = {};
@@ -264,7 +265,11 @@ export default function Login() {
     try {
       const result = await apiRequest("/api/auth/forgot-password", {
         method: "POST",
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({
+          email,
+          formStartedAt,
+          website: "",
+        }),
       });
 
       showToast({
@@ -297,7 +302,11 @@ export default function Login() {
     try {
       const result = await apiRequest("/api/auth/resend-activation", {
         method: "POST",
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({
+          email,
+          formStartedAt,
+          website: "",
+        }),
       });
 
       showToast({

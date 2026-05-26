@@ -344,15 +344,12 @@ export default function JobDetails() {
             Job opening unavailable.
           </div>
         ) : (
-          <section className="oas-panel p-5 sm:p-6">
-            <div className="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-start sm:justify-between">
+          <section className="oas-panel p-4 sm:p-6">
+            <div className="flex flex-col gap-4 border-b border-slate-200 pb-4 sm:flex-row sm:items-start sm:justify-between sm:pb-5">
               <div>
                 <h1 className="oas-page-title">
                   {job.title}
                 </h1>
-                <p className="oas-page-description mt-3 whitespace-pre-wrap break-words">
-                  {job.description || "No description provided yet."}
-                </p>
               </div>
 
               <button
@@ -365,35 +362,49 @@ export default function JobDetails() {
               </button>
             </div>
 
-            <div className="mt-5 grid gap-4 sm:grid-cols-3">
+            <div className="mt-4 grid gap-3 sm:mt-5 sm:grid-cols-3 sm:gap-4">
               <InfoCard label="School / Location" value={job.location} icon={<MapPin className="h-4 w-4" />} />
               <InfoCard label="Vacancies" value={job.vacancy} icon={<UserRoundPlus className="h-4 w-4" />} />
               <InfoCard label="Application Deadline" value={formatDeadline(job)} icon={<CalendarDays className="h-4 w-4" />} />
             </div>
 
+            <section className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:mt-5 sm:rounded-xl sm:p-4">
+              <h2 className="text-sm font-bold text-slate-900">Description</h2>
+              <p className="mt-2 whitespace-pre-wrap break-words text-xs leading-5 text-slate-600 [overflow-wrap:anywhere] sm:mt-3 sm:text-sm sm:leading-6">
+                {job.description || "No description provided yet."}
+              </p>
+            </section>
+
             {job.requirements?.length > 0 && (
-              <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:mt-5 sm:rounded-xl sm:p-4">
                 <h2 className="text-sm font-bold text-slate-900">
                   Upload Requirements
                 </h2>
-                <ul className="mt-3 space-y-2 text-sm text-slate-600">
+                <ul className="mt-3 space-y-2.5 text-xs leading-5 text-slate-600 sm:text-sm">
                   {job.requirements.map((requirement) => (
-                    <li key={requirement.field}>
-                      <span className="font-semibold text-slate-800">
-                        {requirement.label}
-                      </span>
-                      <span
-                        className={`ml-2 rounded-md px-1.5 py-0.5 text-[10px] uppercase ${
-                          requirement.required === false
-                            ? "bg-slate-100 text-slate-600"
-                            : "bg-red-50 text-red-700"
-                        }`}
-                      >
-                        {requirement.required === false ? "Optional" : "Required"}
-                      </span>
-                      {requirement.description
-                        ? ` - ${requirement.description}`
-                        : ""}
+                    <li
+                      key={requirement.field}
+                      className="border-b border-slate-200 pb-2.5 last:border-b-0 last:pb-0"
+                    >
+                      <div className="flex min-w-0 items-start justify-between gap-3">
+                        <span className="min-w-0 break-words font-semibold text-slate-800 [overflow-wrap:anywhere]">
+                          {requirement.label}
+                        </span>
+                        <span
+                          className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] uppercase ${
+                            requirement.required === false
+                              ? "bg-slate-100 text-slate-600"
+                              : "bg-red-50 text-red-700"
+                          }`}
+                        >
+                          {requirement.required === false ? "Optional" : "Required"}
+                        </span>
+                      </div>
+                      {requirement.description && (
+                        <p className="mt-1 break-words text-xs text-slate-500 [overflow-wrap:anywhere]">
+                          {requirement.description}
+                        </p>
+                      )}
                     </li>
                   ))}
                 </ul>

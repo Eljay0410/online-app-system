@@ -16,8 +16,7 @@ import {
 } from "../utils/formatters.js";
 import { recordActivityLog } from "../services/activityLogService.js";
 import {
-  MAIL_FROM_ADDRESS,
-  MAIL_FROM_NAME,
+  sendSystemMail,
   transporter,
 } from "../config/mailer.js";
 
@@ -61,12 +60,6 @@ function isFinalApplicationStatus(status) {
   return (allowedStatusTransitions[status] || []).length === 0;
 }
 
-function formatMailerFrom() {
-  return MAIL_FROM_NAME
-    ? `"${MAIL_FROM_NAME.replace(/"/g, "'")}" <${MAIL_FROM_ADDRESS}>`
-    : MAIL_FROM_ADDRESS;
-}
-
 function escapeHtml(value) {
   return String(value || "")
     .replace(/&/g, "&amp;")
@@ -98,8 +91,7 @@ async function sendApplicationStatusEmail({
     : "";
 
   try {
-    await transporter.sendMail({
-      from: formatMailerFrom(),
+    await sendSystemMail({
       to: application.email,
       subject: `Application status update - ${toLabel}`,
       text: [
@@ -117,6 +109,9 @@ async function sendApplicationStatusEmail({
         ${notes ? `<p><strong>Notes from HR:</strong><br>${htmlNotes}</p>` : ""}
         <p>Please sign in to the Online Application System for the full details.</p>
       `,
+      headers: {
+        "X-OAS-Email-Purpose": "application_status",
+      },
     });
 
     return true;
@@ -309,12 +304,17 @@ const applicationLocationSql = `COALESCE(
   ''
 )`;
 
+const applicationSchoolSql = `COALESCE(
+  NULLIF(SPLIT_PART(${applicationLocationSql}, ',', 1), ''),
+  ${applicationLocationSql}
+)`;
+
 function buildAdminApplicationFilters(query = {}) {
   const conditions = [];
   const values = [];
   const search = normalizeQueryValue(query.q || query.search);
   const position = normalizeQueryValue(query.position);
-  const location = normalizeQueryValue(query.location);
+  const school = normalizeQueryValue(query.school || query.location);
 
   if (search) {
     values.push(`%${search.toLowerCase()}%`);
@@ -334,9 +334,9 @@ function buildAdminApplicationFilters(query = {}) {
     conditions.push(`LOWER(${applicationPositionSql}) = $${values.length}`);
   }
 
-  if (location && location !== "all") {
-    values.push(location.toLowerCase());
-    conditions.push(`LOWER(${applicationLocationSql}) = $${values.length}`);
+  if (school && school !== "all") {
+    values.push(school.toLowerCase());
+    conditions.push(`LOWER(${applicationSchoolSql}) = $${values.length}`);
   }
 
   return {
@@ -346,7 +346,7 @@ function buildAdminApplicationFilters(query = {}) {
 }
 
 async function getAdminApplicationFilterOptions() {
-  const [positions, locations] = await Promise.all([
+  const [positions, schools] = await Promise.all([
     pool.query(
       `SELECT DISTINCT ${applicationPositionSql} AS value
        FROM job_applications ja
@@ -355,17 +355,18 @@ async function getAdminApplicationFilterOptions() {
        ORDER BY value ASC`
     ),
     pool.query(
-      `SELECT DISTINCT ${applicationLocationSql} AS value
+      `SELECT DISTINCT ${applicationSchoolSql} AS value
        FROM job_applications ja
        LEFT JOIN job_openings jo ON jo.id = ja.job_opening_id
-       WHERE ${applicationLocationSql} <> ''
+       WHERE ${applicationSchoolSql} <> ''
        ORDER BY value ASC`
     ),
   ]);
 
   return {
     positions: positions.rows.map((row) => row.value).filter(Boolean),
-    locations: locations.rows.map((row) => row.value).filter(Boolean),
+    schools: schools.rows.map((row) => row.value).filter(Boolean),
+    locations: schools.rows.map((row) => row.value).filter(Boolean),
   };
 }
 

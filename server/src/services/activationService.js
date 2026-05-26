@@ -1,8 +1,7 @@
 import { createHash, randomBytes } from "crypto";
 import { clientUrl } from "../config/env.js";
 import {
-  MAIL_FROM_ADDRESS,
-  MAIL_FROM_NAME,
+  sendSystemMail,
   transporter,
 } from "../config/mailer.js";
 
@@ -325,9 +324,6 @@ export async function sendActivationEmail(
     : TOKEN_PURPOSES.EMAIL_VERIFICATION;
   const ttlHours = getTokenTtlHours(safePurpose);
   const actionLink = `${clientUrl}/activate?token=${token}`;
-  const from = MAIL_FROM_NAME
-    ? `${MAIL_FROM_NAME} <${MAIL_FROM_ADDRESS}>`
-    : MAIL_FROM_ADDRESS;
   const { subject } = getPurposeCopy(safePurpose);
   const emailContent = buildActivationEmail({
     actionLink,
@@ -337,12 +333,14 @@ export async function sendActivationEmail(
     uan: safePurpose === TOKEN_PURPOSES.PASSWORD_SETUP ? options.uan : "",
   });
 
-  await transporter.sendMail({
-    from,
+  await sendSystemMail({
     to,
     subject,
     text: emailContent.text,
     html: emailContent.html,
+    headers: {
+      "X-OAS-Email-Purpose": safePurpose,
+    },
   });
 
   return true;

@@ -16,7 +16,6 @@ export default function PaginationControls({
   totalItems,
   currentCount,
   onPageChange,
-  onPageSizeChange,
   pageSizeOptions = defaultPageSizeOptions,
   itemLabel = "entries",
   className = "",
@@ -70,14 +69,14 @@ export default function PaginationControls({
 
   return (
     <div
-      className={`flex flex-col gap-3 border-t border-slate-200 bg-white px-4 py-4 text-sm text-slate-600 sm:px-5 xl:flex-row xl:items-center xl:justify-between ${className}`}
+      className={`flex min-w-0 flex-col items-center gap-2 border-t border-slate-200 bg-white px-3 py-3 text-xs text-slate-600 sm:gap-3 sm:px-5 sm:py-4 sm:text-sm ${className}`}
     >
-      <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
-        <p className="font-bold text-slate-600">
+      <div className="flex min-w-0 flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center">
+        <p className="whitespace-nowrap font-bold text-slate-600">
           Page <span className="text-slate-900">{currentPage}</span> /{" "}
           <span className="text-slate-900">{totalPages}</span>
         </p>
-        <p className="font-medium">
+        <p className="whitespace-nowrap font-medium">
           Showing{" "}
           <span className="font-bold text-slate-900">{startEntry}-{endEntry}</span>{" "}
           of <span className="font-bold text-slate-900">{totalItems}</span>{" "}
@@ -85,43 +84,26 @@ export default function PaginationControls({
         </p>
       </div>
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center xl:justify-end">
-        <label className="flex items-center gap-2">
-          <span className="whitespace-nowrap text-xs font-semibold uppercase text-slate-500">
-            Rows
-          </span>
-          <select
-            value={pageSize}
-            onChange={(event) => onPageSizeChange(Number(event.target.value))}
-            className="h-9 rounded-lg border border-slate-300 bg-white px-2 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {normalizedOptions.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <div className="flex items-center gap-2">
+      <div className="flex w-full min-w-0 flex-col items-center gap-3">
+        <div className="flex max-w-full flex-wrap items-center justify-center gap-1.5 sm:gap-2">
           <button
             type="button"
             onClick={() => onPageChange(currentPage - 1)}
             disabled={!canGoBack}
-            className="inline-flex h-12 items-center gap-1 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-dashed disabled:bg-slate-50 disabled:text-slate-300"
+            className="inline-flex h-9 shrink-0 items-center justify-center gap-0.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-dashed disabled:bg-slate-50 disabled:text-slate-300 sm:h-12 sm:gap-1 sm:rounded-xl sm:px-4 sm:text-sm"
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Prev
           </button>
 
-          <div className="hidden items-center gap-2 sm:flex">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             {pageItems.map((item) =>
               typeof item === "number" ? (
                 <button
                   key={item}
                   type="button"
                   onClick={() => onPageChange(item)}
-                  className={`grid h-12 min-w-12 place-items-center rounded-2xl border px-4 text-sm font-bold transition ${
+                  className={`grid h-9 min-w-9 place-items-center rounded-lg border px-2.5 text-xs font-bold transition sm:h-12 sm:min-w-12 sm:rounded-xl sm:px-4 sm:text-sm ${
                     item === currentPage
                       ? "border-[#0056b3] bg-[#0056b3] text-white"
                       : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50"
@@ -132,7 +114,7 @@ export default function PaginationControls({
               ) : (
                 <span
                   key={item}
-                  className="grid h-12 place-items-center px-1 text-sm font-bold text-slate-400"
+                  className="grid h-9 place-items-center px-0.5 text-xs font-bold text-slate-400 sm:h-12 sm:px-1 sm:text-sm"
                 >
                   ...
                 </span>
@@ -144,14 +126,16 @@ export default function PaginationControls({
             type="button"
             onClick={() => onPageChange(currentPage + 1)}
             disabled={!canGoNext}
-            className="inline-flex h-12 items-center gap-1 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-dashed disabled:bg-slate-50 disabled:text-slate-300"
+            className="inline-flex h-9 shrink-0 items-center justify-center gap-0.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-900 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-dashed disabled:bg-slate-50 disabled:text-slate-300 sm:h-12 sm:gap-1 sm:rounded-xl sm:px-4 sm:text-sm"
           >
             Next
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </button>
+        </div>
 
-          <label className="flex h-12 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3">
-            <span className="whitespace-nowrap text-sm font-bold text-slate-600">
+        <div className="flex items-center justify-center rounded-lg border border-slate-200 bg-white p-1.5 sm:rounded-xl sm:p-2">
+          <label className="flex h-8 shrink-0 items-center gap-1.5 px-1.5 sm:h-10 sm:gap-2 sm:px-2">
+            <span className="whitespace-nowrap text-xs font-bold text-slate-600 sm:text-sm">
               Jump to
             </span>
             <input
@@ -167,14 +151,14 @@ export default function PaginationControls({
                   event.currentTarget.blur();
                 }
               }}
-              className="h-9 w-16 rounded-xl border border-slate-200 bg-slate-50 px-2 text-center text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
+              className="h-8 w-14 rounded-lg border border-slate-200 bg-slate-50 px-1 text-center text-xs font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500 sm:h-10 sm:w-20 sm:rounded-xl sm:px-2 sm:text-sm"
             />
           </label>
 
           <button
             type="button"
             onClick={() => submitJump(jumpInputRef.current?.value)}
-            className="inline-flex h-12 items-center justify-center rounded-2xl bg-[#0056b3] px-5 text-sm font-bold text-white transition hover:bg-[#003a78]"
+            className="inline-flex h-8 shrink-0 items-center justify-center rounded-lg bg-[#0056b3] px-3 text-xs font-bold text-white transition hover:bg-[#003a78] sm:h-10 sm:rounded-xl sm:px-4 sm:text-sm"
           >
             Go
           </button>

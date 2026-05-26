@@ -28,6 +28,7 @@ export default function Register() {
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [formStartedAt] = useState(() => Date.now());
 
   const setField = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -84,6 +85,8 @@ export default function Register() {
         body: JSON.stringify({
           ...form,
           middleName: form.noMiddleName ? "" : form.middleName,
+          formStartedAt,
+          website: "",
         }),
       });
 

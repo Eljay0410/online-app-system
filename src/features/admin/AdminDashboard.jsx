@@ -421,6 +421,7 @@ export default function AdminDashboard() {
   const [applicationFilterOptions, setApplicationFilterOptions] = useState({
     positions: [],
     locations: [],
+    schools: [],
   });
   const { showToast } = useToast();
 
@@ -478,7 +479,7 @@ export default function AdminDashboard() {
 
     if (debouncedSearchTerm) params.set("q", debouncedSearchTerm);
     if (selectedPosition !== "all") params.set("position", selectedPosition);
-    if (selectedLocation !== "all") params.set("location", selectedLocation);
+    if (selectedLocation !== "all") params.set("school", selectedLocation);
 
     apiRequest(`/api/admin/applications?${params.toString()}`, {
       dedupe: false,
@@ -496,7 +497,7 @@ export default function AdminDashboard() {
           }
         );
         setApplicationFilterOptions(
-          result.filters || { positions: [], locations: [] }
+          result.filters || { positions: [], locations: [], schools: [] }
         );
         setReviewNotes(
           Object.fromEntries(
@@ -804,12 +805,20 @@ export default function AdminDashboard() {
   };
 
   const applicationPositions = useMemo(() => {
-    return (applicationFilterOptions.positions || []).filter(Boolean).sort();
-  }, [applicationFilterOptions.positions]);
+    return Array.from(
+      new Set((positions || []).map((position) => position.title).filter(Boolean))
+    ).sort();
+  }, [positions]);
 
-  const locations = useMemo(() => {
-    return (applicationFilterOptions.locations || []).filter(Boolean).sort();
-  }, [applicationFilterOptions.locations]);
+  const schools = useMemo(() => {
+    return (
+      applicationFilterOptions.schools ||
+      applicationFilterOptions.locations ||
+      []
+    )
+      .filter(Boolean)
+      .sort();
+  }, [applicationFilterOptions.locations, applicationFilterOptions.schools]);
 
   const filteredApplications = applications;
 
@@ -857,7 +866,7 @@ export default function AdminDashboard() {
               isLoading={isLoadingApplications}
               filteredApplications={filteredApplications}
               positions={applicationPositions}
-              locations={locations}
+              schools={schools}
               selectedPosition={selectedPosition}
               selectedLocation={selectedLocation}
               searchTerm={searchTerm}
@@ -2612,7 +2621,7 @@ function ApplicantListSection({
   isLoading,
   filteredApplications,
   positions,
-  locations,
+  schools,
   selectedPosition,
   selectedLocation,
   searchTerm,
@@ -2644,7 +2653,7 @@ function ApplicantListSection({
         <h2 className="oas-panel-title">Applicant List</h2>
 
         <p className="mt-1 text-sm text-slate-500">
-          View all applicants, filter by position or location, and open each
+          View all applicants, filter by position or school, and open each
           applicant&apos;s application form.
         </p>
       </div>
@@ -2680,13 +2689,13 @@ function ApplicantListSection({
           <select
             value={selectedLocation}
             onChange={(event) => setSelectedLocation(event.target.value)}
-            aria-label="Filter by location"
+            aria-label="Filter by school"
             className="h-10 min-w-0 rounded-lg border border-slate-300 bg-white px-2 text-[12px] outline-none focus:ring-2 focus:ring-blue-500 sm:h-11 sm:rounded-xl sm:px-3 sm:text-sm"
           >
-            <option value="all">All Locations</option>
-            {locations.map((location) => (
-              <option key={location} value={location}>
-                {location}
+            <option value="all">All Schools</option>
+            {schools.map((school) => (
+              <option key={school} value={school}>
+                {school}
               </option>
             ))}
           </select>
@@ -2975,23 +2984,23 @@ function JobListingSection({ jobs, isLoading, formatDate }) {
       ) : jobs.length === 0 ? (
         <EmptyState label="No job listings available." />
       ) : (
-        <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-3 p-4 sm:gap-4 sm:p-5 md:grid-cols-2 xl:grid-cols-3">
           {visibleJobs.map((job) => (
             <article
               key={job.id}
-              className="oas-panel flex h-full min-w-0 flex-col p-5 transition hover:border-blue-200 hover:shadow-md"
+              className="oas-panel flex h-full min-w-0 flex-col p-4 transition hover:border-blue-200 hover:shadow-md sm:p-5"
             >
               <div className="min-w-0">
-                <h3 className="line-clamp-2 min-h-[2.5rem] break-words text-base font-bold leading-5 text-slate-900 [overflow-wrap:anywhere]">
+                <h3 className="line-clamp-2 min-h-0 break-words text-sm font-bold leading-5 text-slate-900 [overflow-wrap:anywhere] sm:min-h-[2.5rem] sm:text-base">
                   {job.title}
                 </h3>
 
-                <p className="mt-1 line-clamp-2 min-h-[2.5rem] break-words text-sm leading-5 text-slate-500 [overflow-wrap:anywhere]">
+                <p className="mt-1 line-clamp-2 min-h-0 break-words text-xs leading-5 text-slate-500 [overflow-wrap:anywhere] sm:min-h-[2.5rem] sm:text-sm">
                   {job.location}
                 </p>
               </div>
 
-              <div className="mt-4 grid gap-2 text-sm text-slate-700">
+              <div className="mt-3 grid gap-2 text-xs text-slate-700 sm:mt-4 sm:text-sm">
                 <p className="truncate">
                   <span className="font-semibold">Vacancy:</span>{" "}
                   <span>{job.vacancy}</span>
@@ -3003,7 +3012,7 @@ function JobListingSection({ jobs, isLoading, formatDate }) {
                 </p>
               </div>
 
-              <div className="mt-auto flex justify-end pt-5">
+              <div className="mt-auto flex justify-end pt-4 sm:pt-5">
                 <button
                   type="button"
                   onClick={() => setViewJob(job)}
@@ -3046,14 +3055,14 @@ function JobListingSection({ jobs, isLoading, formatDate }) {
 
 function JobListingDetailsModal({ job, onClose, formatDate }) {
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-black/50 p-4 sm:p-6">
-      <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl sm:max-h-[92vh]">
-        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
+    <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/50 p-3 sm:items-center sm:p-6">
+      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl sm:max-h-[92vh]">
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-4 py-3 sm:gap-4 sm:px-6 sm:py-5">
           <div className="min-w-0">
-            <h3 className="break-words text-xl font-bold text-slate-900 [overflow-wrap:anywhere]">
+            <h3 className="break-words text-base font-bold leading-6 text-slate-900 [overflow-wrap:anywhere] sm:text-xl">
               {job.title}
             </h3>
-            <p className="mt-1 break-words text-sm text-slate-500 [overflow-wrap:anywhere]">
+            <p className="mt-1 break-words text-xs leading-5 text-slate-500 [overflow-wrap:anywhere] sm:text-sm">
               {job.location}
             </p>
           </div>
@@ -3067,7 +3076,7 @@ function JobListingDetailsModal({ job, onClose, formatDate }) {
           </button>
         </div>
 
-        <div className="min-h-0 overflow-y-auto px-4 py-5 sm:px-6">
+        <div className="min-h-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
           <div className="grid gap-3 sm:grid-cols-3">
             <SummaryItem label="Vacancies" value={job.vacancy} />
             <SummaryItem
@@ -3077,36 +3086,43 @@ function JobListingDetailsModal({ job, onClose, formatDate }) {
             <SummaryItem label="Status" value={job.status} />
           </div>
 
-          <section className="mt-5 rounded-xl border border-slate-200 bg-white p-4">
+          <section className="mt-4 rounded-lg border border-slate-200 bg-white p-3 sm:mt-5 sm:rounded-xl sm:p-4">
             <h4 className="text-sm font-bold text-slate-900">Description</h4>
-            <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-slate-600 [overflow-wrap:anywhere]">
+            <p className="mt-2 whitespace-pre-wrap break-words text-xs leading-5 text-slate-600 [overflow-wrap:anywhere] sm:mt-3 sm:text-sm sm:leading-6">
               {job.description || "No description provided yet."}
             </p>
           </section>
 
-          <section className="mt-5 rounded-xl border border-slate-200 bg-white p-4">
+          <section className="mt-4 rounded-lg border border-slate-200 bg-white p-3 sm:mt-5 sm:rounded-xl sm:p-4">
             <h4 className="text-sm font-bold text-slate-900">
               Upload Requirements
             </h4>
 
             {job.requirements?.length > 0 ? (
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <ul className="mt-3 space-y-2.5">
                 {job.requirements.map((requirement) => (
-                  <div
+                  <li
                     key={requirement.field}
-                    className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+                    className="border-b border-slate-200 pb-2.5 text-xs last:border-b-0 last:pb-0 sm:text-sm"
                   >
-                    <p className="break-words font-semibold text-slate-800 [overflow-wrap:anywhere]">
-                      {requirement.label}
-                    </p>
+                    <div className="flex min-w-0 items-start justify-between gap-3">
+                      <p className="min-w-0 break-words font-semibold text-slate-800 [overflow-wrap:anywhere]">
+                        {requirement.label}
+                      </p>
+                      {requirement.required === false && (
+                        <span className="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] uppercase text-slate-600">
+                          Optional
+                        </span>
+                      )}
+                    </div>
                     {requirement.description && (
                       <p className="mt-1 break-words text-xs text-slate-500 [overflow-wrap:anywhere]">
                         {requirement.description}
                       </p>
                     )}
-                  </div>
+                  </li>
                 ))}
-              </div>
+              </ul>
             ) : (
               <p className="mt-3 text-sm text-slate-500">
                 No upload requirements configured.

@@ -980,23 +980,23 @@ function JobListingSection({
           No job listings available.
         </p>
       ) : (
-        <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-3 p-4 sm:gap-4 sm:p-5 md:grid-cols-2 xl:grid-cols-3">
           {jobs.map((job) => (
             <article
               key={job.id}
-              className="oas-panel flex h-full min-w-0 flex-col p-5 transition hover:border-blue-200 hover:shadow-md"
+              className="oas-panel flex h-full min-w-0 flex-col p-4 transition hover:border-blue-200 hover:shadow-md sm:p-5"
             >
               <div className="min-w-0">
-                <h3 className="line-clamp-2 min-h-[2.5rem] break-words text-base font-bold leading-5 text-slate-950 [overflow-wrap:anywhere]">
+                <h3 className="line-clamp-2 min-h-0 break-words text-sm font-bold leading-5 text-slate-950 [overflow-wrap:anywhere] sm:min-h-[2.5rem] sm:text-base">
                   {job.title}
                 </h3>
 
-                <p className="mt-1 line-clamp-2 min-h-[2.5rem] break-words text-sm leading-5 text-slate-500 [overflow-wrap:anywhere]">
+                <p className="mt-1 line-clamp-2 min-h-0 break-words text-xs leading-5 text-slate-500 [overflow-wrap:anywhere] sm:min-h-[2.5rem] sm:text-sm">
                   {job.location || job.barangay || "Location not set"}
                 </p>
               </div>
 
-              <div className="mt-4 grid gap-2 text-sm text-slate-700">
+              <div className="mt-3 grid gap-2 text-xs text-slate-700 sm:mt-4 sm:text-sm">
                 <p className="truncate">
                   <span className="font-semibold">Vacancy:</span>{" "}
                   <span>{job.vacancy}</span>
@@ -1008,7 +1008,7 @@ function JobListingSection({
                 </p>
               </div>
 
-              <div className="mt-auto flex justify-end pt-5">
+              <div className="mt-auto flex justify-end pt-4 sm:pt-5">
                 <button
                   type="button"
                   onClick={() => setSelectedJob(job)}
@@ -1069,7 +1069,7 @@ function JobDetailsModal({ job, formatDate, onClose }) {
           </button>
         </div>
 
-        <div className="min-h-0 overflow-y-auto p-5">
+        <div className="min-h-0 overflow-y-auto p-4 sm:p-5">
           <div className="grid gap-3 sm:grid-cols-3">
             <JobDetailItem label="Vacancies" value={job.vacancy} />
             <JobDetailItem
@@ -1079,35 +1079,42 @@ function JobDetailsModal({ job, formatDate, onClose }) {
             <JobDetailItem label="Status" value={<JobStatusPill status={job.status} />} />
           </div>
 
-          <section className="mt-5 rounded-lg border border-slate-200 p-4">
+          <section className="mt-4 rounded-lg border border-slate-200 p-3 sm:mt-5 sm:p-4">
             <h4 className="text-sm font-bold text-slate-900">Description</h4>
-            <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-slate-600 [overflow-wrap:anywhere]">
+            <p className="mt-2 whitespace-pre-wrap break-words text-xs leading-5 text-slate-600 [overflow-wrap:anywhere] sm:mt-3 sm:text-sm sm:leading-6">
               {job.description || "No description provided yet."}
             </p>
           </section>
 
-          <section className="mt-5 rounded-lg border border-slate-200 p-4">
+          <section className="mt-4 rounded-lg border border-slate-200 p-3 sm:mt-5 sm:p-4">
             <h4 className="text-sm font-bold text-slate-900">
               Upload Requirements
             </h4>
             {job.requirements?.length ? (
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <ul className="mt-3 space-y-2.5">
                 {job.requirements.map((requirement) => (
-                  <div
+                  <li
                     key={requirement.field || requirement.label}
-                    className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                    className="border-b border-slate-200 pb-2.5 last:border-b-0 last:pb-0"
                   >
-                    <p className="break-words text-sm font-semibold text-slate-800 [overflow-wrap:anywhere]">
-                      {requirement.label}
-                    </p>
+                    <div className="flex min-w-0 items-start justify-between gap-3">
+                      <p className="min-w-0 break-words text-xs font-semibold text-slate-800 [overflow-wrap:anywhere] sm:text-sm">
+                        {requirement.label}
+                      </p>
+                      {requirement.required === false && (
+                        <span className="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] uppercase text-slate-600">
+                          Optional
+                        </span>
+                      )}
+                    </div>
                     {requirement.description && (
                       <p className="mt-1 break-words text-xs leading-5 text-slate-500 [overflow-wrap:anywhere]">
                         {requirement.description}
                       </p>
                     )}
-                  </div>
+                  </li>
                 ))}
-              </div>
+              </ul>
             ) : (
               <p className="mt-3 text-sm text-slate-500">
                 No upload requirements configured.

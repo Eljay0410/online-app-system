@@ -13,12 +13,15 @@ import { requireAuth } from "../middleware/auth.js";
 import {
   authenticatedWriteLimiter,
   authLimiters,
+  emailActionBotGuard,
 } from "../middleware/rateLimit.js";
 
 const router = Router();
 
 router.post(
   "/auth/register",
+  emailActionBotGuard,
+  authLimiters.registerIp,
   authLimiters.register,
   registerApplicant
 );
@@ -34,12 +37,18 @@ router.post(
 );
 router.post(
   "/auth/resend-activation",
+  emailActionBotGuard,
+  authLimiters.emailActionIp,
   authLimiters.emailAction,
+  authLimiters.resendActivation,
   resendActivationEmail
 );
 router.post(
   "/auth/forgot-password",
+  emailActionBotGuard,
+  authLimiters.emailActionIp,
   authLimiters.emailAction,
+  authLimiters.passwordReset,
   forgotPassword
 );
 router.patch(

@@ -164,28 +164,6 @@ function getMissingRequiredLabels(requirements = [], files = {}) {
     .map((requirement) => requirement.label);
 }
 
-function getConfiguredLibraryRequirements(positions = []) {
-  const byField = new Map();
-
-  positions.forEach((position) => {
-    normalizeRequirementList(position.requirements || []).forEach((requirement) => {
-      if (!byField.has(requirement.field)) {
-        byField.set(requirement.field, {
-          ...requirement,
-          required: false,
-          positions: [],
-        });
-      }
-
-      byField.get(requirement.field).positions.push(position.title);
-    });
-  });
-
-  return Array.from(byField.values()).sort((left, right) =>
-    left.label.localeCompare(right.label)
-  );
-}
-
 function getRequirementFileName(file) {
   return file?.name || file?.fileName || file?.filename || "Uploaded document";
 }
@@ -1115,7 +1093,49 @@ function ProfileHeader({
 }
 
 function VerticalStepper({ steps, currentStep, setCurrentStep }) {
+  const currentIndex = steps.findIndex((step) => step.id === currentStep);
+  const activeIndex = currentIndex >= 0 ? currentIndex : 0;
+  const activeStep = steps[activeIndex] || steps[0];
+
   return (
+    <>
+    <div className="lg:hidden">
+      <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold uppercase text-blue-700">
+            Step {activeIndex + 1} of {steps.length}
+          </p>
+          <p className="mt-0.5 truncate text-sm font-bold uppercase text-slate-950">
+            {activeStep?.title}
+          </p>
+        </div>
+
+        <div className="mt-3 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}>
+          {steps.map((step) => {
+            const isDone = currentStep > step.id;
+            const isActive = currentStep === step.id;
+
+            return (
+              <button
+                key={step.id}
+                type="button"
+                onClick={() => setCurrentStep(step.id)}
+                aria-label={step.title}
+                title={step.title}
+                className={`h-2 rounded-full transition ${
+                  isActive
+                    ? "bg-[#0056b3]"
+                    : isDone
+                    ? "bg-green-500"
+                    : "bg-slate-200"
+                }`}
+              />
+            );
+          })}
+        </div>
+      </div>
+    </div>
+
     <div className="hidden lg:block">
       <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
         <div className="relative">
@@ -1181,6 +1201,7 @@ function VerticalStepper({ steps, currentStep, setCurrentStep }) {
         Click any step to preview or update that section.
       </div>
     </div>
+    </>
   );
 }
 
@@ -2533,10 +2554,6 @@ function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false
       ) || null,
     [adminPositions, job.positionCategory, job.positionId, job.positionType]
   );
-  const configuredLibraryRequirements = useMemo(
-    () => getConfiguredLibraryRequirements(adminPositions),
-    [adminPositions]
-  );
   const libraryFileByField = useMemo(
     () =>
       Object.fromEntries(
@@ -2687,20 +2704,24 @@ function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false
 
   const showPositionList = Boolean(job.positionCategory);
 
-  const customUploadRequirements = job.jobOpeningId
-    ? normalizeRequirementList(job.requirements)
-    : selectedAdminPosition
-      ? normalizeRequirementList(selectedAdminPosition.requirements)
-      : configuredLibraryRequirements;
+  const hasSelectedUploadContext = Boolean(job.jobOpeningId || selectedAdminPosition);
+  const customUploadRequirements = hasSelectedUploadContext
+    ? job.jobOpeningId
+      ? normalizeRequirementList(job.requirements)
+      : normalizeRequirementList(selectedAdminPosition.requirements)
+    : [];
 
-  const showAttachments = customUploadRequirements.length > 0;
+  const showAttachments =
+    hasSelectedUploadContext && customUploadRequirements.length > 0;
   const currentUploadRequirements = customUploadRequirements;
   const visibleRequirementFields = new Set(
     currentUploadRequirements.map((requirement) => requirement.field)
   );
-  const otherLibraryFiles = libraryFiles.filter(
-    (file) => !visibleRequirementFields.has(file.requirementField)
-  );
+  const otherLibraryFiles = hasSelectedUploadContext
+    ? libraryFiles.filter(
+        (file) => !visibleRequirementFields.has(file.requirementField)
+      )
+    : [];
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -2861,7 +2882,7 @@ function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false
         </div>
       )}
 
-      {!isLoadingRequirementConfig && !showAttachments && (
+      {!isLoadingRequirementConfig && hasSelectedUploadContext && !showAttachments && (
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-600">
           {job.jobOpeningId
             ? "No upload requirements are configured by HR/Admin for this job posting."

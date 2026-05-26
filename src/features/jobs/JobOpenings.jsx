@@ -386,22 +386,22 @@ export default function JobOpenings() {
           </div>
         ) : (
           <>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-3">
             {jobs.map((job) => (
               <article
                 key={job.id}
-                className="oas-panel flex h-full min-w-0 flex-col p-5 transition hover:border-blue-200 hover:shadow-md"
+                className="oas-panel flex h-full min-w-0 flex-col p-4 transition hover:border-blue-200 hover:shadow-md sm:p-5"
               >
                 <div className="min-w-0">
-                  <h2 className="line-clamp-2 min-h-[2.5rem] break-words text-sm font-bold leading-5 text-slate-950 [overflow-wrap:anywhere]">
+                  <h2 className="line-clamp-2 min-h-0 break-words text-sm font-bold leading-5 text-slate-950 [overflow-wrap:anywhere] sm:min-h-[2.5rem]">
                     {job.title}
                   </h2>
                 </div>
 
-                <div className="mt-4 space-y-3 text-sm text-slate-700">
+                <div className="mt-3 space-y-2.5 text-xs text-slate-700 sm:mt-4 sm:space-y-3 sm:text-sm">
                   <div className="flex min-w-0 items-start gap-2">
                     <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
-                    <span className="line-clamp-2 min-h-10 break-words leading-5 [overflow-wrap:anywhere]">
+                    <span className="line-clamp-2 min-h-0 break-words leading-5 [overflow-wrap:anywhere] sm:min-h-10">
                       {job.location}
                     </span>
                   </div>
@@ -419,7 +419,7 @@ export default function JobOpenings() {
                   </div>
                 </div>
 
-                <div className="mt-auto grid grid-cols-2 gap-2 pt-5">
+                <div className="mt-auto grid grid-cols-2 gap-2 pt-4 sm:pt-5">
                   <button
                     type="button"
                     onClick={() => handleViewDetails(job)}
@@ -522,14 +522,14 @@ export default function JobOpenings() {
 
 function JobDetailsModal({ job, onClose, onApply }) {
   return (
-    <div className="fixed inset-0 z-[80] flex items-end justify-center overflow-y-auto bg-slate-950/50 p-4 sm:items-center">
-      <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
+    <div className="fixed inset-0 z-[80] flex items-end justify-center overflow-y-auto bg-slate-950/50 p-3 sm:items-center sm:p-4">
+      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl">
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-4 py-3 sm:gap-4 sm:px-5 sm:py-4">
           <div className="min-w-0">
-            <h3 className="break-words text-lg font-bold text-slate-950 [overflow-wrap:anywhere]">
+            <h3 className="break-words text-base font-bold leading-6 text-slate-950 [overflow-wrap:anywhere] sm:text-lg">
               {job.title}
             </h3>
-            <p className="mt-1 break-words text-sm text-slate-500 [overflow-wrap:anywhere]">
+            <p className="mt-1 break-words text-xs leading-5 text-slate-500 [overflow-wrap:anywhere] sm:text-sm">
               {job.location || "Location not set"}
             </p>
           </div>
@@ -544,7 +544,7 @@ function JobDetailsModal({ job, onClose, onApply }) {
           </button>
         </div>
 
-        <div className="min-h-0 overflow-y-auto px-5 py-4">
+        <div className="min-h-0 overflow-y-auto px-4 py-4 sm:px-5">
           <div className="grid gap-3 sm:grid-cols-3">
             <JobModalInfo label="Vacancies" value={job.vacancy} />
             <JobModalInfo label="Deadline" value={formatDeadline(job)} />
@@ -554,28 +554,30 @@ function JobDetailsModal({ job, onClose, onApply }) {
             />
           </div>
 
-          <section className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <section className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:mt-5 sm:rounded-xl sm:p-4">
             <h4 className="text-sm font-bold text-slate-900">Description</h4>
-            <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-slate-600 [overflow-wrap:anywhere]">
+            <p className="mt-2 whitespace-pre-wrap break-words text-xs leading-5 text-slate-600 [overflow-wrap:anywhere] sm:mt-3 sm:text-sm sm:leading-6">
               {job.description || "No description provided yet."}
             </p>
           </section>
 
-          <section className="mt-5 rounded-xl border border-slate-200 bg-white p-4">
+          <section className="mt-4 rounded-lg border border-slate-200 bg-white p-3 sm:mt-5 sm:rounded-xl sm:p-4">
             <h4 className="text-sm font-bold text-slate-900">
               Upload Requirements
             </h4>
             {job.requirements?.length ? (
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <ul className="mt-3 space-y-2.5">
                 {job.requirements.map((requirement) => (
-                  <div
+                  <li
                     key={requirement.field || requirement.label}
-                    className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                    className="border-b border-slate-200 pb-2.5 last:border-b-0 last:pb-0"
                   >
-                    <p className="break-words text-sm font-semibold text-slate-800 [overflow-wrap:anywhere]">
-                      {requirement.label}
+                    <div className="flex min-w-0 items-start justify-between gap-3">
+                      <p className="min-w-0 break-words text-xs font-semibold text-slate-800 [overflow-wrap:anywhere] sm:text-sm">
+                        {requirement.label}
+                      </p>
                       <span
-                        className={`ml-2 rounded-md px-1.5 py-0.5 text-[10px] uppercase ${
+                        className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] uppercase ${
                           requirement.required === false
                             ? "bg-slate-100 text-slate-600"
                             : "bg-red-50 text-red-700"
@@ -583,15 +585,15 @@ function JobDetailsModal({ job, onClose, onApply }) {
                       >
                         {requirement.required === false ? "Optional" : "Required"}
                       </span>
-                    </p>
+                    </div>
                     {requirement.description && (
                       <p className="mt-1 break-words text-xs leading-5 text-slate-500 [overflow-wrap:anywhere]">
                         {requirement.description}
                       </p>
                     )}
-                  </div>
+                  </li>
                 ))}
-              </div>
+              </ul>
             ) : (
               <p className="mt-3 text-sm text-slate-500">
                 No upload requirements configured.
@@ -600,7 +602,7 @@ function JobDetailsModal({ job, onClose, onApply }) {
           </section>
         </div>
 
-        <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-200 px-5 py-4 sm:flex-row sm:justify-end">
+        <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-200 px-4 py-3 sm:flex-row sm:justify-end sm:px-5 sm:py-4">
           <button
             type="button"
             onClick={onClose}
