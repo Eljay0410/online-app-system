@@ -471,7 +471,7 @@ export default function ApplicantDashboard() {
                       }}
                       className={`inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition ${
                         isActive
-                          ? "border-slate-900 bg-slate-900 text-white shadow-sm"
+                          ? "border-[#0056b3] bg-[#0056b3] text-white shadow-sm"
                           : "border-transparent bg-white text-slate-600 hover:border-slate-200 hover:bg-slate-50"
                       }`}
                     >
@@ -615,7 +615,7 @@ function ApplicationRow({ application, onSelect }) {
           <button
             type="button"
             onClick={onSelect}
-            className="oas-action-button"
+            className="inline-flex h-9 items-center justify-center rounded-lg bg-[#0056b3] px-4 text-sm font-semibold text-white transition hover:bg-[#003a78]"
           >
             View details
           </button>
