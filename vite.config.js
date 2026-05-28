@@ -11,6 +11,7 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
     ],
+
     server: {
       proxy: {
         "/api": {
@@ -18,6 +19,10 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
         },
       },
+    },
+
+    build: {
+      chunkSizeWarningLimit: 1000,
     },
   }
 })

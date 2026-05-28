@@ -11,7 +11,7 @@ export const nodeEnv = process.env.NODE_ENV || "development";
 export const isProduction = nodeEnv === "production";
 
 export const PORT =
-  Number(process.env.SERVER_PORT || process.env.API_PORT) || 5000;
+  Number(process.env.SERVER_PORT || process.env.API_PORT) || 5001;
 
 function splitCsv(value = "") {
   return String(value)
