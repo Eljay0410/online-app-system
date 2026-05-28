@@ -69,9 +69,9 @@ export default function PaginationControls({
 
   return (
     <div
-      className={`flex min-w-0 flex-col items-center gap-2 border-t border-slate-200 bg-white px-3 py-3 text-xs text-slate-600 sm:gap-3 sm:px-5 sm:py-4 sm:text-sm ${className}`}
+      className={`flex min-w-0 flex-col items-center gap-2 border-t border-slate-200 bg-white px-3 py-3 text-xs text-slate-600 sm:gap-3 sm:px-5 sm:py-4 sm:text-sm md:flex-row md:items-center md:justify-between ${className}`}
     >
-      <div className="flex min-w-0 flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center">
+      <div className="flex min-w-0 flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center md:justify-start md:text-left">
         <p className="whitespace-nowrap font-bold text-slate-600">
           Page <span className="text-slate-900">{currentPage}</span> /{" "}
           <span className="text-slate-900">{totalPages}</span>
@@ -84,8 +84,8 @@ export default function PaginationControls({
         </p>
       </div>
 
-      <div className="flex w-full min-w-0 flex-col items-center gap-3">
-        <div className="flex max-w-full flex-wrap items-center justify-center gap-1.5 sm:gap-2">
+      <div className="flex w-full min-w-0 flex-col items-center gap-3 md:w-auto md:flex-row md:items-center md:justify-end md:gap-4">
+        <div className="flex max-w-full flex-wrap items-center justify-center gap-1.5 sm:gap-2 md:flex-nowrap md:justify-start">
           <button
             type="button"
             onClick={() => onPageChange(currentPage - 1)}
@@ -133,7 +133,7 @@ export default function PaginationControls({
           </button>
         </div>
 
-        <div className="flex items-center justify-center rounded-lg border border-slate-200 bg-white p-1.5 sm:rounded-xl sm:p-2">
+        <div className="flex items-center justify-center rounded-lg border border-slate-200 bg-white p-1.5 sm:rounded-xl sm:p-2 md:shrink-0">
           <label className="flex h-8 shrink-0 items-center gap-1.5 px-1.5 sm:h-10 sm:gap-2 sm:px-2">
             <span className="whitespace-nowrap text-xs font-bold text-slate-600 sm:text-sm">
               Jump to
