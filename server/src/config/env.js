@@ -90,6 +90,13 @@ export const uploadCleanupRetentionDays = envInt(
   30
 );
 
+const legacySessionTokenDays = envInt("SESSION_TOKEN_DAYS", 0);
+
+export const sessionTokenTtlMinutes = envInt(
+  "SESSION_TOKEN_MINUTES",
+  legacySessionTokenDays > 0 ? legacySessionTokenDays * 24 * 60 : 30
+);
+
 export const trustProxy = (() => {
   const rawValue = String(
     process.env.TRUST_PROXY || (isProduction ? "1" : "false")

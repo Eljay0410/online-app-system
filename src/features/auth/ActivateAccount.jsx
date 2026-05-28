@@ -290,7 +290,7 @@ export default function ActivateAccount() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="inline-flex h-[44px] w-auto min-w-[132px] items-center justify-center gap-2 rounded-xl bg-[#244a96] px-6 text-[14px] font-semibold text-white transition hover:bg-[#183978] disabled:cursor-not-allowed disabled:opacity-70 sm:w-full sm:px-4"
+                className="oas-mobile-full inline-flex h-[44px] w-auto min-w-[132px] items-center justify-center gap-2 rounded-xl bg-[#244a96] px-6 text-[14px] font-semibold text-white transition hover:bg-[#183978] disabled:cursor-not-allowed disabled:opacity-70 sm:w-full sm:px-4"
               >
                 {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
                 {primaryLabel}

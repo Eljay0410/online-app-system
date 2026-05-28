@@ -1,7 +1,6 @@
 import { createHash, randomBytes } from "crypto";
 import pool from "../config/db.js";
-
-const DEFAULT_SESSION_DAYS = 7;
+import { sessionTokenTtlMinutes } from "../config/env.js";
 
 function hashToken(token) {
   return createHash("sha256").update(token).digest("hex");
@@ -17,11 +16,7 @@ function normalizeRole(role) {
 export async function createSession(client, userId) {
   const token = randomBytes(32).toString("hex");
   const tokenHash = hashToken(token);
-  const ttlDays = Number.parseInt(
-    process.env.SESSION_TOKEN_DAYS || String(DEFAULT_SESSION_DAYS),
-    10
-  );
-  const expiresAt = new Date(Date.now() + ttlDays * 24 * 3600 * 1000);
+  const expiresAt = new Date(Date.now() + sessionTokenTtlMinutes * 60 * 1000);
 
   await client.query(
     `INSERT INTO refresh_tokens (user_id, token, expires_at, created_at)
@@ -60,9 +55,10 @@ export async function getUserBySessionToken(token) {
      JOIN users u ON u.id = rt.user_id
      WHERE rt.token = $1
        AND rt.revoked_at IS NULL
+       AND rt.created_at >= NOW() - ($2::integer * INTERVAL '1 minute')
        AND (rt.expires_at IS NULL OR rt.expires_at > NOW())
      LIMIT 1`,
-    [tokenHash]
+    [tokenHash, sessionTokenTtlMinutes]
   );
 
   const user = result.rows[0];

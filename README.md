@@ -21,16 +21,30 @@ Set these values in the deployment environment:
 
 ```env
 NODE_ENV=production
+SERVER_PORT=5000
 CLIENT_URL=https://your-frontend-domain.example
 CORS_ORIGIN=https://your-frontend-domain.example
 TRUST_PROXY=1
 JSON_BODY_LIMIT=10mb
+UPLOAD_ROOT=D:\OASUploads
+UPLOAD_MAX_FILE_SIZE_BYTES=15728640
+UPLOAD_IMAGE_MAX_WIDTH=1600
+UPLOAD_IMAGE_MAX_HEIGHT=1600
+UPLOAD_IMAGE_QUALITY=82
+UPLOAD_DISK_WARN_PERCENT=85
+UPLOAD_CLEANUP_RETENTION_DAYS=30
 RATE_LIMIT_API_MAX=600
 RATE_LIMIT_LOGIN_MAX=5
 RATE_LIMIT_REGISTER_MAX=8
 RATE_LIMIT_EMAIL_ACTION_MAX=5
 RATE_LIMIT_ACTIVATION_MAX=20
 RATE_LIMIT_AUTH_WRITE_MAX=120
+RATE_LIMIT_UPLOAD_MAX=40
+SESSION_TOKEN_MINUTES=30
 ```
 
 Run `npm run migrate` before deployment so the database-backed limiter table is available.
+
+For IIS, build the client with `npm run build` and point the IIS site to the
+generated `dist` folder. The `public/web.config` file is copied into `dist`
+during build and expects the Node API to run on `127.0.0.1:5000`.

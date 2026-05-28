@@ -238,7 +238,7 @@ export default function Register() {
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="mt-4 inline-flex h-[44px] w-auto min-w-[152px] items-center justify-center gap-2 rounded-lg bg-[#244a96] px-6 text-[14px] font-semibold text-white shadow-sm transition hover:bg-[#183978] disabled:cursor-not-allowed disabled:opacity-70 sm:w-full sm:px-4"
+                    className="oas-mobile-full mt-4 inline-flex h-[44px] w-auto min-w-[152px] items-center justify-center gap-2 rounded-lg bg-[#244a96] px-6 text-[14px] font-semibold text-white shadow-sm transition hover:bg-[#183978] disabled:cursor-not-allowed disabled:opacity-70 sm:w-full sm:px-4"
                   >
                     {isSubmitting ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -251,7 +251,7 @@ export default function Register() {
                   <button
                     type="button"
                     onClick={() => navigate("/login", { replace: true })}
-                    className="inline-flex h-[44px] w-auto min-w-[132px] items-center justify-center rounded-lg bg-[#244a96] px-6 text-[14px] font-semibold text-white shadow-sm transition hover:bg-[#183978] sm:w-full sm:px-4"
+                    className="oas-mobile-full inline-flex h-[44px] w-auto min-w-[132px] items-center justify-center rounded-lg bg-[#244a96] px-6 text-[14px] font-semibold text-white shadow-sm transition hover:bg-[#183978] sm:w-full sm:px-4"
                   >
                     Go to Login
                   </button>
@@ -261,7 +261,7 @@ export default function Register() {
                     onClick={() => {
                       setSuccess(false);
                     }}
-                    className="inline-flex h-[44px] w-auto min-w-[176px] items-center justify-center rounded-lg bg-slate-100 px-6 text-[14px] font-semibold text-slate-700 transition hover:bg-slate-200 sm:w-full sm:px-4"
+                    className="oas-mobile-full inline-flex h-[44px] w-auto min-w-[176px] items-center justify-center rounded-lg bg-slate-100 px-6 text-[14px] font-semibold text-slate-700 transition hover:bg-slate-200 sm:w-full sm:px-4"
                   >
                     Register another account
                   </button>

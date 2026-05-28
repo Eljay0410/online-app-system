@@ -202,7 +202,7 @@ export default function Login() {
         body: JSON.stringify({ email, password }),
       });
 
-      login(result.user, result.token);
+      login(result.user, result.token, result.tokenExpiresAt);
 
       const user = result.user;
       const safeNextPath = getSafeNextPath(searchParams.get("next"));
@@ -460,7 +460,7 @@ export default function Login() {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="mt-4 inline-flex h-[44px] w-auto min-w-[132px] items-center justify-center gap-2 rounded-lg bg-[#244a96] px-6 text-[14px] font-semibold text-white shadow-sm transition hover:bg-[#183978] disabled:cursor-not-allowed disabled:opacity-70 sm:w-full sm:px-4"
+                  className="oas-mobile-full mt-4 inline-flex h-[44px] w-auto min-w-[132px] items-center justify-center gap-2 rounded-lg bg-[#244a96] px-6 text-[14px] font-semibold text-white shadow-sm transition hover:bg-[#183978] disabled:cursor-not-allowed disabled:opacity-70 sm:w-full sm:px-4"
                 >
                   {isSubmitting ? (
                     <Loader2 className="h-4 w-4 animate-spin" />

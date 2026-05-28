@@ -430,6 +430,10 @@ export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [viewApplication, setViewApplication] = useState(null);
+  const hasFilters =
+    Boolean(searchTerm.trim()) ||
+    selectedPosition !== "all" ||
+    selectedLocation !== "all";
 
   useEffect(() => {
     let isMounted = true;
@@ -2646,6 +2650,10 @@ function ApplicantListSection({
   getApplicantEmail,
 }) {
   const { showToast } = useToast();
+  const hasFilters =
+    Boolean(searchTerm.trim()) ||
+    selectedPosition !== "all" ||
+    selectedLocation !== "all";
 
   return (
     <section className="oas-panel">
@@ -2700,18 +2708,20 @@ function ApplicantListSection({
             ))}
           </select>
 
-          <button
-            type="button"
-            onClick={() => {
-              setSearchTerm("");
-              setSelectedPosition("all");
-              setSelectedLocation("all");
-            }}
-            className="col-span-2 inline-flex h-8 w-auto items-center justify-center gap-1.5 justify-self-start rounded-lg border border-slate-300 bg-white px-2.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 sm:col-span-1 sm:h-10 sm:px-3 sm:text-xs lg:col-span-1 lg:h-11 lg:justify-self-stretch"
-          >
-            <FilterIcon className="h-4 w-4" />
-            Clear
-          </button>
+          {hasFilters && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchTerm("");
+                setSelectedPosition("all");
+                setSelectedLocation("all");
+              }}
+              className="col-span-2 inline-flex h-10 items-center justify-center gap-1.5 justify-self-start rounded-lg border border-slate-200 bg-white px-3 text-[12px] font-semibold text-slate-600 hover:bg-slate-100 sm:col-span-1 sm:justify-self-end sm:px-4 sm:text-sm lg:h-11"
+            >
+              <X className="h-4 w-4" />
+              Clear filters
+            </button>
+          )}
         </div>
       </div>
 

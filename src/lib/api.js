@@ -2,6 +2,7 @@ export const API_BASE_URL =
   import.meta.env.VITE_API_URL?.replace(/\/$/, "") || "";
 
 const AUTH_TOKEN_KEY = "oas_token";
+const AUTH_EXPIRES_AT_KEY = "oas_token_expires_at";
 const inFlightGetRequests = new Map();
 
 export function getAuthToken() {
@@ -75,6 +76,7 @@ async function performApiRequest(path, options, hasBody) {
     // Session expired or invalid
     localStorage.removeItem("oas_user");
     localStorage.removeItem("oas_token");
+    localStorage.removeItem(AUTH_EXPIRES_AT_KEY);
     if (!path.includes("/auth/login")) {
       window.location.replace("/login?expired=true");
     }

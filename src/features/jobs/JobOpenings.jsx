@@ -489,7 +489,7 @@ export default function JobOpenings() {
             <div className="mt-5 flex flex-col gap-2 sm:flex-row">
               <Link
                 to="/register"
-                className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-[#0056b3] px-4 font-semibold text-white transition hover:bg-[#003a78]"
+                className="oas-mobile-full inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-[#0056b3] px-4 font-semibold text-white transition hover:bg-[#003a78]"
                 onClick={() => setPromptJob(null)}
               >
                 Sign Up
@@ -499,7 +499,7 @@ export default function JobOpenings() {
                 to={`/login?next=${encodeURIComponent(
                   `/jobs/${promptJob.id}`
                 )}`}
-                className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-slate-300 px-4 font-semibold text-slate-700 transition hover:bg-slate-50"
+                className="oas-mobile-full inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-slate-300 px-4 font-semibold text-slate-700 transition hover:bg-slate-50"
                 onClick={() => setPromptJob(null)}
               >
                 Login

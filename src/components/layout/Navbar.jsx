@@ -1,5 +1,3 @@
-import React, { useEffect, useRef, useState } from "react";
-import { Menu, X } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth, getAuthenticatedHomePath } from "../../features/auth/auth";
 
@@ -7,34 +5,13 @@ const Navbar = () => {
   const location = useLocation();
   const { user } = useAuth();
 
-  const mobileMenuRef = useRef(null);
-
-  const [isOpen, setIsOpen] = useState(false);
-
   const isLoggedIn = Boolean(user);
   const homePath = isLoggedIn ? getAuthenticatedHomePath(user) : "/";
   const hidesMobileGuestMenu =
     location.pathname === "/login" ||
     location.pathname === "/register" ||
     location.pathname === "/activate";
-  const showMobileGuestMenu = !isLoggedIn && !hidesMobileGuestMenu;
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      const clickedMobileOutside =
-        mobileMenuRef.current && !mobileMenuRef.current.contains(event.target);
-
-      if (clickedMobileOutside) {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
+  const showMobileGuestActions = !isLoggedIn && !hidesMobileGuestMenu;
 
   return (
     <nav className="fixed left-0 top-0 z-[60] h-[96px] w-full bg-[#0056b3] shadow-md">
@@ -95,81 +72,25 @@ const Navbar = () => {
           </div>
         </div>
 
-        {/* Mobile guest menu */}
-        {showMobileGuestMenu && (
-          <div
-            ref={mobileMenuRef}
-            className="ml-auto flex items-center gap-2 px-3 md:hidden"
-          >
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                setIsOpen((current) => !current);
-              }}
-              className="rounded-lg p-2 text-white transition hover:bg-white/10"
-              aria-label={isOpen ? "Close navigation menu" : "Open navigation menu"}
+        {/* Mobile guest actions */}
+        {showMobileGuestActions && (
+          <div className="ml-auto flex items-center gap-2 px-3 md:hidden">
+            <Link
+              to="/login"
+              className="rounded-lg border border-white/40 px-3 py-2 text-xs font-semibold text-white"
             >
-              {isOpen ? <X size={28} /> : <Menu size={28} />}
-            </button>
+              Log in
+            </Link>
+
+            <Link
+              to="/register"
+              className="rounded-lg bg-white px-3 py-2 text-xs font-semibold text-[#0056b3]"
+            >
+              Register
+            </Link>
           </div>
         )}
       </div>
-
-      {/* Mobile Menu */}
-      {isOpen && showMobileGuestMenu && (
-        <div className="border-t border-slate-100 bg-white md:hidden">
-          <div className="space-y-4 px-4 py-6">
-            <div className="space-y-1">
-              <Link
-                to="/about"
-                onClick={() => setIsOpen(false)}
-                className={`flex items-center gap-3 rounded-xl px-4 py-3 text-base font-semibold transition ${
-                  location.pathname === "/about"
-                    ? "bg-blue-50 text-[#0056b3]"
-                    : "text-slate-700 hover:bg-slate-50"
-                }`}
-              >
-                About
-              </Link>
-
-              <Link
-                to="/contact"
-                onClick={() => setIsOpen(false)}
-                className={`flex items-center gap-3 rounded-xl px-4 py-3 text-base font-semibold transition ${
-                  location.pathname === "/contact"
-                    ? "bg-blue-50 text-[#0056b3]"
-                    : "text-slate-700 hover:bg-slate-50"
-                }`}
-              >
-                Contact
-              </Link>
-            </div>
-
-            <div className="mx-4 h-px bg-slate-100" />
-
-            <div className="px-4">
-              <div className="flex flex-col gap-3">
-                <Link
-                  to="/login"
-                  onClick={() => setIsOpen(false)}
-                  className="w-full rounded-xl border border-blue-200 bg-blue-50 py-3.5 text-center font-bold text-[#0056b3]"
-                >
-                  Log in
-                </Link>
-
-                <Link
-                  to="/register"
-                  onClick={() => setIsOpen(false)}
-                  className="w-full rounded-xl bg-[#0056b3] py-3.5 text-center font-bold text-white shadow-lg"
-                >
-                  Register
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </nav>
   );
 };

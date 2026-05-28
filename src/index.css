@@ -187,6 +187,12 @@ textarea {
     justify-self: stretch;
     width: 100% !important;
   }
+
+  .oas-mobile-full {
+    align-self: stretch;
+    justify-self: stretch;
+    width: 100% !important;
+  }
 }
 
 @media (min-width: 640px) {

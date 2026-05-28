@@ -11,8 +11,9 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
     ],
-
     server: {
+      port: Number(env.PORT || env.VITE_PORT || 5173),
+      strictPort: true,
       proxy: {
         "/api": {
           target: `http://localhost:${apiPort}`,
