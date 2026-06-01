@@ -21,19 +21,6 @@ export const allowedUploadMimeTypes = new Map([
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     { extension: ".docx", previewType: "download" },
   ],
-  ["application/vnd.ms-excel", { extension: ".xls", previewType: "download" }],
-  [
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    { extension: ".xlsx", previewType: "download" },
-  ],
-  [
-    "application/vnd.ms-powerpoint",
-    { extension: ".ppt", previewType: "download" },
-  ],
-  [
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    { extension: ".pptx", previewType: "download" },
-  ],
 ]);
 
 let sharpModulePromise;
@@ -108,16 +95,12 @@ function getMimeFromSignature(buffer) {
 function isOfficeZipMime(mimeType) {
   return [
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   ].includes(mimeType);
 }
 
 function isLegacyOfficeMime(mimeType) {
   return [
     "application/msword",
-    "application/vnd.ms-excel",
-    "application/vnd.ms-powerpoint",
   ].includes(mimeType);
 }
 
@@ -126,7 +109,7 @@ export function assertAllowedUpload(file) {
 
   if (!allowedUploadMimeTypes.has(mimeType)) {
     const error = new Error(
-      "Unsupported file type. Upload images, PDFs, or common Office documents only."
+      "Unsupported file type. Upload images, PDFs, TXT, DOC, or DOCX files only."
     );
     error.statusCode = 415;
     throw error;

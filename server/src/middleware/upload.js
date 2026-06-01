@@ -9,7 +9,7 @@ function fileFilter(_req, file, callback) {
     return callback(
       Object.assign(
         new Error(
-          "Unsupported file type. Upload images, PDFs, or common Office documents only."
+          "Unsupported file type. Upload images, PDFs, TXT, DOC, or DOCX files only."
         ),
         { statusCode: 415 }
       )

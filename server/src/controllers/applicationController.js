@@ -6,10 +6,7 @@ import {
   getApplicantProfileRecord,
   upsertApplicantProfile,
 } from "../services/applicantService.js";
-import {
-  copyUploadedFileSnapshot,
-  toClientFile,
-} from "../services/fileStorageService.js";
+import { toClientFile } from "../services/fileStorageService.js";
 import {
   mapApplicantProfile,
   mapApplication,
@@ -19,41 +16,59 @@ import {
   sendSystemMail,
   transporter,
 } from "../config/mailer.js";
+import {
+  getFixedApplicationRequirements,
+} from "../config/applicationRequirements.js";
 
 const applicationStatusLabels = {
   draft: "Draft",
-  submitted: "Submitted",
-  pending_review: "Pending Review",
-  for_compliance: "For Compliance",
-  under_review: "Under Review",
+  submitted: "Pending Review",
+  reviewed: "Reviewed",
   qualified: "Qualified",
+  disqualified: "Disqualified",
+  shortlisted: "Shortlisted",
+  selected: "Selected",
   rejected: "Rejected",
   hired: "Hired",
+  pending_review: "Pending Review",
+  for_compliance: "Pending Review",
+  under_review: "Under Review",
 };
 
 const allowedStatusTransitions = {
   draft: ["submitted"],
-  submitted: ["pending_review", "for_compliance", "under_review", "rejected"],
-  pending_review: ["for_compliance", "under_review", "rejected"],
-  for_compliance: ["pending_review", "under_review", "rejected"],
-  under_review: ["for_compliance", "qualified", "rejected", "hired"],
-  qualified: ["hired", "rejected"],
+  submitted: ["reviewed", "qualified", "disqualified", "rejected"],
+  reviewed: ["qualified", "shortlisted", "disqualified", "rejected"],
+  qualified: ["shortlisted", "selected", "hired", "disqualified", "rejected"],
+  shortlisted: ["selected", "hired", "disqualified", "rejected"],
+  selected: ["hired", "disqualified", "rejected"],
+  pending_review: ["reviewed", "qualified", "disqualified", "rejected"],
+  for_compliance: ["reviewed", "qualified", "disqualified", "rejected"],
+  under_review: ["reviewed", "qualified", "disqualified", "rejected"],
   rejected: [],
   hired: [],
+  disqualified: [],
 };
+const allowedTargetApplicationStatuses = new Set([
+  "submitted",
+  "reviewed",
+  "qualified",
+  "disqualified",
+  "shortlisted",
+  "selected",
+  "hired",
+  "rejected",
+  "pending_review",
+  "for_compliance",
+  "under_review",
+]);
 
 const defaultApplicationLimit = 10;
 const requirementReviewStatuses = new Set([
   "pending",
-  "approved",
-  "rejected",
-  "needs_resubmission",
-  "missing",
-]);
-const complianceRequirementStatuses = new Set([
-  "missing",
-  "needs_resubmission",
-  "rejected",
+  "checked",
+  "incomplete",
+  "invalid",
 ]);
 
 function isFinalApplicationStatus(status) {
@@ -156,6 +171,14 @@ function normalizeQueryValue(value) {
     .replace(/\s+/g, " ");
 }
 
+function normalizeDateValue(value) {
+  const normalizedValue = String(value || "").trim();
+
+  return /^\d{4}-\d{2}-\d{2}$/.test(normalizedValue)
+    ? normalizedValue
+    : "";
+}
+
 function mapRequirementFile(row = {}) {
   if (!row.file_id) return null;
 
@@ -177,7 +200,19 @@ function mapRequirementFile(row = {}) {
   });
 }
 
+function normalizeRequirementReviewStatus(status) {
+  const normalizedStatus = String(status || "").toLowerCase();
+
+  if (normalizedStatus === "approved") return "checked";
+  if (normalizedStatus === "missing") return "incomplete";
+  if (normalizedStatus === "rejected") return "invalid";
+
+  return normalizedStatus || "pending";
+}
+
 function mapApplicationRequirement(row = {}) {
+  const status = normalizeRequirementReviewStatus(row.status);
+
   return {
     id: row.id,
     applicationId: row.job_application_id,
@@ -185,7 +220,7 @@ function mapApplicationRequirement(row = {}) {
     label: row.requirement_label,
     description: row.requirement_description || "",
     required: row.required !== false,
-    status: row.status || "pending",
+    status,
     remarks: row.remarks || "",
     submittedAt: row.submitted_at,
     reviewedAt: row.reviewed_at,
@@ -249,6 +284,65 @@ async function attachRequirementsToApplications(client, applications = []) {
   }));
 }
 
+async function getJobItemsByOpeningIds(client, jobOpeningIds = []) {
+  const ids = Array.from(
+    new Set(
+      jobOpeningIds
+        .map((id) => Number.parseInt(id, 10))
+        .filter((id) => Number.isInteger(id) && id > 0)
+    )
+  );
+
+  if (ids.length === 0) return new Map();
+
+  const result = await client.query(
+    `SELECT id, job_opening_id, school_station, subject_area,
+       vacancy_count, assigned_count, created_at, updated_at
+     FROM job_opening_items
+     WHERE job_opening_id = ANY($1::int[])
+     ORDER BY school_station ASC, subject_area ASC, id ASC`,
+    [ids]
+  );
+
+  return result.rows.reduce((groups, row) => {
+    const key = Number(row.job_opening_id);
+    const next = groups.get(key) || [];
+    next.push({
+      id: row.id,
+      jobOpeningId: row.job_opening_id,
+      schoolStation: row.school_station || "",
+      subjectArea: row.subject_area || "",
+      vacancyCount: Number(row.vacancy_count || 0),
+      assignedCount: Number(row.assigned_count || 0),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    });
+    groups.set(key, next);
+    return groups;
+  }, new Map());
+}
+
+async function attachJobItemsToApplications(client, applications = []) {
+  const itemMap = await getJobItemsByOpeningIds(
+    client,
+    applications.map((application) => application.jobOpeningId)
+  );
+
+  return applications.map((application) => ({
+    ...application,
+    jobItems: itemMap.get(Number(application.jobOpeningId)) || [],
+  }));
+}
+
+async function attachApplicationDetails(client, applications = []) {
+  const withRequirements = await attachRequirementsToApplications(
+    client,
+    applications
+  );
+
+  return attachJobItemsToApplications(client, withRequirements);
+}
+
 async function getMappedApplicationById(client, applicationId) {
   const result = await client.query(
     `SELECT
@@ -260,6 +354,9 @@ async function getMappedApplicationById(client, applicationId) {
        ja.data,
        ja.status,
        ja.review_notes,
+       ja.reviewed_by,
+       ja.reviewed_at,
+       ja.admin_remarks,
        ja.created_at,
        ja.updated_at,
        u.email,
@@ -272,10 +369,24 @@ async function getMappedApplicationById(client, applicationId) {
        jo.deadline AS job_deadline,
        jo.deadline_time AS job_deadline_time,
        jo.position_category AS job_position_category,
-       jo.requirements AS job_requirements
+       jo.salary_grade AS job_salary_grade,
+       jo.salary_amount AS job_salary_amount,
+       jo.education AS job_education,
+       jo.training AS job_training,
+       jo.experience AS job_experience,
+       jo.eligibility AS job_eligibility,
+       aa.job_opening_item_id AS assigned_item_id,
+       aa.assigned_by,
+       aa.assigned_at,
+       assigned_item.school_station AS assigned_school_station,
+       assigned_item.subject_area AS assigned_subject_area,
+       assigned_item.vacancy_count AS assigned_vacancy_count,
+       assigned_item.assigned_count
      FROM job_applications ja
      JOIN users u ON u.id = ja.user_id
      LEFT JOIN job_openings jo ON jo.id = ja.job_opening_id
+     LEFT JOIN application_assignments aa ON aa.job_application_id = ja.id
+     LEFT JOIN job_opening_items assigned_item ON assigned_item.id = aa.job_opening_item_id
      WHERE ja.id = $1
      LIMIT 1`,
     [applicationId]
@@ -283,7 +394,7 @@ async function getMappedApplicationById(client, applicationId) {
 
   if (result.rowCount === 0) return null;
 
-  const [application] = await attachRequirementsToApplications(client, [
+  const [application] = await attachApplicationDetails(client, [
     mapApplication(result.rows[0]),
   ]);
   return application;
@@ -315,6 +426,10 @@ function buildAdminApplicationFilters(query = {}) {
   const search = normalizeQueryValue(query.q || query.search);
   const position = normalizeQueryValue(query.position);
   const school = normalizeQueryValue(query.school || query.location);
+  const status = normalizeQueryValue(query.status).toLowerCase();
+  const specificDate = normalizeDateValue(query.date || query.applicationDate);
+  const dateFrom = normalizeDateValue(query.dateFrom || query.from);
+  const dateTo = normalizeDateValue(query.dateTo || query.to);
 
   if (search) {
     values.push(`%${search.toLowerCase()}%`);
@@ -337,6 +452,30 @@ function buildAdminApplicationFilters(query = {}) {
   if (school && school !== "all") {
     values.push(school.toLowerCase());
     conditions.push(`LOWER(${applicationSchoolSql}) = $${values.length}`);
+  }
+
+  if (status && status !== "all") {
+    values.push(status);
+    conditions.push(`ja.status = $${values.length}`);
+  }
+
+  if (specificDate) {
+    values.push(specificDate);
+    conditions.push(
+      `(ja.created_at >= $${values.length}::date AND ja.created_at < ($${values.length}::date + INTERVAL '1 day'))`
+    );
+  } else {
+    if (dateFrom) {
+      values.push(dateFrom);
+      conditions.push(`ja.created_at >= $${values.length}::date`);
+    }
+
+    if (dateTo) {
+      values.push(dateTo);
+      conditions.push(
+        `ja.created_at < ($${values.length}::date + INTERVAL '1 day')`
+      );
+    }
   }
 
   return {
@@ -412,6 +551,9 @@ export async function listAdminApplications(req, res) {
         ja.data,
         ja.status,
         ja.review_notes,
+        ja.reviewed_by,
+        ja.reviewed_at,
+        ja.admin_remarks,
         ja.created_at,
         ja.updated_at,
         u.email,
@@ -424,10 +566,24 @@ export async function listAdminApplications(req, res) {
         jo.deadline AS job_deadline,
         jo.deadline_time AS job_deadline_time,
         jo.position_category AS job_position_category,
-        jo.requirements AS job_requirements
+        jo.salary_grade AS job_salary_grade,
+        jo.salary_amount AS job_salary_amount,
+        jo.education AS job_education,
+        jo.training AS job_training,
+        jo.experience AS job_experience,
+        jo.eligibility AS job_eligibility,
+        aa.job_opening_item_id AS assigned_item_id,
+        aa.assigned_by,
+        aa.assigned_at,
+        assigned_item.school_station AS assigned_school_station,
+        assigned_item.subject_area AS assigned_subject_area,
+        assigned_item.vacancy_count AS assigned_vacancy_count,
+        assigned_item.assigned_count
       FROM job_applications ja
       JOIN users u ON u.id = ja.user_id
       LEFT JOIN job_openings jo ON jo.id = ja.job_opening_id
+      LEFT JOIN application_assignments aa ON aa.job_application_id = ja.id
+      LEFT JOIN job_opening_items assigned_item ON assigned_item.id = aa.job_opening_item_id
       ${where}
       ORDER BY ja.created_at DESC
       LIMIT $${values.length - 1} OFFSET $${values.length}
@@ -436,7 +592,7 @@ export async function listAdminApplications(req, res) {
     );
     const filterOptions = await filterOptionsPromise;
 
-    const applications = await attachRequirementsToApplications(
+    const applications = await attachApplicationDetails(
       pool,
       result.rows.map(mapApplication)
     );
@@ -468,9 +624,7 @@ export async function updateApplicationStatus(req, res) {
       ? null
       : String(req.body.reviewNotes || "").trim();
 
-  const allowedStatuses = Object.keys(applicationStatusLabels);
-
-  if (!allowedStatuses.includes(status)) {
+  if (!allowedTargetApplicationStatuses.has(status)) {
     return res.status(400).json({
       success: false,
       message: "Invalid application status.",
@@ -533,6 +687,17 @@ export async function updateApplicationStatus(req, res) {
          UPDATE job_applications
          SET status = $2,
              review_notes = COALESCE($3, review_notes),
+             admin_remarks = COALESCE($3, admin_remarks),
+             reviewed_by = CASE
+               WHEN $2 IN ('reviewed', 'qualified', 'disqualified', 'shortlisted', 'selected', 'hired', 'rejected')
+               THEN $4
+               ELSE reviewed_by
+             END,
+             reviewed_at = CASE
+               WHEN $2 IN ('reviewed', 'qualified', 'disqualified', 'shortlisted', 'selected', 'hired', 'rejected')
+               THEN NOW()
+               ELSE reviewed_at
+             END,
              updated_at = NOW()
          WHERE id = $1
          RETURNING *
@@ -546,6 +711,9 @@ export async function updateApplicationStatus(req, res) {
          ja.data,
          ja.status,
          ja.review_notes,
+         ja.reviewed_by,
+         ja.reviewed_at,
+         ja.admin_remarks,
          ja.created_at,
          ja.updated_at,
          u.email,
@@ -558,11 +726,25 @@ export async function updateApplicationStatus(req, res) {
         jo.deadline AS job_deadline,
         jo.deadline_time AS job_deadline_time,
         jo.position_category AS job_position_category,
-        jo.requirements AS job_requirements
+        jo.salary_grade AS job_salary_grade,
+        jo.salary_amount AS job_salary_amount,
+        jo.education AS job_education,
+        jo.training AS job_training,
+        jo.experience AS job_experience,
+        jo.eligibility AS job_eligibility,
+        aa.job_opening_item_id AS assigned_item_id,
+        aa.assigned_by,
+        aa.assigned_at,
+        assigned_item.school_station AS assigned_school_station,
+        assigned_item.subject_area AS assigned_subject_area,
+        assigned_item.vacancy_count AS assigned_vacancy_count,
+        assigned_item.assigned_count
        FROM updated ja
        JOIN users u ON u.id = ja.user_id
-       LEFT JOIN job_openings jo ON jo.id = ja.job_opening_id`,
-      [req.params.id, status, reviewNotes]
+       LEFT JOIN job_openings jo ON jo.id = ja.job_opening_id
+       LEFT JOIN application_assignments aa ON aa.job_application_id = ja.id
+       LEFT JOIN job_opening_items assigned_item ON assigned_item.id = aa.job_opening_item_id`,
+      [req.params.id, status, reviewNotes, req.user?.id || null]
     );
     const application = mapApplication(result.rows[0]);
 
@@ -614,84 +796,12 @@ export async function updateApplicationStatus(req, res) {
   }
 }
 
-async function copyRequirementFileForApplication(client, { requirement, sourceFile }) {
-  const copiedFile = await copyUploadedFileSnapshot({
-    sourceFile,
-    ownerUserId: requirement.user_id,
-    jobOpeningId: requirement.job_opening_id,
-    jobApplicationId: requirement.job_application_id,
-    requirementField: requirement.requirement_field,
-  });
-
-  const insertedFile = await client.query(
-    `INSERT INTO uploaded_files (
-       id,
-       owner_user_id,
-       applicant_profile_id,
-       job_application_id,
-       job_opening_id,
-       requirement_field,
-       requirement_label,
-       original_name,
-       stored_name,
-       relative_path,
-       mime_type,
-       size_bytes,
-       original_size_bytes,
-       checksum_sha256,
-       image_width,
-       image_height,
-       status,
-       created_at,
-       updated_at
-     )
-     VALUES (
-       $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-       $11, $12, $13, $14, $15, $16, 'submitted', NOW(), NOW()
-     )
-     RETURNING id`,
-    [
-      copiedFile.id,
-      requirement.user_id,
-      requirement.applicant_profile_id,
-      requirement.job_application_id,
-      requirement.job_opening_id,
-      requirement.requirement_field,
-      requirement.requirement_label,
-      copiedFile.originalName,
-      copiedFile.storedName,
-      copiedFile.relativePath,
-      copiedFile.mimeType,
-      copiedFile.sizeBytes,
-      copiedFile.originalSizeBytes,
-      copiedFile.checksumSha256,
-      copiedFile.width,
-      copiedFile.height,
-    ]
-  );
-
-  return insertedFile.rows[0].id;
-}
-
-async function hasComplianceRequirements(client, applicationId) {
-  const result = await client.query(
-    `SELECT EXISTS (
-       SELECT 1
-       FROM application_requirements
-       WHERE job_application_id = $1
-         AND status = ANY($2::text[])
-     ) AS has_compliance`,
-    [applicationId, Array.from(complianceRequirementStatuses)]
-  );
-
-  return Boolean(result.rows[0]?.has_compliance);
-}
-
 export async function updateApplicationRequirementReview(req, res) {
   const status = String(req.body?.status || "").trim().toLowerCase();
   const remarks = String(req.body?.remarks || "").trim();
+  const normalizedStatus = normalizeRequirementReviewStatus(status);
 
-  if (!requirementReviewStatuses.has(status)) {
+  if (!requirementReviewStatuses.has(normalizedStatus)) {
     return res.status(400).json({
       success: false,
       message: "Invalid requirement review status.",
@@ -737,7 +847,7 @@ export async function updateApplicationRequirementReview(req, res) {
            reviewed_at = NOW(),
            updated_at = NOW()
        WHERE id = $1`,
-      [current.id, status, remarks, req.user.id]
+      [current.id, normalizedStatus, remarks, req.user.id]
     );
 
     await client.query(
@@ -759,29 +869,10 @@ export async function updateApplicationRequirementReview(req, res) {
         current.job_application_id,
         req.user.id,
         previousStatus,
-        status,
+        normalizedStatus,
         current.file_id,
         remarks,
       ]
-    );
-
-    const needsCompliance =
-      complianceRequirementStatuses.has(status) ||
-      (await hasComplianceRequirements(client, current.job_application_id));
-    const nextApplicationStatus = needsCompliance
-      ? "for_compliance"
-      : current.application_status === "for_compliance" ||
-        current.application_status === "submitted" ||
-        current.application_status === "pending_review"
-      ? "under_review"
-      : current.application_status;
-
-    await client.query(
-      `UPDATE job_applications
-       SET status = $2,
-           updated_at = NOW()
-       WHERE id = $1`,
-      [current.job_application_id, nextApplicationStatus]
     );
 
     await recordActivityLog(client, {
@@ -794,7 +885,7 @@ export async function updateApplicationRequirementReview(req, res) {
         requirementId: current.id,
         requirementField: current.requirement_field,
         fromStatus: previousStatus,
-        toStatus: status,
+        toStatus: normalizedStatus,
         remarks,
       },
     });
@@ -804,31 +895,12 @@ export async function updateApplicationRequirementReview(req, res) {
       pool,
       current.job_application_id
     );
-    const emailSent =
-      nextApplicationStatus !== current.application_status
-        ? await sendApplicationStatusEmail({
-            application: mappedApplication,
-            fromStatus: current.application_status,
-            toStatus: nextApplicationStatus,
-            reviewNotes: complianceRequirementStatuses.has(status)
-              ? [
-                  `${current.requirement_label}: ${
-                    applicationStatusLabels[nextApplicationStatus] ||
-                    nextApplicationStatus
-                  }`,
-                  remarks,
-                ]
-                  .filter(Boolean)
-                  .join("\n")
-              : remarks,
-          })
-        : false;
 
     return res.json({
       success: true,
       application: mappedApplication,
       notification: {
-        emailSent,
+        emailSent: false,
       },
     });
   } catch (error) {
@@ -841,12 +913,28 @@ export async function updateApplicationRequirementReview(req, res) {
 }
 
 export async function replaceApplicationRequirementFile(req, res) {
-  const fileId = String(req.body?.fileId || "").trim();
+  return res.status(410).json({
+    success: false,
+    message:
+      "Requirement reupload requests are no longer part of the review flow. Upload fixed requirements from the Requirements / Documents page before applying.",
+  });
+}
 
-  if (!fileId) {
+export async function assignApplicationToVacancyItem(req, res) {
+  const applicationId = Number.parseInt(req.params.id, 10);
+  const jobOpeningItemId = Number.parseInt(req.body?.jobOpeningItemId, 10);
+
+  if (!Number.isInteger(applicationId) || applicationId <= 0) {
     return res.status(400).json({
       success: false,
-      message: "Select or upload a replacement file first.",
+      message: "A valid application is required.",
+    });
+  }
+
+  if (!Number.isInteger(jobOpeningItemId) || jobOpeningItemId <= 0) {
+    return res.status(400).json({
+      success: false,
+      message: "Select a school/station vacancy item.",
     });
   }
 
@@ -855,130 +943,135 @@ export async function replaceApplicationRequirementFile(req, res) {
   try {
     await client.query("BEGIN");
 
-    const requirementResult = await client.query(
-      `SELECT
-         ar.*,
-         ja.user_id,
-         ja.applicant_profile_id,
-         ja.job_opening_id,
-         ja.status AS application_status
-       FROM application_requirements ar
-       JOIN job_applications ja ON ja.id = ar.job_application_id
-       WHERE ar.id = $1
-         AND ar.job_application_id = $2
-         AND ja.user_id = $3
+    const applicationResult = await client.query(
+      `SELECT id, job_opening_id, status
+       FROM job_applications
+       WHERE id = $1
        FOR UPDATE`,
-      [req.params.requirementId, req.params.id, req.user.id]
+      [applicationId]
     );
+    const application = applicationResult.rows[0];
 
-    if (requirementResult.rowCount === 0) {
+    if (!application) {
       await client.query("ROLLBACK");
       return res.status(404).json({
         success: false,
-        message: "Application requirement not found.",
+        message: "Application not found.",
       });
     }
 
-    const requirement = requirementResult.rows[0];
-
-    if (!complianceRequirementStatuses.has(requirement.status)) {
+    if (!["qualified", "shortlisted", "selected", "hired"].includes(application.status)) {
       await client.query("ROLLBACK");
       return res.status(409).json({
         success: false,
-        message: "Only problematic requirements can be replaced here.",
+        message:
+          "Only qualified, shortlisted, selected, or hired applicants can be assigned to a vacancy item.",
       });
     }
 
-    const sourceResult = await client.query(
-      `SELECT *
-       FROM uploaded_files
+    const itemResult = await client.query(
+      `SELECT id, job_opening_id, school_station, subject_area,
+         vacancy_count, assigned_count
+       FROM job_opening_items
        WHERE id = $1
-         AND owner_user_id = $2
-         AND requirement_field = $3
-         AND job_opening_id IS NULL
-         AND status = 'active'
-       LIMIT 1`,
-      [fileId, req.user.id, requirement.requirement_field]
+         AND job_opening_id = $2
+       FOR UPDATE`,
+      [jobOpeningItemId, application.job_opening_id]
     );
-    const sourceFile = sourceResult.rows[0];
+    const item = itemResult.rows[0];
 
-    if (!sourceFile) {
+    if (!item) {
       await client.query("ROLLBACK");
       return res.status(404).json({
         success: false,
-        message: "Replacement file was not found in your document library.",
+        message: "Vacancy item not found for this application.",
       });
     }
 
-    const previousFileId = requirement.file_id;
-    const snapshotFileId = await copyRequirementFileForApplication(client, {
-      requirement,
-      sourceFile,
+    const existingResult = await client.query(
+      `SELECT aa.*, joi.id AS previous_item_id
+       FROM application_assignments aa
+       JOIN job_opening_items joi ON joi.id = aa.job_opening_item_id
+       WHERE aa.job_application_id = $1
+       FOR UPDATE`,
+      [applicationId]
+    );
+    const existingAssignment = existingResult.rows[0];
+
+    if (Number(existingAssignment?.job_opening_item_id) === Number(item.id)) {
+      await client.query("COMMIT");
+      return res.json({
+        success: true,
+        application: await getMappedApplicationById(pool, applicationId),
+      });
+    }
+
+    if (Number(item.assigned_count || 0) >= Number(item.vacancy_count || 0)) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({
+        success: false,
+        message: "This school/station vacancy item has no remaining slots.",
+      });
+    }
+
+    if (existingAssignment) {
+      await client.query(
+        `UPDATE job_opening_items
+         SET assigned_count = GREATEST(assigned_count - 1, 0),
+             updated_at = NOW()
+         WHERE id = $1`,
+        [existingAssignment.job_opening_item_id]
+      );
+
+      await client.query(
+        `UPDATE application_assignments
+         SET job_opening_item_id = $2,
+             assigned_by = $3,
+             assigned_at = NOW()
+         WHERE job_application_id = $1`,
+        [applicationId, item.id, req.user?.id || null]
+      );
+    } else {
+      await client.query(
+        `INSERT INTO application_assignments (
+           job_application_id, job_opening_item_id, assigned_by, assigned_at
+         )
+         VALUES ($1, $2, $3, NOW())`,
+        [applicationId, item.id, req.user?.id || null]
+      );
+    }
+
+    await client.query(
+      `UPDATE job_opening_items
+       SET assigned_count = assigned_count + 1,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [item.id]
+    );
+
+    await recordActivityLog(client, {
+      actor: req.user,
+      action: "application.assigned",
+      entityType: "job_application",
+      entityId: applicationId,
+      entityLabel: `${item.school_station}${item.subject_area ? ` - ${item.subject_area}` : ""}`,
+      metadata: {
+        jobOpeningItemId: item.id,
+        schoolStation: item.school_station,
+        subjectArea: item.subject_area,
+      },
     });
-
-    await client.query(
-      `UPDATE application_requirements
-       SET file_id = $2,
-           source_file_id = $3,
-           status = 'pending',
-           remarks = NULL,
-           submitted_at = NOW(),
-           reviewed_by = NULL,
-           reviewed_at = NULL,
-           updated_at = NOW()
-       WHERE id = $1`,
-      [requirement.id, snapshotFileId, sourceFile.id]
-    );
-
-    await client.query(
-      `INSERT INTO application_requirement_history (
-         application_requirement_id,
-         job_application_id,
-         actor_user_id,
-         action,
-         from_status,
-         to_status,
-         previous_file_id,
-         next_file_id,
-         remarks,
-         created_at
-       )
-       VALUES ($1, $2, $3, 'resubmit', $4, 'pending', $5, $6, NULL, NOW())`,
-      [
-        requirement.id,
-        requirement.job_application_id,
-        req.user.id,
-        requirement.status,
-        previousFileId,
-        snapshotFileId,
-      ]
-    );
-
-    const stillNeedsCompliance = await hasComplianceRequirements(
-      client,
-      requirement.job_application_id
-    );
-    await client.query(
-      `UPDATE job_applications
-       SET status = $2,
-           updated_at = NOW()
-       WHERE id = $1`,
-      [
-        requirement.job_application_id,
-        stillNeedsCompliance ? "for_compliance" : "pending_review",
-      ]
-    );
 
     await client.query("COMMIT");
 
     return res.json({
       success: true,
-      application: await getMappedApplicationById(pool, requirement.job_application_id),
+      application: await getMappedApplicationById(pool, applicationId),
     });
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
-    console.error("replaceApplicationRequirementFile error:", error);
-    return sendControllerError(res, error, "Failed to replace requirement file");
+    console.error("assignApplicationToVacancyItem error:", error);
+    return sendControllerError(res, error, "Failed to assign applicant");
   } finally {
     client.release();
   }
@@ -1037,6 +1130,9 @@ export async function listApplicantApplications(req, res) {
          ja.data,
          ja.status,
          ja.review_notes,
+         ja.reviewed_by,
+         ja.reviewed_at,
+         ja.admin_remarks,
          ja.created_at,
          ja.updated_at,
          u.email,
@@ -1049,10 +1145,24 @@ export async function listApplicantApplications(req, res) {
         jo.deadline AS job_deadline,
         jo.deadline_time AS job_deadline_time,
         jo.position_category AS job_position_category,
-        jo.requirements AS job_requirements
+        jo.salary_grade AS job_salary_grade,
+        jo.salary_amount AS job_salary_amount,
+        jo.education AS job_education,
+        jo.training AS job_training,
+        jo.experience AS job_experience,
+        jo.eligibility AS job_eligibility,
+        aa.job_opening_item_id AS assigned_item_id,
+        aa.assigned_by,
+        aa.assigned_at,
+        assigned_item.school_station AS assigned_school_station,
+        assigned_item.subject_area AS assigned_subject_area,
+        assigned_item.vacancy_count AS assigned_vacancy_count,
+        assigned_item.assigned_count
        FROM job_applications ja
        JOIN users u ON u.id = ja.user_id
        LEFT JOIN job_openings jo ON jo.id = ja.job_opening_id
+       LEFT JOIN application_assignments aa ON aa.job_application_id = ja.id
+       LEFT JOIN job_opening_items assigned_item ON assigned_item.id = aa.job_opening_item_id
        ${where}
        ORDER BY ja.created_at DESC
        LIMIT $${values.length - 1} OFFSET $${values.length}`,
@@ -1067,7 +1177,7 @@ export async function listApplicantApplications(req, res) {
       { all: 0 }
     );
 
-    const applications = await attachRequirementsToApplications(
+    const applications = await attachApplicationDetails(
       pool,
       result.rows.map(mapApplication)
     );
@@ -1244,7 +1354,16 @@ export async function applyToJob(req, res) {
           job_deadline: job.deadline,
           job_deadline_time: job.deadline_time,
           job_position_category: job.position_category,
-          job_requirements: job.requirements,
+          job_salary_grade: job.salary_grade,
+          job_salary_amount: job.salary_amount,
+          job_education: job.education,
+          job_training: job.training,
+          job_experience: job.experience,
+          job_eligibility: job.eligibility,
+          job_requirements: getFixedApplicationRequirements(
+            job.position_category,
+            job.title
+          ),
         }),
     });
   } catch (error) {
@@ -1310,7 +1429,16 @@ export async function submitApplication(req, res) {
           job_deadline: job.deadline,
           job_deadline_time: job.deadline_time,
           job_position_category: job.position_category,
-          job_requirements: job.requirements,
+          job_salary_grade: job.salary_grade,
+          job_salary_amount: job.salary_amount,
+          job_education: job.education,
+          job_training: job.training,
+          job_experience: job.experience,
+          job_eligibility: job.eligibility,
+          job_requirements: getFixedApplicationRequirements(
+            job.position_category,
+            job.title
+          ),
         });
     }
 

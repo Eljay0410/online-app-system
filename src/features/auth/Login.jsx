@@ -47,6 +47,7 @@ export default function Login() {
   const { login } = useAuth();
   const { showToast } = useToast();
   const [searchParams] = useSearchParams();
+  const safeNextPath = getSafeNextPath(searchParams.get("next"));
 
   const [step, setStep] = useState("email");
   const [email, setEmail] = useState("");
@@ -135,7 +136,7 @@ export default function Login() {
       });
 
       if (!result.exists) {
-        navigate("/register", { state: { email } });
+        navigate("/register", { state: { email, next: safeNextPath } });
         return;
       }
 
@@ -205,7 +206,6 @@ export default function Login() {
       login(result.user, result.token, result.tokenExpiresAt);
 
       const user = result.user;
-      const safeNextPath = getSafeNextPath(searchParams.get("next"));
       const nextRoute = safeNextPath.split("?")[0];
 
       navigate(
@@ -369,6 +369,7 @@ export default function Login() {
                         If you don&apos;t have an account yet,{" "}
                         <Link
                           to="/register"
+                          state={{ next: safeNextPath }}
                           className="font-bold text-[#0056b3] hover:underline"
                         >
                           create one here
