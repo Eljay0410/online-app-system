@@ -3,87 +3,93 @@ export const teachingApplicationRequirements = [
     field: "letterOfIntent",
     label: "Letter of Intent",
     description:
-      "Addressed to the SDS with statement of purpose/expression of interest and learning area or subject group, if applicable.",
+      "Letter addressed to the SDS stating your purpose and subject/learning area.",
     required: true,
   },
   {
     field: "pds",
-    label: "Personal Data Sheet",
+    label: "PDS with Work Experience Sheet",
     description:
-      "Duly accomplished PDS (CS Form 212, Revised 2025) with Work Experience Sheet.",
+      "CS Form 212 Revised 2025 and Work Experience Sheet.",
     required: true,
   },
   {
     field: "residency",
     label: "Proof of Residency",
-    description: "Voter's ID and/or any proof of residency.",
+    description: "Voter's ID, barangay certificate, or utility bill.",
     required: true,
   },
   {
     field: "prcLicense",
     label: "PRC License / ID",
-    description: "Valid and updated PRC License or ID.",
+    description: "Valid and updated PRC ID.",
     required: true,
   },
   {
     field: "boardRating",
-    label: "Certificate of Board Rating",
+    label: "Board Rating",
     description: "Certificate of Board Rating.",
     required: true,
   },
   {
     field: "academicRecord",
-    label: "Scholastic / Academic Record",
+    label: "Academic Records",
     description:
-      "Transcript of Records (TOR), diploma, and graduate or post-graduate units/degrees, if available.",
+      "TOR and Diploma, including graduate/post-graduate records if available.",
     required: true,
   },
   {
     field: "serviceRecord",
-    label: "Service Record / Certificate of Employment",
-    description:
-      "Duly signed Service Record or Certificate of Employment, whichever is applicable.",
+    label: "Service Record / COE",
+    description: "Service Record or Certificate of Employment.",
     required: false,
   },
   {
     field: "latestAppointment",
     label: "Latest Appointment",
-    description: "Latest appointment for applicants applying for promotion.",
+    description: "Appointment paper for promotion applicants.",
     required: false,
   },
   {
     field: "trainingCertificates",
     label: "Training Certificates",
     description:
-      "Certificates of relevant specialized trainings or professional development programs, if any.",
+      "Certificates of relevant trainings, seminars, or CPD programs.",
     required: false,
   },
   {
     field: "tesdaCertificate",
-    label: "TESDA NC II / TMC",
+    label: "TESDA Certificates",
     description:
-      "Valid TESDA National Certificate II or Trainers Methodology Certificate, if applicable.",
+      "NC II or Trainers Methodology Certificate, if applicable.",
     required: false,
   },
   {
     field: "performanceRating",
     label: "Performance Ratings",
     description:
-      "Required performance ratings with at least Very Satisfactory rating, up to three ratings depending on the position.",
+      "IPCRF/OPCRF rating with Very Satisfactory or higher.",
     required: true,
   },
   {
     field: "cavDataPrivacy",
-    label: "Checklist / Omnibus / Data Privacy Form",
+    label: "Checklist and Sworn Statement",
     description:
-      "Checklist of Requirements, Omnibus Sworn Statement on CAV, and Data Privacy Consent Form.",
+      "Checklist of Requirements, Omnibus Sworn Statement, CAV, and Data Privacy Consent Form.",
     required: true,
   },
   {
     field: "otherDocuments",
-    label: "Other HRMPSB Documents",
+    label: "Other Documents",
     description:
-      "Other documents required by the HRMPSB, including portfolio for PPST non-classroom observable indicators.",
+      "Portfolio, MOVs, teaching outputs, or other HRMPSB-required documents.",
+    required: false,
+  },
+  {
+    field: "outstandingAccomplishments",
+    label: "Outstanding Accomplishments",
+    description:
+      "Documents showing awards, recognition, innovation, research, or other accomplishments based on DO 7 s. 2023.",
     required: false,
   },
 ];
@@ -97,28 +103,28 @@ export const nonTeachingApplicationRequirements = [
   },
   {
     field: "pds",
-    label: "Personal Data Sheet",
+    label: "PDS with Work Experience Sheet",
     description:
-      "Duly accomplished PDS (CS Form No. 212, Revised 2025) with Work Experience Sheet, if applicable.",
+      "CS Form No. 212 Revised 2025 and Work Experience Sheet, if applicable.",
     required: true,
   },
   {
     field: "prcLicense",
     label: "PRC License / ID",
-    description: "Valid and updated PRC License or ID, if applicable.",
+    description: "Valid and updated PRC ID, if applicable.",
     required: false,
   },
   {
     field: "eligibilityRating",
-    label: "Certificate of Eligibility / Rating",
+    label: "Eligibility / Rating",
     description: "Certificate of Eligibility or Rating, if applicable.",
     required: false,
   },
   {
     field: "academicRecord",
-    label: "Scholastic / Academic Record",
+    label: "Academic Records",
     description:
-      "Transcript of Records (TOR), diploma, and graduate or post-graduate units/degrees, if available.",
+      "TOR, Diploma, and graduate/post-graduate records, if available.",
     required: true,
   },
   {
@@ -129,9 +135,9 @@ export const nonTeachingApplicationRequirements = [
   },
   {
     field: "serviceRecord",
-    label: "Employment / Service Record",
+    label: "Employment Documents",
     description:
-      "Certificate of Employment, Contract of Service, or duly signed Service Record, whichever is applicable.",
+      "Certificate of Employment, Contract of Service, or Service Record.",
     required: false,
   },
   {
@@ -149,15 +155,16 @@ export const nonTeachingApplicationRequirements = [
   },
   {
     field: "cavDataPrivacy",
-    label: "Checklist / Omnibus / Data Privacy Form",
+    label: "Checklist and Sworn Statement",
     description:
-      "Checklist of Requirements, Omnibus Sworn Statement on CAV, and notarized Data Privacy Consent Form.",
+      "Checklist of Requirements, Omnibus Sworn Statement, CAV, and Data Privacy Consent Form, notarized.",
     required: true,
   },
   {
     field: "outstandingAccomplishments",
     label: "Outstanding Accomplishments",
-    description: "Outstanding accomplishments, as applicable under DO 7, s. 2023.",
+    description:
+      "Documents showing awards, recognition, innovation, research, or other accomplishments based on DO 7 s. 2023.",
     required: false,
   },
 ];
@@ -165,7 +172,7 @@ export const nonTeachingApplicationRequirements = [
 export const teacherIPersonalSubmissionNotice = {
   title: "Personal Submission Required",
   message:
-    "Teacher I applicants are not allowed to upload application requirements online. You may still submit your online application for this job posting, but all documentary requirements must be submitted personally to the HR/Admin office.",
+    "Teacher I applicants are not allowed to upload application requirements online. You may still submit your online application for this vacancy posting, but all documentary requirements must be submitted personally to the HR/Admin office.",
   confirmLabel: "Submit Application",
   cancelLabel: "Cancel",
 };
@@ -193,7 +200,7 @@ function normalizePositionTitle(positionTitle) {
 function cloneRequirements(requirements) {
   return requirements.map((requirement) => ({
     ...requirement,
-    required: false,
+    required: requirement.required !== false,
   }));
 }
 

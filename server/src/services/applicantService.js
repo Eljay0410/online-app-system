@@ -33,6 +33,42 @@ function normalizeSelectedFileIds(value) {
   ).slice(0, uploadMaxFilesPerRequirement + 1);
 }
 
+function normalizeRequirementList(requirements, category = "", title = "") {
+  const fallback = getFixedApplicationRequirements(category, title);
+  const list =
+    typeof requirements === "string"
+      ? (() => {
+          try {
+            return JSON.parse(requirements);
+          } catch {
+            return [];
+          }
+        })()
+      : requirements;
+
+  if (!Array.isArray(list) || list.length === 0) {
+    return fallback;
+  }
+
+  const normalized = list
+    .map((requirement, index) => {
+      const field = trim(requirement?.field);
+      const label = trim(requirement?.label);
+
+      if (!field && !label) return null;
+
+      return {
+        field: field || `requirement_${index + 1}`,
+        label: label || field || `Requirement ${index + 1}`,
+        description: trim(requirement?.description),
+        required: requirement?.required !== false,
+      };
+    })
+    .filter(Boolean);
+
+  return normalized.length ? normalized : fallback;
+}
+
 export function getApplicationProfileGaps(data = {}) {
   const personal = getPersonalInfo(data);
   const education = data.educationalBackground || {};
@@ -277,7 +313,7 @@ export async function createJobApplicationFromProfile(
   const jobId = Number.parseInt(jobOpeningId, 10);
 
   if (!Number.isInteger(jobId) || jobId <= 0) {
-    const error = new Error("A valid job opening is required.");
+    const error = new Error("A valid vacancy is required.");
     error.statusCode = 400;
     throw error;
   }
@@ -285,7 +321,7 @@ export async function createJobApplicationFromProfile(
   const jobResult = await client.query(
     `SELECT id, title, location, district, barangay, vacancy, deadline,
        deadline_time, position_id, position_category, salary_grade, salary_amount,
-       education, training, experience, eligibility, status, description,
+       education, training, experience, eligibility, requirements, status, description,
        deadline + COALESCE(deadline_time, TIME '23:59') AS deadline_at
      FROM job_openings
      WHERE id = $1
@@ -296,7 +332,7 @@ export async function createJobApplicationFromProfile(
   const job = jobResult.rows[0];
 
   if (!job) {
-    const error = new Error("Job opening not found.");
+    const error = new Error("Vacancy not found.");
     error.statusCode = 404;
     throw error;
   }
@@ -304,13 +340,14 @@ export async function createJobApplicationFromProfile(
   const deadline = job.deadline_at ? new Date(job.deadline_at) : null;
 
   if (job.status !== "open" || (deadline && deadline < new Date())) {
-    const error = new Error("This job opening is no longer accepting applications.");
+    const error = new Error("This vacancy is no longer accepting applications.");
     error.statusCode = 409;
     throw error;
   }
 
   const submissionRule = getApplicationSubmissionRule(job.title);
-  const jobRequirements = getFixedApplicationRequirements(
+  const jobRequirements = normalizeRequirementList(
+    job.requirements,
     job.position_category,
     job.title
   );
@@ -352,7 +389,7 @@ export async function createJobApplicationFromProfile(
   );
 
   if (duplicate.rowCount > 0) {
-    const error = new Error("You already applied to this job.");
+    const error = new Error("You already applied to this vacancy.");
     error.statusCode = 409;
     error.code = "DUPLICATE_APPLICATION";
     throw error;

@@ -8,6 +8,7 @@ import {
 } from "./config/env.js";
 import activityLogRoutes from "./routes/activityLogRoutes.js";
 import activationRoutes from "./routes/activationRoutes.js";
+import applicantManagementRoutes from "./routes/applicantManagementRoutes.js";
 import applicationRoutes from "./routes/applicationRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import fileRoutes from "./routes/fileRoutes.js";
@@ -49,6 +50,7 @@ app.use("/api", authRoutes);
 app.use("/api", activityLogRoutes);
 app.use("/api", fileRoutes);
 app.use("/api", jobOpeningRoutes);
+app.use("/api", applicantManagementRoutes);
 app.use("/api", applicationRoutes);
 app.use("/api", superAdminRoutes);
 app.use("/api", activationRoutes);

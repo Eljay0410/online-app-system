@@ -11,7 +11,7 @@ const allowedPositionCategories = ["Teaching", "Non-Teaching"];
 const jobOpeningSelect = `
   id, title, location, district, barangay, vacancy, deadline, deadline_time,
   position_id, position_category, salary_grade, salary_amount, education,
-  training, experience, eligibility, status, description,
+  training, experience, eligibility, requirements, status, description,
   deadline + COALESCE(deadline_time, TIME '23:59') AS deadline_at,
   created_at, updated_at
 `;
@@ -138,6 +138,52 @@ function getVacancyTotal(items = []) {
   return items.reduce((total, item) => total + Number(item.vacancyCount || 0), 0);
 }
 
+function normalizeRequirementList(requirements, category = "", title = "") {
+  const fallback = getFixedApplicationRequirements(category, title);
+  const list =
+    typeof requirements === "string"
+      ? (() => {
+          try {
+            return JSON.parse(requirements);
+          } catch {
+            return [];
+          }
+        })()
+      : requirements;
+
+  if (!Array.isArray(list) || list.length === 0) {
+    return fallback;
+  }
+
+  const normalized = list
+    .map((requirement, index) => {
+      const field = normalizeSearch(requirement?.field);
+      const label = normalizeSearch(requirement?.label);
+
+      if (!field && !label) return null;
+
+      return {
+        field: field || `requirement_${index + 1}`,
+        label: label || field || `Requirement ${index + 1}`,
+        description: String(requirement?.description || "").trim(),
+        required: requirement?.required !== false,
+      };
+    })
+    .filter(Boolean);
+
+  return normalized.length ? normalized : fallback;
+}
+
+function getPositionRequirements(position = null) {
+  if (!position) return [];
+
+  return normalizeRequirementList(
+    position.requirements,
+    position.category,
+    position.title
+  );
+}
+
 function summarizeVacancyLocation(items = []) {
   const stations = Array.from(
     new Set(items.map((item) => item.schoolStation).filter(Boolean))
@@ -157,7 +203,7 @@ async function getPosition(positionId) {
   if (!Number.isInteger(id) || id <= 0) return null;
 
   const result = await pool.query(
-    `SELECT id, category, title, created_at, updated_at
+    `SELECT id, category, title, requirements, created_at, updated_at
      FROM job_positions
      WHERE id = $1
      LIMIT 1`,
@@ -455,10 +501,10 @@ export async function listOpenJobOpenings(req, res) {
       },
     });
   } catch (error) {
-    console.error("Error fetching job openings:", error);
+    console.error("Error fetching vacancies:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to fetch job openings",
+      message: "Failed to fetch vacancies",
     });
   }
 }
@@ -480,7 +526,7 @@ export async function getJobOpening(req, res) {
     if (!job) {
       return res.status(404).json({
         success: false,
-        message: "Job opening not found.",
+        message: "Vacancy not found.",
       });
     }
     const applicantContext = await getApplicantJobContext([job.id], req.user, {
@@ -498,10 +544,10 @@ export async function getJobOpening(req, res) {
       job: mappedJob,
     });
   } catch (error) {
-    console.error("Error fetching job opening:", error);
+    console.error("Error fetching vacancy:", error);
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch job opening",
+      message: "Failed to fetch vacancy",
     });
   }
 }
@@ -540,10 +586,10 @@ export async function listAdminJobOpenings(req, res) {
       },
     });
   } catch (error) {
-    console.error("Error fetching admin job openings:", error);
+    console.error("Error fetching admin vacancies:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to fetch job openings",
+      message: "Failed to fetch vacancies",
     });
   }
 }
@@ -567,7 +613,7 @@ export async function deleteJobOpening(req, res) {
     if (result.rowCount === 0) {
       return res.status(404).json({
         success: false,
-        message: "Job opening not found.",
+        message: "Vacancy not found.",
       });
     }
 
@@ -576,7 +622,7 @@ export async function deleteJobOpening(req, res) {
       action: "job_opening.deleted",
       entityType: "job_opening",
       entityId: Number(req.params.id),
-      entityLabel: existingJob?.title || "Job opening",
+      entityLabel: existingJob?.title || "Vacancy",
       metadata: {
         previousStatus: existingJob?.status || "",
       },
@@ -584,7 +630,7 @@ export async function deleteJobOpening(req, res) {
 
     return res.json({
       success: true,
-      message: "Job opening deleted.",
+      message: "Vacancy deleted.",
     });
   } catch (error) {
     console.error("deleteJobOpening error:", error);
@@ -593,8 +639,8 @@ export async function deleteJobOpening(req, res) {
       success: false,
       message:
         error?.code === "23503"
-          ? "This job opening has assignments or applications and cannot be deleted."
-          : "Failed to delete job opening",
+          ? "This vacancy has assignments or applications and cannot be deleted."
+          : "Failed to delete vacancy",
     });
   }
 }
@@ -613,7 +659,7 @@ export async function listJobPositions(_req, res) {
     }
 
     const result = await pool.query(
-      `SELECT id, category, title, created_at, updated_at
+      `SELECT id, category, title, requirements, created_at, updated_at
        FROM job_positions
        ORDER BY category ASC, title ASC`
     );
@@ -629,10 +675,10 @@ export async function listJobPositions(_req, res) {
       requirements: getFixedApplicationRequirements(),
     });
   } catch (error) {
-    console.error("Error fetching job positions:", error);
+    console.error("Error fetching positions:", error);
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch job positions",
+      message: "Failed to fetch positions",
     });
   }
 }
@@ -640,6 +686,11 @@ export async function listJobPositions(_req, res) {
 export async function createJobPosition(req, res) {
   const category = String(req.body?.category || "").trim();
   const title = String(req.body?.title || "").trim();
+  const requirements = normalizeRequirementList(
+    req.body?.requirements || req.body?.listOfRequirements,
+    category,
+    title
+  );
 
   if (!allowedPositionCategories.includes(category) || !title) {
     return res.status(400).json({
@@ -650,10 +701,10 @@ export async function createJobPosition(req, res) {
 
   try {
     const result = await pool.query(
-      `INSERT INTO job_positions (category, title, created_at, updated_at)
-       VALUES ($1, $2, NOW(), NOW())
-       RETURNING id, category, title, created_at, updated_at`,
-      [category, title]
+      `INSERT INTO job_positions (category, title, requirements, created_at, updated_at)
+       VALUES ($1, $2, $3::jsonb, NOW(), NOW())
+       RETURNING id, category, title, requirements, created_at, updated_at`,
+      [category, title, JSON.stringify(requirements)]
     );
     const position = mapPositionForClient(result.rows[0]);
     clearJobPositionsCache();
@@ -666,6 +717,7 @@ export async function createJobPosition(req, res) {
       entityLabel: position.title,
       metadata: {
         category: position.category,
+        requirementsCount: position.requirements.length,
       },
     });
 
@@ -681,7 +733,7 @@ export async function createJobPosition(req, res) {
       });
     }
 
-    console.error("Error creating job position:", error);
+    console.error("Error creating position:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to create position",
@@ -698,6 +750,9 @@ export async function updateJobPosition(req, res) {
     req.body?.title === undefined
       ? undefined
       : String(req.body.title || "").trim();
+  const hasIncomingRequirements =
+    req.body?.requirements !== undefined ||
+    req.body?.listOfRequirements !== undefined;
 
   if (category !== undefined && !allowedPositionCategories.includes(category)) {
     return res.status(400).json({
@@ -715,21 +770,40 @@ export async function updateJobPosition(req, res) {
 
   try {
     const beforeResult = await pool.query(
-      `SELECT id, category, title
+      `SELECT id, category, title, requirements
        FROM job_positions
        WHERE id = $1
        LIMIT 1`,
       [req.params.id]
     );
+    const beforePosition = beforeResult.rows[0];
+    const nextCategory = category || beforePosition?.category || "";
+    const nextTitle = title || beforePosition?.title || "";
+    const requirements =
+      category !== undefined || title !== undefined || hasIncomingRequirements
+        ? normalizeRequirementList(
+            hasIncomingRequirements
+              ? req.body.requirements || req.body.listOfRequirements
+              : [],
+            nextCategory,
+            nextTitle
+          )
+        : undefined;
 
     const result = await pool.query(
       `UPDATE job_positions
        SET category = COALESCE($2, category),
            title = COALESCE($3, title),
+           requirements = COALESCE($4::jsonb, requirements),
            updated_at = NOW()
        WHERE id = $1
-       RETURNING id, category, title, created_at, updated_at`,
-      [req.params.id, category || null, title || null]
+       RETURNING id, category, title, requirements, created_at, updated_at`,
+      [
+        req.params.id,
+        category || null,
+        title || null,
+        requirements ? JSON.stringify(requirements) : null,
+      ]
     );
 
     if (result.rowCount === 0) {
@@ -749,10 +823,11 @@ export async function updateJobPosition(req, res) {
       entityId: position.id,
       entityLabel: position.title,
       metadata: {
-        before: beforeResult.rows[0] || null,
+        before: beforePosition || null,
         after: {
           category: position.category,
           title: position.title,
+          requirementsCount: position.requirements.length,
         },
       },
     });
@@ -769,7 +844,7 @@ export async function updateJobPosition(req, res) {
       });
     }
 
-    console.error("Error updating job position:", error);
+    console.error("Error updating position:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to update position",
@@ -780,7 +855,7 @@ export async function updateJobPosition(req, res) {
 export async function deleteJobPosition(req, res) {
   try {
     const existingResult = await pool.query(
-      `SELECT id, category, title
+      `SELECT id, category, title, requirements
        FROM job_positions
        WHERE id = $1
        LIMIT 1`,
@@ -817,7 +892,7 @@ export async function deleteJobPosition(req, res) {
       message: "Position deleted.",
     });
   } catch (error) {
-    console.error("Error deleting job position:", error);
+    console.error("Error deleting position:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to delete position",
@@ -857,6 +932,16 @@ function normalizeJobOpeningPayload(req, selectedPosition = null, { partial = fa
     req.body?.positionId === undefined && partial
       ? undefined
       : selectedPosition?.id || null;
+  const requirements =
+    selectedPosition === undefined && partial
+      ? undefined
+      : selectedPosition
+        ? getPositionRequirements(selectedPosition)
+        : normalizeRequirementList(
+            req.body?.requirements || req.body?.listOfRequirements,
+            positionCategory,
+            title
+          );
 
   return {
     title,
@@ -869,6 +954,7 @@ function normalizeJobOpeningPayload(req, selectedPosition = null, { partial = fa
     deadlineTime,
     positionId,
     positionCategory,
+    requirements,
     status,
     description:
       req.body?.description === undefined && partial
@@ -910,6 +996,10 @@ function validateJobOpeningPayload(payload, currentJob = null) {
     throw createHttpError("Position title is required.");
   }
 
+  if (payload.positionId !== undefined && !payload.positionId) {
+    throw createHttpError("Select a position from the Position Library.");
+  }
+
   if (payload.vacancyItems !== undefined && payload.vacancyItems.length === 0) {
     throw createHttpError("At least one school/station vacancy item is required.");
   }
@@ -923,7 +1013,7 @@ function validateJobOpeningPayload(payload, currentJob = null) {
   }
 
   if (payload.status !== undefined && !allowedJobStatuses.includes(payload.status)) {
-    throw createHttpError("Invalid job status.");
+    throw createHttpError("Invalid vacancy status.");
   }
 
   if (
@@ -943,17 +1033,19 @@ function validateJobOpeningPayload(payload, currentJob = null) {
   );
 
   if (nextStatus === "open" && nextDeadline && isDeadlinePast(nextDeadline, nextDeadlineTime)) {
-    throw createHttpError("Open job postings cannot have an expired application deadline.");
+    throw createHttpError("Open vacancies cannot have an expired application deadline.");
   }
 }
 
 export async function createJobOpening(req, res) {
   try {
     const selectedPosition = await getPosition(req.body?.positionId);
-    if (req.body?.positionId && !selectedPosition) {
+    if (!selectedPosition) {
       return res.status(400).json({
         success: false,
-        message: "Selected position was not found.",
+        message: req.body?.positionId
+          ? "Selected position was not found."
+          : "Select a position from the Position Library.",
       });
     }
 
@@ -969,10 +1061,10 @@ export async function createJobOpening(req, res) {
         `INSERT INTO job_openings
           (title, location, district, barangay, vacancy, deadline, deadline_time,
            position_id, position_category, salary_grade, salary_amount, education,
-           training, experience, eligibility, status, description,
+           training, experience, eligibility, requirements, status, description,
            created_by, updated_by, created_at, updated_at)
          VALUES ($1, $2, NULL, NULL, $3, $4, $5, $6, $7, $8, $9, $10,
-           $11, $12, $13, $14, $15, $16, $16, NOW(), NOW())
+           $11, $12, $13, $14::jsonb, $15, $16, $17, $17, NOW(), NOW())
          RETURNING ${jobOpeningSelect}`,
         [
           payload.title,
@@ -988,6 +1080,7 @@ export async function createJobOpening(req, res) {
           payload.training,
           payload.experience,
           payload.eligibility,
+          JSON.stringify(payload.requirements),
           payload.status,
           payload.description.trim() ? payload.description : null,
           req.user?.id || null,
@@ -1025,10 +1118,10 @@ export async function createJobOpening(req, res) {
       client.release();
     }
   } catch (error) {
-    console.error("Error creating job opening:", error);
+    console.error("Error creating vacancy:", error);
     res.status(error.statusCode || 500).json({
       success: false,
-      message: error.message || "Failed to create job opening",
+      message: error.message || "Failed to create vacancy",
     });
   }
 }
@@ -1039,10 +1132,12 @@ export async function updateJobOpening(req, res) {
       req.body?.positionId === undefined
         ? undefined
         : await getPosition(req.body.positionId);
-    if (req.body?.positionId && !selectedPosition) {
+    if (req.body?.positionId !== undefined && !selectedPosition) {
       return res.status(400).json({
         success: false,
-        message: "Selected position was not found.",
+        message: req.body?.positionId
+          ? "Selected position was not found."
+          : "Select a position from the Position Library.",
       });
     }
 
@@ -1058,7 +1153,7 @@ export async function updateJobOpening(req, res) {
     if (!beforeRow) {
       return res.status(404).json({
         success: false,
-        message: "Job opening not found.",
+        message: "Vacancy not found.",
       });
     }
 
@@ -1089,9 +1184,10 @@ export async function updateJobOpening(req, res) {
              training = COALESCE($12, training),
              experience = COALESCE($13, experience),
              eligibility = COALESCE($14, eligibility),
-             status = COALESCE($15, status),
-             description = COALESCE($16, description),
-             updated_by = $17,
+             requirements = COALESCE($15::jsonb, requirements),
+             status = COALESCE($16, status),
+             description = COALESCE($17, description),
+             updated_by = $18,
              updated_at = NOW()
          WHERE id = $1
          RETURNING ${jobOpeningSelect}`,
@@ -1110,6 +1206,7 @@ export async function updateJobOpening(req, res) {
           payload.training || null,
           payload.experience || null,
           payload.eligibility || null,
+          payload.requirements ? JSON.stringify(payload.requirements) : null,
           payload.status || null,
           payload.description ?? null,
           req.user?.id || null,
@@ -1149,10 +1246,10 @@ export async function updateJobOpening(req, res) {
       client.release();
     }
   } catch (error) {
-    console.error("Error updating job opening:", error);
+    console.error("Error updating vacancy:", error);
     res.status(error.statusCode || 500).json({
       success: false,
-      message: error.message || "Failed to update job opening",
+      message: error.message || "Failed to update vacancy",
     });
   }
 }

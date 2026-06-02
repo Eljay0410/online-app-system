@@ -16,9 +16,6 @@ import {
   sendSystemMail,
   transporter,
 } from "../config/mailer.js";
-import {
-  getFixedApplicationRequirements,
-} from "../config/applicationRequirements.js";
 
 const applicationStatusLabels = {
   draft: "Draft",
@@ -366,6 +363,7 @@ async function getMappedApplicationById(client, applicationId) {
        jo.location AS job_location,
        jo.district AS job_district,
        jo.barangay AS job_barangay,
+       jo.vacancy AS job_vacancy,
        jo.deadline AS job_deadline,
        jo.deadline_time AS job_deadline_time,
        jo.position_category AS job_position_category,
@@ -375,6 +373,8 @@ async function getMappedApplicationById(client, applicationId) {
        jo.training AS job_training,
        jo.experience AS job_experience,
        jo.eligibility AS job_eligibility,
+       jo.description AS job_description,
+       jo.requirements AS job_requirements,
        aa.job_opening_item_id AS assigned_item_id,
        aa.assigned_by,
        aa.assigned_at,
@@ -563,6 +563,7 @@ export async function listAdminApplications(req, res) {
         jo.location AS job_location,
         jo.district AS job_district,
         jo.barangay AS job_barangay,
+        jo.vacancy AS job_vacancy,
         jo.deadline AS job_deadline,
         jo.deadline_time AS job_deadline_time,
         jo.position_category AS job_position_category,
@@ -572,6 +573,8 @@ export async function listAdminApplications(req, res) {
         jo.training AS job_training,
         jo.experience AS job_experience,
         jo.eligibility AS job_eligibility,
+        jo.description AS job_description,
+        jo.requirements AS job_requirements,
         aa.job_opening_item_id AS assigned_item_id,
         aa.assigned_by,
         aa.assigned_at,
@@ -720,18 +723,21 @@ export async function updateApplicationStatus(req, res) {
          u.first_name,
          u.last_name,
          jo.title AS job_title,
-        jo.location AS job_location,
-        jo.district AS job_district,
-        jo.barangay AS job_barangay,
-        jo.deadline AS job_deadline,
-        jo.deadline_time AS job_deadline_time,
-        jo.position_category AS job_position_category,
-        jo.salary_grade AS job_salary_grade,
-        jo.salary_amount AS job_salary_amount,
-        jo.education AS job_education,
-        jo.training AS job_training,
-        jo.experience AS job_experience,
-        jo.eligibility AS job_eligibility,
+         jo.location AS job_location,
+         jo.district AS job_district,
+         jo.barangay AS job_barangay,
+         jo.vacancy AS job_vacancy,
+         jo.deadline AS job_deadline,
+         jo.deadline_time AS job_deadline_time,
+         jo.position_category AS job_position_category,
+         jo.salary_grade AS job_salary_grade,
+         jo.salary_amount AS job_salary_amount,
+         jo.education AS job_education,
+         jo.training AS job_training,
+         jo.experience AS job_experience,
+         jo.eligibility AS job_eligibility,
+         jo.description AS job_description,
+         jo.requirements AS job_requirements,
         aa.job_opening_item_id AS assigned_item_id,
         aa.assigned_by,
         aa.assigned_at,
@@ -1139,18 +1145,21 @@ export async function listApplicantApplications(req, res) {
          u.first_name,
          u.last_name,
          jo.title AS job_title,
-        jo.location AS job_location,
-        jo.district AS job_district,
-        jo.barangay AS job_barangay,
-        jo.deadline AS job_deadline,
-        jo.deadline_time AS job_deadline_time,
-        jo.position_category AS job_position_category,
-        jo.salary_grade AS job_salary_grade,
-        jo.salary_amount AS job_salary_amount,
-        jo.education AS job_education,
-        jo.training AS job_training,
-        jo.experience AS job_experience,
-        jo.eligibility AS job_eligibility,
+         jo.location AS job_location,
+         jo.district AS job_district,
+         jo.barangay AS job_barangay,
+         jo.vacancy AS job_vacancy,
+         jo.deadline AS job_deadline,
+         jo.deadline_time AS job_deadline_time,
+         jo.position_category AS job_position_category,
+         jo.salary_grade AS job_salary_grade,
+         jo.salary_amount AS job_salary_amount,
+         jo.education AS job_education,
+         jo.training AS job_training,
+         jo.experience AS job_experience,
+         jo.eligibility AS job_eligibility,
+         jo.description AS job_description,
+         jo.requirements AS job_requirements,
         aa.job_opening_item_id AS assigned_item_id,
         aa.assigned_by,
         aa.assigned_at,
@@ -1306,7 +1315,7 @@ export async function applyToJob(req, res) {
 
     if (!record?.id) {
       const error = new Error(
-        "Complete your applicant profile before applying to a job."
+        "Complete your applicant profile before applying to a vacancy."
       );
       error.statusCode = 409;
       throw error;
@@ -1351,6 +1360,7 @@ export async function applyToJob(req, res) {
           job_location: job.location,
           job_district: job.district,
           job_barangay: job.barangay,
+          job_vacancy: job.vacancy,
           job_deadline: job.deadline,
           job_deadline_time: job.deadline_time,
           job_position_category: job.position_category,
@@ -1360,10 +1370,8 @@ export async function applyToJob(req, res) {
           job_training: job.training,
           job_experience: job.experience,
           job_eligibility: job.eligibility,
-          job_requirements: getFixedApplicationRequirements(
-            job.position_category,
-            job.title
-          ),
+          job_description: job.description,
+          job_requirements: job.requirements,
         }),
     });
   } catch (error) {
@@ -1426,6 +1434,7 @@ export async function submitApplication(req, res) {
           job_location: job.location,
           job_district: job.district,
           job_barangay: job.barangay,
+          job_vacancy: job.vacancy,
           job_deadline: job.deadline,
           job_deadline_time: job.deadline_time,
           job_position_category: job.position_category,
@@ -1435,10 +1444,8 @@ export async function submitApplication(req, res) {
           job_training: job.training,
           job_experience: job.experience,
           job_eligibility: job.eligibility,
-          job_requirements: getFixedApplicationRequirements(
-            job.position_category,
-            job.title
-          ),
+          job_description: job.description,
+          job_requirements: job.requirements,
         });
     }
 

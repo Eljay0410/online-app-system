@@ -70,6 +70,42 @@ function getRequirementSignature(requirements = []) {
   );
 }
 
+function normalizeRequirementList(requirements, category = "", title = "") {
+  const fallback = getFixedApplicationRequirements(category, title);
+  const list =
+    typeof requirements === "string"
+      ? (() => {
+          try {
+            return JSON.parse(requirements);
+          } catch {
+            return [];
+          }
+        })()
+      : requirements;
+
+  if (!Array.isArray(list) || list.length === 0) {
+    return fallback;
+  }
+
+  const normalized = list
+    .map((requirement, index) => {
+      const fieldValue = String(requirement?.field || "").trim();
+      const labelValue = String(requirement?.label || "").trim();
+
+      if (!fieldValue && !labelValue) return null;
+
+      return {
+        field: fieldValue || `requirement_${index + 1}`,
+        label: labelValue || fieldValue || `Requirement ${index + 1}`,
+        description: String(requirement?.description || "").trim(),
+        required: requirement?.required !== false,
+      };
+    })
+    .filter(Boolean);
+
+  return normalized.length ? normalized : fallback;
+}
+
 function canAccessFile(user, file) {
   const role = String(user?.role || "").toLowerCase();
 
@@ -113,7 +149,7 @@ async function getJobRequirement(
   }
 
   const result = await pool.query(
-    `SELECT id, title, position_category, created_at, updated_at
+    `SELECT id, title, position_category, requirements, created_at, updated_at
      FROM job_openings
      WHERE id = $1
        AND status = 'open'
@@ -124,21 +160,20 @@ async function getJobRequirement(
   const job = result.rows[0];
 
   if (!job) {
-    const error = new Error("Job opening is not available for uploads.");
+    const error = new Error("Vacancy is not available for uploads.");
     error.statusCode = 404;
     throw error;
   }
 
   assertOnlineUploadAllowedForPosition(job.title);
 
-  const requirements = getFixedApplicationRequirements(
+  const requirements = normalizeRequirementList(
+    job.requirements,
     job.position_category,
     job.title
   );
-  const requirement = getFixedApplicationRequirement(
-    field,
-    job.position_category,
-    job.title
+  const requirement = requirements.find(
+    (item) => String(item.field) === String(field)
   );
 
   if (!requirement) {

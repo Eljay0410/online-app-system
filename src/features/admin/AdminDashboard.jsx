@@ -9,9 +9,10 @@ import {
 } from "lucide-react";
 import { apiRequest } from "../../lib/api";
 import ActivityLogSection from "./ActivityLogSection";
+import ApplicantManagement from "./ApplicantManagement";
 import SuperAdminSidebar from "../../components/layout/SuperAdminSidebar";
+import DateFilterControl from "../../components/ui/DateFilterControl";
 import FilePreviewModal from "../../components/ui/FilePreviewModal";
-import FilterIcon from "../../components/ui/FilterIcon";
 import PaginationControls from "../../components/ui/PaginationControls";
 import { useToast } from "../../components/ui/toastContext";
 import {
@@ -19,6 +20,10 @@ import {
   getSidebarContentPadding,
 } from "../../lib/sidebar";
 import { getFixedApplicationRequirements } from "../../lib/applicationRequirements";
+import {
+  getJobUploadRequirements,
+  VacancySummaryTable,
+} from "../jobs/jobPostingUi";
 
 const emptyJob = {
   title: "",
@@ -91,6 +96,7 @@ const adminSections = new Set([
   "job-posting",
   "positions",
   "applicant-list",
+  "applicant-management",
   "job-listing",
   "activity-logs",
 ]);
@@ -118,8 +124,8 @@ const requirementReviewStatusLabels = {
 
 const adminPageMeta = {
   "job-posting": {
-    title: "Manage Job Openings",
-    description: "Create, update, and monitor job postings in one place.",
+    title: "Manage Vacancies",
+    description: "Create, update, and monitor vacancy postings in one place.",
   },
   positions: {
     title: "Positions",
@@ -129,9 +135,13 @@ const adminPageMeta = {
     title: "Applicant List",
     description: "Review applicants, update statuses, and record HR remarks.",
   },
+  "applicant-management": {
+    title: "Applicant Management",
+    description: "View applicant accounts and edit safe basic profile information.",
+  },
   "job-listing": {
-    title: "Job Listing",
-    description: "View all posted job openings and their published details.",
+    title: "Vacancies",
+    description: "View all posted vacancies and their published details.",
   },
   "activity-logs": {
     title: "Activity Logs",
@@ -295,6 +305,10 @@ function validateJobOpeningForm(form) {
     ? form.vacancyItems
     : [];
 
+  if (!form.positionId) {
+    errors.positionId = "Select a position from the Position Library.";
+  }
+
   if (!String(form.title || "").trim()) {
     errors.title = "Position title is required.";
   }
@@ -418,6 +432,17 @@ function getVacancyTotal(items = []) {
   return (items || []).reduce(
     (sum, item) => sum + Math.max(0, Number(item.vacancyCount) || 0),
     0
+  );
+}
+
+function getPositionRequirements(position, category = "", title = "") {
+  if (Array.isArray(position?.requirements) && position.requirements.length > 0) {
+    return position.requirements;
+  }
+
+  return getFixedApplicationRequirements(
+    position?.category || category,
+    position?.title || title
   );
 }
 
@@ -621,7 +646,7 @@ export default function AdminDashboard() {
       setFormErrors(validationErrors);
       showToast({
         type: "warning",
-        message: "Please complete the highlighted job opening fields.",
+        message: "Please complete the highlighted vacancy fields.",
       });
       return;
     }
@@ -636,7 +661,6 @@ export default function AdminDashboard() {
           ...form,
           vacancy: getVacancyTotal(form.vacancyItems),
           positionId: form.positionId ? Number(form.positionId) : null,
-          requirements: getFixedApplicationRequirements(),
         }),
       });
 
@@ -644,12 +668,12 @@ export default function AdminDashboard() {
       setForm(emptyJob);
       setFormErrors({});
       setIsCreateJobOpen(false);
-      showToast({ type: "success", message: "Job opening posted." });
+      showToast({ type: "success", message: "Vacancy posted." });
       changeActiveSection("job-posting");
     } catch (err) {
       showToast({
         type: "error",
-        message: err.message || "Failed to post job opening.",
+        message: err.message || "Failed to post vacancy.",
       });
     } finally {
       setIsSaving(false);
@@ -684,12 +708,12 @@ export default function AdminDashboard() {
 
       setJobs((prev) => prev.filter((item) => item.id !== jobToDelete.id));
 
-      showToast({ type: "success", message: "Job posting deleted." });
+      showToast({ type: "success", message: "Vacancy deleted." });
       setJobToDelete(null);
     } catch (err) {
       showToast({
         type: "error",
-        message: err.message || "Failed to delete job posting.",
+        message: err.message || "Failed to delete vacancy.",
       });
     }
   };
@@ -999,6 +1023,10 @@ export default function AdminDashboard() {
             />
           )}
 
+          {activeSection === "applicant-management" && (
+            <ApplicantManagement />
+          )}
+
           {activeSection === "job-listing" && (
             <JobListingSection
               jobs={jobs}
@@ -1014,7 +1042,7 @@ export default function AdminDashboard() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
             <h3 className="text-xl font-bold text-slate-900">
-              Delete Job Posting
+              Delete Vacancy
             </h3>
 
             <p className="mt-3 text-sm text-slate-600">
@@ -1089,11 +1117,20 @@ function CreateJobOpeningModal({
   const filteredPositions = positions.filter(
     (position) => position.category === form.positionCategory
   );
+  const selectedPosition = positions.find(
+    (item) => String(item.id) === String(form.positionId)
+  );
+  const selectedRequirements = getPositionRequirements(
+    selectedPosition,
+    form.positionCategory,
+    form.title
+  );
   const vacancyTotal = getVacancyTotal(form.vacancyItems);
 
   const handlePositionCategoryChange = (value) => {
     handleFormChange("positionCategory", value);
     handleFormChange("positionId", "");
+    handleFormChange("title", "");
   };
 
   const handlePositionChange = (value) => {
@@ -1112,7 +1149,7 @@ function CreateJobOpeningModal({
         <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
           <div className="min-w-0">
             <h2 className="break-words text-lg font-bold text-slate-950 [overflow-wrap:anywhere]">
-              Create Job Opening
+              Create Vacancy
             </h2>
             <p className="mt-1 text-sm text-slate-500">
               Create one parent position posting with multiple school/station vacancy items.
@@ -1124,7 +1161,7 @@ function CreateJobOpeningModal({
             onClick={onClose}
             disabled={isSaving}
             className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
-            aria-label="Close create job opening"
+            aria-label="Close create vacancy"
           >
             <X className="h-5 w-5" />
           </button>
@@ -1133,7 +1170,7 @@ function CreateJobOpeningModal({
         <form onSubmit={createJob} className="flex min-h-0 flex-col" noValidate>
           <div className="grid min-h-0 gap-4 overflow-y-auto p-5">
             <div className="grid gap-4 sm:grid-cols-2">
-              <JobFormField label="Position Category">
+              <JobFormField label="Position Category" required>
                 <select
                   value={form.positionCategory}
                   onChange={(event) =>
@@ -1141,13 +1178,13 @@ function CreateJobOpeningModal({
                   }
                   className={getControlClass("", inputControlClass)}
                 >
-                  <option value="">Optional category</option>
+                  <option value="">Select category</option>
                   <option value="Teaching">Teaching</option>
                   <option value="Non-Teaching">Non-Teaching</option>
                 </select>
               </JobFormField>
 
-              <JobFormField label="Position Library">
+              <JobFormField label="Position Library" error={errors.positionId} required>
                 <select
                   value={form.positionId}
                   onChange={(event) => handlePositionChange(event.target.value)}
@@ -1156,7 +1193,7 @@ function CreateJobOpeningModal({
                 >
                   <option value="">
                     {form.positionCategory
-                      ? "Optional saved position"
+                      ? "Select saved position"
                       : "Select category first"}
                   </option>
                   {filteredPositions.map((position) => (
@@ -1171,10 +1208,11 @@ function CreateJobOpeningModal({
             <JobFormField label="Position Title" error={errors.title} required>
               <input
                 value={form.title}
+                disabled
                 onChange={(event) => handleFormChange("title", event.target.value)}
-                placeholder="Example: Master Teacher I (Secondary)"
+                placeholder="Select a Position Library item"
                 aria-invalid={Boolean(errors.title)}
-                className={getControlClass(errors.title, inputControlClass)}
+                className={getControlClass(errors.title, disabledInputControlClass)}
               />
             </JobFormField>
 
@@ -1319,7 +1357,8 @@ function CreateJobOpeningModal({
             </JobFormField>
 
             <RequirementPreview
-              requirements={getFixedApplicationRequirements()}
+              requirements={form.positionId ? selectedRequirements : []}
+              emptyMessage="Select a Position Library item to show its List of Requirements."
             />
 
           </div>
@@ -1344,7 +1383,7 @@ function CreateJobOpeningModal({
               ) : (
                 <Save className="h-4 w-4" />
               )}
-              Post Job
+              Post Vacancy
             </button>
           </div>
         </form>
@@ -1490,7 +1529,7 @@ function VacancyItemsEditor({ items = [], errors = [], onChange }) {
 
 function RequirementPreview({
   requirements = [],
-  emptyMessage = "No upload requirements configured for this position.",
+  emptyMessage = "No requirements configured for this position.",
 }) {
   if (!requirements.length) {
     return (
@@ -1503,7 +1542,7 @@ function RequirementPreview({
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
       <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
-        Upload Requirements
+        List of Requirements
       </p>
 
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -1594,6 +1633,14 @@ function JobPostingSection(props) {
   const filteredPositions = positions.filter(
     (position) => position.category === editForm.positionCategory
   );
+  const selectedEditPosition = positions.find(
+    (item) => String(item.id) === String(editForm.positionId)
+  );
+  const editRequirements = getPositionRequirements(
+    selectedEditPosition || editingJob,
+    editForm.positionCategory,
+    editForm.title
+  );
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const totalPages = Math.max(1, Math.ceil(jobs.length / pageSize));
@@ -1637,7 +1684,7 @@ function JobPostingSection(props) {
       setEditErrors(validationErrors);
       showToast({
         type: "warning",
-        message: "Please complete the highlighted job opening fields.",
+        message: "Please complete the highlighted vacancy fields.",
       });
       return;
     }
@@ -1662,19 +1709,18 @@ function JobPostingSection(props) {
         eligibility: editForm.eligibility,
         status: editForm.status,
         description: editForm.description,
-        requirements: getFixedApplicationRequirements(),
       });
 
       if (updateResult.skipped) return;
 
-      showToast({ type: "success", message: "Job opening updated." });
+      showToast({ type: "success", message: "Vacancy updated." });
       setEditingJob(null);
       setEditForm(emptyJob);
       setEditErrors({});
     } catch (err) {
       showToast({
         type: "error",
-        message: err.message || "Failed to update job opening.",
+        message: err.message || "Failed to update vacancy.",
       });
     } finally {
       setIsUpdating(false);
@@ -1687,14 +1733,14 @@ function JobPostingSection(props) {
         if (!result?.skipped) {
           showToast({
             type: "success",
-            message: "Job status updated.",
+            message: "Vacancy status updated.",
           });
         }
       })
       .catch((err) =>
         showToast({
           type: "error",
-          message: err.message || "Failed to update job status.",
+          message: err.message || "Failed to update vacancy status.",
         })
       );
 
@@ -1702,9 +1748,9 @@ function JobPostingSection(props) {
     <section className="oas-panel">
       <div className="oas-panel-header flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="oas-panel-title">Manage Job Openings</h2>
+          <h2 className="oas-panel-title">Manage Vacancies</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Create, update, and monitor job postings in one place.
+            Create, update, and monitor vacancy postings in one place.
           </p>
         </div>
 
@@ -1714,7 +1760,7 @@ function JobPostingSection(props) {
           className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#0056b3] px-4 text-sm font-semibold text-white hover:bg-[#003a78]"
         >
           <Plus className="h-4 w-4" />
-          Create Job Opening
+          Create Vacancy
         </button>
       </div>
 
@@ -1787,7 +1833,7 @@ function JobPostingSection(props) {
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase text-slate-500">
             <tr>
-              <th className="px-5 py-3 font-bold">Job Title</th>
+              <th className="px-5 py-3 font-bold">Vacancy Title</th>
               <th className="px-5 py-3 font-bold">Location</th>
               <th className="px-5 py-3 font-bold">Vacancies</th>
               <th className="px-5 py-3 font-bold">Deadline</th>
@@ -1866,7 +1912,7 @@ function JobPostingSection(props) {
           setPage(1);
         }}
         pageSizeOptions={tablePageSizeOptions}
-        itemLabel="job openings"
+        itemLabel="vacancies"
       />
 
       {editingJob && (
@@ -1875,7 +1921,7 @@ function JobPostingSection(props) {
             <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-6 sm:py-5">
               <div className="min-w-0">
                 <h3 className="break-words text-lg font-bold text-slate-900 [overflow-wrap:anywhere]">
-                  Edit Job Opening
+                  Edit Vacancy
                 </h3>
                 <p className="mt-1 break-words text-sm text-slate-500 [overflow-wrap:anywhere]">
                   Update the posting details applicants will see.
@@ -1886,7 +1932,7 @@ function JobPostingSection(props) {
                 type="button"
                 onClick={closeEditJob}
                 className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                aria-label="Close edit job opening"
+                aria-label="Close edit vacancy"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -1898,22 +1944,27 @@ function JobPostingSection(props) {
               noValidate
             >
               <div className="grid gap-4 sm:grid-cols-2">
-                <JobFormField label="Position Category">
+                <JobFormField label="Position Category" required>
                   <select
                     value={editForm.positionCategory}
                     onChange={(event) => {
                       updateEditField("positionCategory", event.target.value);
                       updateEditField("positionId", "");
+                      updateEditField("title", "");
                     }}
                     className={getControlClass("", inputControlClass)}
                   >
-                    <option value="">Optional category</option>
+                    <option value="">Select category</option>
                     <option value="Teaching">Teaching</option>
                     <option value="Non-Teaching">Non-Teaching</option>
                   </select>
                 </JobFormField>
 
-                <JobFormField label="Position Library">
+                <JobFormField
+                  label="Position Library"
+                  error={editErrors.positionId}
+                  required
+                >
                   <select
                     value={editForm.positionId}
                     onChange={(event) => {
@@ -1921,14 +1972,18 @@ function JobPostingSection(props) {
                         (item) => String(item.id) === event.target.value
                       );
                       updateEditField("positionId", event.target.value);
-                      updateEditField("title", position?.title || editForm.title);
+                      updateEditField("title", position?.title || "");
+                      updateEditField(
+                        "positionCategory",
+                        position?.category || editForm.positionCategory
+                      );
                     }}
                     disabled={!editForm.positionCategory}
                     className={disabledInputControlClass}
                   >
                     <option value="">
                       {editForm.positionCategory
-                        ? "Optional saved position"
+                        ? "Select saved position"
                         : "Select category first"}
                     </option>
                     {filteredPositions.map((position) => (
@@ -1943,11 +1998,15 @@ function JobPostingSection(props) {
               <JobFormField label="Position Title" error={editErrors.title} required>
                 <input
                   value={editForm.title}
+                  disabled
                   onChange={(event) =>
                     updateEditField("title", event.target.value)
                   }
                   aria-invalid={Boolean(editErrors.title)}
-                  className={getControlClass(editErrors.title, inputControlClass)}
+                  className={getControlClass(
+                    editErrors.title,
+                    disabledInputControlClass
+                  )}
                 />
               </JobFormField>
 
@@ -2106,7 +2165,8 @@ function JobPostingSection(props) {
               </JobFormField>
 
               <RequirementPreview
-                requirements={getFixedApplicationRequirements()}
+                requirements={editForm.positionId ? editRequirements : []}
+                emptyMessage="Select a Position Library item to show its List of Requirements."
               />
 
               <div className="sticky bottom-0 -mx-4 flex flex-col-reverse gap-2 border-t border-slate-200 bg-white px-4 pt-4 sm:-mx-6 sm:flex-row sm:justify-end sm:px-6">
@@ -2153,9 +2213,9 @@ function JobPostingSectionLegacy({
     <section className="oas-panel">
       <div className="oas-panel-header flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="oas-panel-title">Manage Job Openings</h2>
+          <h2 className="oas-panel-title">Manage Vacancies</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Create, update, and monitor job postings in one place.
+            Create, update, and monitor vacancy postings in one place.
           </p>
         </div>
 
@@ -2166,12 +2226,12 @@ function JobPostingSectionLegacy({
           className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#0056b3] px-4 text-sm font-semibold text-white hover:bg-[#003a78] disabled:cursor-not-allowed disabled:opacity-70"
         >
           <Plus className="h-4 w-4" />
-          Create Job Opening
+          Create Vacancy
         </button>
       </div>
 
       {isLoading ? (
-        <LoadingState label="Loading job openings..." />
+        <LoadingState label="Loading vacancies..." />
       ) : (
         <div className="divide-y divide-slate-100">
           {jobs.map((job) => (
@@ -2207,14 +2267,14 @@ function JobPostingSectionLegacy({
                         if (!result?.skipped) {
                           showToast({
                             type: "success",
-                            message: "Job status updated.",
+                            message: "Vacancy status updated.",
                           });
                         }
                       })
                       .catch((err) =>
                         showToast({
                           type: "error",
-                          message: err.message || "Failed to update job status.",
+                          message: err.message || "Failed to update vacancy status.",
                         })
                       )
                   }
@@ -2237,7 +2297,7 @@ function JobPostingSectionLegacy({
           ))}
 
           {!isLoading && jobs.length === 0 && (
-            <EmptyState label="No job openings yet." />
+            <EmptyState label="No vacancies yet." />
           )}
         </div>
       )}
@@ -2404,7 +2464,9 @@ function PositionManagerSection({ positions, setPositions }) {
         />
       </JobFormField>
 
-      <RequirementPreview requirements={getFixedApplicationRequirements()} />
+      <RequirementPreview
+        requirements={getFixedApplicationRequirements(draft.category, draft.title)}
+      />
     </div>
   );
 
@@ -2415,7 +2477,7 @@ function PositionManagerSection({ positions, setPositions }) {
           <div>
             <h2 className="oas-panel-title">Position Library</h2>
             <p className="mt-1 text-sm text-slate-500">
-              These titles can be selected when creating DepEd-style job postings.
+              These titles can be selected when creating DepEd-style vacancy postings.
             </p>
           </div>
 
@@ -2443,7 +2505,7 @@ function PositionManagerSection({ positions, setPositions }) {
                     {position.title}
                   </p>
                   <p className="text-sm text-slate-500">
-                    {position.category}
+                    {position.category} / {position.requirements?.length || 0} requirements
                   </p>
                 </div>
 
@@ -2563,7 +2625,7 @@ function PositionManagerSection({ positions, setPositions }) {
               <span className="font-semibold text-slate-900">
                 &quot;{positionToDelete.title}&quot;
               </span>
-              ? Existing job openings will keep their saved details.
+              ? Existing vacancies will keep their saved details.
             </p>
 
             <div className="mt-6 flex justify-end gap-3">
@@ -2648,7 +2710,7 @@ function ApplicantListSection({
       </div>
 
       <div className="border-b border-slate-200 bg-slate-50 px-3 py-3 sm:px-5 sm:py-4">
-        <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-[minmax(0,1.2fr)_170px_170px_155px_150px_150px_150px_auto]">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-[minmax(0,1.2fr)_170px_170px_155px_220px_auto]">
           <div className="relative col-span-2 xl:col-span-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
 
@@ -2703,41 +2765,21 @@ function ApplicantListSection({
             ))}
           </select>
 
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(event) => {
-              setSelectedDate(event.target.value);
-              if (event.target.value) {
-                setDateFrom("");
-                setDateTo("");
-              }
-            }}
-            aria-label="Filter by specific application date"
-            className="h-10 min-w-0 rounded-lg border border-slate-300 bg-white px-2 text-[12px] outline-none focus:ring-2 focus:ring-blue-500 sm:h-11 sm:rounded-xl sm:px-3 sm:text-sm"
-          />
-
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(event) => {
-              setDateFrom(event.target.value);
-              if (event.target.value) setSelectedDate("");
-            }}
-            aria-label="Filter from application date"
-            className="h-10 min-w-0 rounded-lg border border-slate-300 bg-white px-2 text-[12px] outline-none focus:ring-2 focus:ring-blue-500 sm:h-11 sm:rounded-xl sm:px-3 sm:text-sm"
-          />
-
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(event) => {
-              setDateTo(event.target.value);
-              if (event.target.value) setSelectedDate("");
-            }}
-            aria-label="Filter to application date"
-            className="h-10 min-w-0 rounded-lg border border-slate-300 bg-white px-2 text-[12px] outline-none focus:ring-2 focus:ring-blue-500 sm:h-11 sm:rounded-xl sm:px-3 sm:text-sm"
-          />
+          <div className="col-span-2 min-w-0 sm:col-span-1">
+            <DateFilterControl
+              label="Date Filter"
+              value={{
+                date: selectedDate,
+                dateFrom,
+                dateTo,
+              }}
+              onChange={(nextFilter) => {
+                setSelectedDate(nextFilter.date || "");
+                setDateFrom(nextFilter.dateFrom || "");
+                setDateTo(nextFilter.dateTo || "");
+              }}
+            />
+          </div>
 
           {hasFilters && (
             <button
@@ -3017,17 +3059,17 @@ function JobListingSection({ jobs, isLoading, formatDate }) {
   return (
     <section className="oas-panel">
       <div className="oas-panel-header">
-        <h2 className="oas-panel-title">Job Listing</h2>
+        <h2 className="oas-panel-title">Vacancies</h2>
 
         <p className="mt-1 text-sm text-slate-500">
-          View all posted job openings and open their full details.
+          View all posted vacancies and open their full details.
         </p>
       </div>
 
       {isLoading ? (
-        <LoadingState label="Loading job listings..." />
+        <LoadingState label="Loading vacancies..." />
       ) : jobs.length === 0 ? (
-        <EmptyState label="No job listings available." />
+        <EmptyState label="No vacancies available." />
       ) : (
         <div className="grid gap-3 p-4 sm:gap-4 sm:p-5 md:grid-cols-2 xl:grid-cols-3">
           {visibleJobs.map((job) => (
@@ -3083,7 +3125,7 @@ function JobListingSection({ jobs, isLoading, formatDate }) {
             setPage(1);
           }}
           pageSizeOptions={cardPageSizeOptions}
-          itemLabel="job openings"
+          itemLabel="vacancies"
         />
       )}
 
@@ -3091,15 +3133,14 @@ function JobListingSection({ jobs, isLoading, formatDate }) {
         <JobListingDetailsModal
           job={viewJob}
           onClose={() => setViewJob(null)}
-          formatDate={formatDate}
         />
       )}
     </section>
   );
 }
 
-function JobListingDetailsModal({ job, onClose, formatDate }) {
-  const requirements = getFixedApplicationRequirements();
+function JobListingDetailsModal({ job, onClose }) {
+  const requirements = getJobUploadRequirements(job);
 
   return (
     <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/50 p-3 sm:items-center sm:p-6">
@@ -3124,13 +3165,13 @@ function JobListingDetailsModal({ job, onClose, formatDate }) {
         </div>
 
         <div className="min-h-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
-          <div className="grid gap-3 sm:grid-cols-3">
-            <SummaryItem label="Vacancies" value={job.vacancy} />
-            <SummaryItem
-              label="Application Deadline"
-              value={`${formatDate(job.deadline)} ${job.deadlineTime || ""}`}
-            />
-            <SummaryItem label="Status" value={job.status} />
+          <VacancySummaryTable job={job} />
+
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+            <span>Status</span>
+            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold capitalize tracking-normal text-slate-700">
+              {String(job.status || "open").replaceAll("_", " ")}
+            </span>
           </div>
 
           <section className="mt-4 rounded-lg border border-slate-200 bg-white p-3 sm:mt-5 sm:rounded-xl sm:p-4">
@@ -3142,7 +3183,7 @@ function JobListingDetailsModal({ job, onClose, formatDate }) {
 
           <section className="mt-4 rounded-lg border border-slate-200 bg-white p-3 sm:mt-5 sm:rounded-xl sm:p-4">
             <h4 className="text-sm font-bold text-slate-900">
-              Upload Requirements
+              List of Requirements
             </h4>
 
             {requirements.length > 0 ? (
@@ -3172,7 +3213,7 @@ function JobListingDetailsModal({ job, onClose, formatDate }) {
               </ul>
             ) : (
               <p className="mt-3 text-sm text-slate-500">
-                No upload requirements configured.
+                No requirements configured.
               </p>
             )}
           </section>
@@ -3478,7 +3519,7 @@ function ApplicationFormModal({
               />
             </ApplicationSection>
 
-            <ApplicationSection title="Job Position and Attachments">
+            <ApplicationSection title="Vacancy Position and Attachments">
               <InfoGrid
                 items={[
                   [

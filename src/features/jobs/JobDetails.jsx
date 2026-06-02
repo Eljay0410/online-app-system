@@ -1,10 +1,7 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
-  CalendarDays,
   Loader2,
-  MapPin,
-  UserRoundPlus,
   X,
 } from "lucide-react";
 import { apiRequest } from "../../lib/api";
@@ -18,14 +15,13 @@ import {
 } from "../../lib/sidebar";
 import { useToast } from "../../components/ui/toastContext";
 import {
-  DeadlineDetails,
   getJobSubmissionRule,
   getJobUploadRequirements,
-  JobInfoCard,
   QualificationStandards,
   RequirementSummary,
-  summarizeVacancyItems,
   VacancyBreakdown,
+  VacancyDescription,
+  VacancySummaryTable,
 } from "./jobPostingUi";
 const uploadMaxFileSize = 15 * 1024 * 1024;
 const maxRequirementFilesPerField = 5;
@@ -53,6 +49,7 @@ function getJobRequirements(job = null) {
 
 export default function JobDetails() {
   const { jobId } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -83,7 +80,32 @@ export default function JobDetails() {
     if (job?.positionCategory) params.set("category", job.positionCategory);
 
     const query = params.toString();
-    return `/apply${query ? `?${query}` : ""}`;
+    return `/applicant-information${query ? `?${query}` : ""}`;
+  };
+
+  const handleBack = () => {
+    const returnTo = location.state?.returnTo;
+
+    if (returnTo) {
+      navigate(returnTo, {
+        state:
+          location.state?.returnState ||
+          (location.state?.restoreApplicationId
+            ? {
+                restoreApplicationId: location.state.restoreApplicationId,
+                restoreApplication: location.state.restoreApplication || null,
+              }
+            : null),
+      });
+      return;
+    }
+
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+
+    navigate("/");
   };
 
   useEffect(() => {
@@ -99,7 +121,7 @@ export default function JobDetails() {
         if (isMounted) {
           showToast({
             type: "error",
-            message: error.message || "Unable to load this job opening.",
+            message: error.message || "Unable to load this vacancy.",
           });
         }
       } finally {
@@ -314,17 +336,24 @@ export default function JobDetails() {
           isApplicant ? "px-4 pb-10 pt-6 sm:px-6 lg:px-8" : undefined
         }
       >
-        <div className="mx-auto w-full max-w-4xl space-y-6">
-        <BackButton to="/" label="Back to job listings" />
+          <div className="mx-auto w-full max-w-4xl space-y-6">
+        <BackButton
+          onClick={handleBack}
+          label={
+            location.state?.fromLabel
+              ? `Back to ${location.state.fromLabel}`
+              : "Go back"
+          }
+        />
 
         {isLoading ? (
           <div className="oas-panel flex items-center justify-center gap-2 p-10 text-slate-500">
             <Loader2 className="h-5 w-5 animate-spin" />
-            Loading job details...
+            Loading vacancy details...
           </div>
         ) : !job ? (
           <div className="oas-panel p-10 text-center text-slate-500">
-            Job opening unavailable.
+            Vacancy unavailable.
           </div>
         ) : (
           <section className="oas-panel p-4 sm:p-6">
@@ -345,18 +374,12 @@ export default function JobDetails() {
               </button>
             </div>
 
-            <div className="mt-4 grid gap-3 sm:mt-5 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
-              <JobInfoCard label="School / Station" value={summarizeVacancyItems(job.vacancyItems || [])} icon={<MapPin className="h-4 w-4" />} />
-              <JobInfoCard label="Vacancies" value={job.vacancy} icon={<UserRoundPlus className="h-4 w-4" />} />
-              <JobInfoCard label="Salary Grade" value={job.salaryGrade || "N/A"} icon={<UserRoundPlus className="h-4 w-4" />} />
-              <JobInfoCard
-                label="Application Deadline"
-                value={<DeadlineDetails job={job} compact />}
-                icon={<CalendarDays className="h-4 w-4" />}
-              />
+            <div className="mt-4 sm:mt-5">
+              <VacancySummaryTable job={job} />
             </div>
 
             <VacancyBreakdown job={job} />
+            <VacancyDescription job={job} />
             <QualificationStandards job={job} />
             <RequirementSummary job={job} />
           </section>
@@ -535,7 +558,7 @@ function ApplyRequirementsModal({
                     <h3 className="text-sm font-bold text-slate-950">
                       {submissionRule.requiresPersonalSubmission
                         ? "Submission instruction"
-                        : "Job requirements"}
+                        : "List of Requirements"}
                     </h3>
                     <p className="mt-1 text-sm text-slate-500">
                       {submissionRule.requiresPersonalSubmission
@@ -562,7 +585,7 @@ function ApplyRequirementsModal({
                     </div>
                   ) : jobRequirements.length === 0 ? (
                     <p className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-                      No upload requirements configured for this job posting.
+                      No upload requirements configured for this vacancy.
                     </p>
                   ) : selectedRequirement ? (
                     <>

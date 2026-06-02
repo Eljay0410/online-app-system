@@ -1,5 +1,5 @@
 import React from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import Navbar from "./components/layout/Navbar";
 
@@ -18,10 +18,7 @@ import JobDetails from "./features/jobs/JobDetails";
 
 import ApplicantDashboard from "./features/applicant/ApplicantDashboard";
 import ApplicantInformation from "./features/applicant/ApplicantInformation";
-import ApplicantDocuments from "./features/applicant/ApplicantDocuments";
 import Profile from "./features/Profile/Profile";
-import ApplicationForm from "./features/registration/ApplicationForm";
-
 import AdminDashboard from "./features/admin/AdminDashboard";
 import SuperAdminDashboard from "./features/admin/SuperAdminDashboard";
 
@@ -66,6 +63,18 @@ function GuestRoute({ children }) {
   return children;
 }
 
+function ApplicantInformationRedirect() {
+  const location = useLocation();
+
+  return (
+    <Navigate
+      to={`/applicant-information${location.search || ""}`}
+      state={location.state}
+      replace
+    />
+  );
+}
+
 function App() {
   return (
     <div className="min-h-screen bg-white font-['Poppins']">
@@ -93,11 +102,7 @@ function App() {
         />
         <Route
           path="/apply"
-          element={
-            <ProtectedRoute allowedRoles={["applicant"]}>
-              <ApplicationForm />
-            </ProtectedRoute>
-          }
+          element={<ApplicantInformationRedirect />}
         />
 
         <Route path="/jobopenings" element={<RedirectToHome />} />
@@ -134,11 +139,7 @@ function App() {
 
         <Route
           path="/requirements"
-          element={
-            <ProtectedRoute allowedRoles={["applicant"]}>
-              <ApplicantDocuments />
-            </ProtectedRoute>
-          }
+          element={<ApplicantInformationRedirect />}
         />
 
         <Route

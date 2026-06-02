@@ -1,11 +1,174 @@
-Please update the job/vacancy, applicant application flow, document upload rules, and admin applicant management based on these requirements. Keep the existing project structure and only change the affected files. Send the full updated code for every modified file.
+Fix the Position Library and Vacancy Posting requirements flow.
 
-Rename the job listing page title to "Vacancies" only. Do not use "Available vacancies" anymore. The heading should simply be "Vacancies".
-Fix the deadline display format. Use 12-hour format instead of military time. Separate the date and time visually. Example: Date: June 15, 2026. Time: 5:00 PM. Do not display date and time as one combined text if possible.
-Update the Apply flow. When the user clicks Apply on a vacancy, it should go to the Applicant Form. The applicant should complete Step 1 to Step 4 first. Requirements/document upload should be moved to Step 5 of the Applicant Form. The selected vacancy/position should be carried into the Applicant Form.
-Step 5 requirements behavior. Since the user applied to a specific vacancy/position, Step 5 should already know the selected position. Do not let the user choose "Teaching / Non-Teaching" or another position in Step 5. Step 5 should automatically display the requirements for the exact position selected from the vacancy. Example: if the user clicked Apply on "Teacher I", then Step 5 should use Teacher I behavior only. For Teacher I, no online upload should be required. Show a simple message that requirements must be submitted personally. For other positions, show the upload document section normally.
-Document upload rules. Do not display "Required" or "Optional" badges/labels on document upload requirements. Treat all document uploads as optional from the system side. The application should still be submitted and sent to admin even if the applicant does not upload some or all documents. Admin will review the application manually. If documents are lacking, the applicant will simply not be entertained or processed. Remove any frontend validation that blocks submission because of missing document uploads. Remove any backend validation that rejects an application because of missing document uploads. Keep file upload validation only for file type, file size, and upload limits.
-Admin side applicant management. Add or fix the Applicant Management page. Admin should be able to search applicants. Display applicants in a clean table format. Admin should be able to view applicant information and uploaded files from there, similar to database/records access. All applications should appear in the applicant list, even if uploaded documents are incomplete. Add filters for application date. Include filter by specific date. Include filter by date range if possible. Keep search and date filters working together. Show useful table columns such as applicant name, applied position, date applied, status, and action/view button.
-Database indexing and optimization. Add database indexing or optimization for applicant/application queries. Index fields commonly used for filtering/searching, such as application date/createdAt, applicant name fields if searchable, applied position/jobOpeningId, and status. If using Prisma, update the schema with proper @@index or @index fields. Make sure the admin applicant list query supports pagination. Avoid loading all applicants at once. The admin applicant list API should support search query, date filter/date range, pagination limit and offset/page, and optional status filter if already supported.
-Re-UI the vacancy details modal. Make the modal simpler and less overwhelming. Limit the top summary area to only 3 main cards. Avoid too many repeated details. Make reminders and document/upload instructions shorter and cleaner. The modal should be easy to scan and not text-heavy.
-General UI/UX cleanup. Remove redundant reminders. Make document upload instructions simple. Keep the layout clean, responsive, and consistent with the current UI style. Do not break the existing authentication, applicant profile, applicant form, admin management, or job opening logic.
+Main goal:
+When creating/posting a Vacancy, the system should get the selected position from the Position Library. Whatever requirements are saved/set in that Position Library item should automatically become the “List of Requirements” shown for that Vacancy.
+
+Important wording change:
+Rename all UI text/labels that use:
+- Job
+- Jobs
+- job
+- jobs
+
+Rewrite them as:
+- Vacancy
+- Vacancies
+- vacancy
+- vacancies
+
+Use the correct singular/plural form depending on the sentence.
+
+Also rename:
+“Upload Requirements”
+to:
+“List of Requirements”
+
+Position Library requirements:
+In Position Library, there are Add Position and Edit Position features.
+
+When adding or editing a position, add or use a position category/type field:
+- Teaching
+- Non-Teaching
+
+Based on the selected category, automatically set the default requirements list.
+
+Teaching requirements:
+b. Letter of Intent – Letter addressed to the SDS stating your purpose and subject/learning area.
+c. PDS with Work Experience Sheet – CS Form 212 Revised 2025 and Work Experience Sheet.
+d. Proof of Residency – Voter’s ID, barangay certificate, or utility bill.
+e. PRC License/ID – Valid and updated PRC ID.
+f. Board Rating – Certificate of Board Rating.
+g. Academic Records – TOR and Diploma, including graduate/post-graduate records if available.
+h. Service Record/COE – Service Record or Certificate of Employment.
+i. Latest Appointment – Appointment paper for promotion applicants.
+j. Training Certificates – Certificates of relevant trainings, seminars, or CPD programs.
+k. TESDA Certificates – NC II or Trainers Methodology Certificate, if applicable.
+l. Performance Ratings – IPCRF/OPCRF rating with Very Satisfactory or higher.
+m. Checklist and Sworn Statement – Checklist of Requirements, Omnibus Sworn Statement, CAV, and Data Privacy Consent Form.
+n. Other Documents – Portfolio, MOVs, teaching outputs, or other HRMPSB-required documents.
+o. Outstanding Accomplishments – Documents showing awards, recognition, innovation, research, or other accomplishments based on DO 7 s. 2023.
+
+Non-Teaching requirements:
+a. Letter of Intent – Letter addressed to the Schools Division Superintendent.
+b. PDS with Work Experience Sheet – CS Form No. 212 Revised 2025 and Work Experience Sheet, if applicable.
+c. PRC License/ID – Valid and updated PRC ID, if applicable.
+d. Eligibility/Rating – Certificate of Eligibility or Rating, if applicable.
+e. Academic Records – TOR, Diploma, and graduate/post-graduate records, if available.
+f. Training Certificates – Certificates of training, if applicable.
+g. Employment Documents – Certificate of Employment, Contract of Service, or Service Record.
+h. Latest Appointment – Latest appointment document, if applicable.
+i. Performance Rating – Performance rating for the last 3 years in current/latest position, if applicable.
+j. Checklist and Sworn Statement – Checklist of Requirements, Omnibus Sworn Statement, CAV, and Data Privacy Consent Form, notarized.
+k. Outstanding Accomplishments – Documents showing awards, recognition, innovation, research, or other accomplishments based on DO 7 s. 2023.
+
+Required Vacancy Posting behavior:
+1. In the Vacancy Posting form/modal/page, when the user selects a position from the Position Library, automatically load that position’s saved requirements.
+2. Display those loaded requirements under “List of Requirements”.
+3. The Vacancy should save the requirements copied from the selected Position Library record at the time of posting.
+4. When viewing Vacancy details, the displayed “List of Requirements” should be the requirements from the selected position.
+5. If the selected position is Teaching, show Teaching requirements.
+6. If the selected position is Non-Teaching, show Non-Teaching requirements.
+7. Do not make the Vacancy Posting form use a separate/manual requirements source if the Position Library already provides the requirements.
+8. If the selected position changes while creating/editing a Vacancy, update the displayed List of Requirements to match the newly selected position.
+
+Implementation requirements:
+1. Find all affected frontend files for:
+   - Position Library
+   - Add Position
+   - Edit Position
+   - Vacancy Posting
+   - Vacancy list/details
+2. Find all affected backend/API/database files if requirements/category need to be saved or returned.
+3. Add or update the Position Library model/schema/API so each position can store:
+   - category/type: Teaching or Non-Teaching
+   - requirements/listOfRequirements
+4. Add or update vacancy creation/update logic so it receives or derives the requirements from the selected Position Library item.
+5. Make sure the frontend uses the selected position’s requirements when posting a Vacancy.
+6. Replace all visible “Job/jobs” wording with “Vacancy/Vacancies”.
+7. Replace all visible “Upload Requirements” wording with “List of Requirements”.
+8. Keep the existing UI design and layout as much as possible.
+9. Do not change unrelated logic.
+10. Do not remove existing add/edit/delete/search/table/modal behavior.
+11. Provide the complete updated code for every affected file.
+12. Mention the exact path of each updated file.
+
+Additional fix for Applicant Information stepper/forms:
+
+In the Applicant Information multi-step form, allow users to click Next and Back even if the current step has incomplete required fields.
+
+However, before allowing the user to move to the next or previous step, show a small confirmation modal.
+
+Modal behavior:
+1. When the user clicks Next and there are incomplete required fields, show a mini confirmation modal.
+2. The modal should ask if they are sure they want to continue even though some fields are incomplete.
+3. Display the list of missing/incomplete fields inside the modal.
+4. Provide two actions:
+   - Continue / Proceed: moves to the next step
+   - Stay / Cancel: closes the modal and keeps the user on the current step
+5. When the user clicks Back and there are incomplete required fields, show the same type of mini confirmation modal.
+6. Display the list of missing/incomplete fields before going back.
+7. Provide two actions:
+   - Go Back / Continue: moves to the previous step
+   - Stay / Cancel: closes the modal and keeps the user on the current step
+8. If there are no missing required fields, Next and Back should work normally without showing the modal.
+
+Stepper/back button UI change:
+1. Remove the blue gradient back button from all stepper forms.
+2. Add a new Back button near the Next button so they are beside each other.
+3. The Back and Next buttons should be in the same footer/action area for better UX.
+4. The Back button should only appear when there is a previous step.
+5. Keep the button design clean and consistent with the current UI.
+6. Apply this to all stepper forms/pages where the gradient Back button currently appears.
+7. Do not break existing validation, submission, or step navigation logic.
+8. Do not change unrelated form fields or layouts.
+9. Provide the complete updated code for every affected file.
+10. Mention the exact file path of each updated file.
+
+Additional mobile responsiveness fix:
+
+Add proper mobile view/responsive design for the Applicant Form and all user-related pages/modals.
+
+Scope:
+1. Applicant Form
+2. Applicant Information stepper forms
+3. All Users pages
+4. All Users add/edit/view/details modals
+5. Any modal connected to user management or applicant information
+
+Requirements:
+1. Make the layout responsive for mobile screens.
+2. Do not simply shrink/resize the whole desktop layout.
+3. Redesign the content flow so it looks clean and usable on mobile.
+4. On mobile, form fields should stack properly in one column when needed.
+5. Modals should fit within the screen height and width.
+6. Modal headers and footers should stay accessible.
+7. Modal body content should scroll if it is long.
+8. Buttons should be easy to tap on mobile.
+9. Tables should not break the layout on small screens.
+10. For tables, use responsive handling such as horizontal scroll, stacked cards, or mobile-friendly rows depending on what fits the current design best.
+11. Keep desktop layout/design unchanged as much as possible.
+12. Apply responsive Tailwind classes properly instead of hardcoded fixed widths that break on mobile.
+13. Make sure text, spacing, buttons, inputs, dropdowns, and modal content are readable and usable on mobile.
+14. Do not remove existing fields, validations, actions, or modal behavior.
+15. Do not change unrelated logic.
+16. Provide the complete updated code for every affected file.
+17. Mention the exact file path of each updated file.
+
+Important:
+- The goal is not to make everything smaller.
+- The goal is to make the content properly designed for mobile.
+- Applicant Form and all user-related modals should feel natural and easy to use on phones.
+- Preserve existing desktop appearance as much as possible.
+
+Important:
+- Users should be able to move between steps even with incomplete fields.
+- Missing required fields should still be clearly shown in the confirmation modal.
+- Back and Next should be placed beside each other.
+- Remove the old gradient Back button from every stepper.
+
+Important:
+- Position Library is the source of truth for requirements.
+- Vacancy Posting must pull requirements from the selected Position Library item.
+- Vacancies should display the copied requirements as “List of Requirements”.
+- Teaching and Non-Teaching must have separate default requirement lists.
+- All “Job” wording in the UI should become “Vacancy” wording.

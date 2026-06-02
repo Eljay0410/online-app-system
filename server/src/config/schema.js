@@ -52,6 +52,7 @@ export async function ensureDatabaseSchema() {
       id SERIAL PRIMARY KEY,
       category VARCHAR(40) NOT NULL,
       title VARCHAR(255) NOT NULL,
+      requirements JSONB NOT NULL DEFAULT '[]'::jsonb,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
       UNIQUE (category, title)
@@ -68,6 +69,7 @@ export async function ensureDatabaseSchema() {
       ADD COLUMN IF NOT EXISTS training TEXT,
       ADD COLUMN IF NOT EXISTS experience TEXT,
       ADD COLUMN IF NOT EXISTS eligibility TEXT,
+      ADD COLUMN IF NOT EXISTS requirements JSONB NOT NULL DEFAULT '[]'::jsonb,
       ADD COLUMN IF NOT EXISTS deadline_time TIME NOT NULL DEFAULT '23:59',
       ADD COLUMN IF NOT EXISTS position_id INTEGER REFERENCES job_positions(id) ON DELETE SET NULL,
       ADD COLUMN IF NOT EXISTS position_category VARCHAR(40),
@@ -371,7 +373,42 @@ export async function ensureDatabaseSchema() {
   `);
 
   await pool.query(`
+    CREATE INDEX IF NOT EXISTS users_role_uan_idx
+      ON users(role, uan);
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS users_uan_idx
+      ON users(uan);
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS users_role_lower_email_created_idx
+      ON users(role, LOWER(email), created_at DESC);
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS users_role_name_search_idx
+      ON users(role, LOWER(first_name), LOWER(last_name));
+  `);
+
+  await pool.query(`
     CREATE INDEX IF NOT EXISTS users_lower_email_idx
       ON users(LOWER(email));
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS applicant_profiles_user_updated_idx
+      ON applicant_profiles(user_id, updated_at DESC);
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS job_applications_user_status_created_idx
+      ON job_applications(user_id, status, created_at DESC);
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS uploaded_files_owner_application_status_idx
+      ON uploaded_files(owner_user_id, job_application_id, status, created_at DESC);
   `);
 }

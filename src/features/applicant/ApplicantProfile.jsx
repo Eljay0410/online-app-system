@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import BackButton from "../../components/ui/BackButton";
+import { useLocation, useNavigate } from "react-router-dom";
 import { apiRequest } from "../../lib/api";
 import FilePreviewModal from "../../components/ui/FilePreviewModal";
 import { useToast } from "../../components/ui/toastContext";
@@ -94,7 +93,7 @@ const steps = [
   { id: 2, title: "EDUCATIONAL BACKGROUND", key: "educationalBackground" },
   { id: 3, title: "ELIGIBILITY", key: "eligibility" },
   { id: 4, title: "LEARNING DEVELOPMENT", key: "learningDevelopment" },
-  { id: 5, title: "ATTACHMENT", key: "jobPosition" },
+  { id: 5, title: "REQUIREMENTS", key: "jobPosition" },
 ];
 
 const normalizeNationalityChoice = (value) =>
@@ -131,6 +130,26 @@ function getPositionApplicationRequirements(positionCategory = "", positionType 
   );
 }
 
+function getSavedOrPositionRequirements(
+  savedRequirements,
+  positionCategory = "",
+  positionType = ""
+) {
+  const saved = normalizeRequirementList(savedRequirements);
+
+  return saved.length
+    ? saved
+    : getPositionApplicationRequirements(positionCategory, positionType);
+}
+
+function inferPositionCategory(positionType = "") {
+  const normalizedType = trimValue(positionType).toLowerCase();
+
+  if (!normalizedType) return "";
+  if (normalizedType.includes("teacher")) return "Teaching";
+  return "Non-Teaching";
+}
+
 function normalizeFileList(value) {
   if (Array.isArray(value)) return value.filter(Boolean);
   return value ? [value] : [];
@@ -157,6 +176,75 @@ function buildRequirementFiles(requirements = [], existingFiles = {}) {
       normalizeFileList(existingFiles?.[requirement.field]),
     ])
   );
+}
+
+function getRequirementFileIds(files = {}) {
+  return Object.fromEntries(
+    Object.entries(files || {})
+      .map(([field, value]) => [
+        field,
+        normalizeFileList(value)
+          .map((file) => file?.id)
+          .filter(Boolean),
+      ])
+      .filter(([, ids]) => ids.length > 0)
+  );
+}
+
+function getApplyJobContext(location) {
+  const selectedJob = location?.state?.job || null;
+  const params = new URLSearchParams(location?.search || "");
+  const positionType = selectedJob?.title || params.get("position") || "";
+  const positionCategory =
+    selectedJob?.positionCategory ||
+    params.get("category") ||
+    inferPositionCategory(positionType);
+  const jobOpeningId = selectedJob?.id || params.get("jobId") || "";
+
+  return {
+    selectedJob,
+    jobOpeningId: jobOpeningId ? String(jobOpeningId) : "",
+    positionCategory,
+    positionType,
+  };
+}
+
+function hasApplyJobContext(context = {}) {
+  return Boolean(context.jobOpeningId || context.positionType);
+}
+
+function mergeApplyJobContext(profile = defaultProfile, context = {}) {
+  if (!hasApplyJobContext(context)) return profile;
+
+  const jobPosition = profile.jobPosition || {};
+  const positionCategory =
+    context.positionCategory || jobPosition.positionCategory || "";
+  const positionType = context.positionType || jobPosition.positionType || "";
+  const requirements = getSavedOrPositionRequirements(
+    context.selectedJob?.requirements || jobPosition.requirements,
+    positionCategory,
+    positionType
+  );
+  const submissionRule = getApplicationSubmissionRule(positionType);
+
+  return {
+    ...profile,
+    jobPosition: {
+      ...jobPosition,
+      selectedJob: context.selectedJob || jobPosition.selectedJob || null,
+      jobOpeningId: context.jobOpeningId || jobPosition.jobOpeningId || "",
+      positionCategory,
+      positionType,
+      requirements,
+      files: submissionRule.requiresPersonalSubmission
+        ? {}
+        : buildRequirementFiles(requirements, jobPosition.files || {}),
+      personalSubmissionRequired: submissionRule.requiresPersonalSubmission,
+      requirementSubmissionMode: submissionRule.requiresPersonalSubmission
+        ? "personal"
+        : "online",
+    },
+  };
 }
 
 function getRequirementFileName(file) {
@@ -254,6 +342,56 @@ function validatePersonalInfoData(personal = {}) {
   return newErrors;
 }
 
+function getPersonalMissingFields(personal = {}) {
+  return Object.values(validatePersonalInfoData(personal));
+}
+
+function getEducationMissingFields(education = {}) {
+  const firstBachelor = normalizeFileList(education.bachelors)[0] || {};
+  const missing = [];
+
+  if (!trimValue(firstBachelor.school)) {
+    missing.push("Bachelor's Degree: School");
+  }
+
+  if (!trimValue(firstBachelor.course)) {
+    missing.push("Bachelor's Degree: Course");
+  }
+
+  if (!trimValue(firstBachelor.year)) {
+    missing.push("Bachelor's Degree: Year");
+  }
+
+  return missing;
+}
+
+function getEligibilityMissingFields(eligibility = {}) {
+  const firstEligibility = normalizeFileList(eligibility.eligibilities)[0] || {};
+  const missing = [];
+
+  if (!trimValue(firstEligibility.type)) {
+    missing.push("Eligibility: Type");
+  }
+
+  if (!trimValue(firstEligibility.rating)) {
+    missing.push("Eligibility: Rating");
+  }
+
+  if (!trimValue(firstEligibility.examDate)) {
+    missing.push("Eligibility: Exam date");
+  }
+
+  return missing;
+}
+
+function getMissingFieldsForSection(section, data = {}) {
+  if (section === "personalInfo") return getPersonalMissingFields(data);
+  if (section === "educationalBackground") return getEducationMissingFields(data);
+  if (section === "eligibility") return getEligibilityMissingFields(data);
+
+  return [];
+}
+
 function normalizeProfileForSave(profile = {}) {
   const merged = mergeProfile(defaultProfile, profile || {});
   const applicationDetails = {
@@ -263,7 +401,8 @@ function normalizeProfileForSave(profile = {}) {
   const submissionRule = getApplicationSubmissionRule(
     merged.jobPosition?.positionType
   );
-  const jobRequirements = getPositionApplicationRequirements(
+  const jobRequirements = getSavedOrPositionRequirements(
+    merged.jobPosition?.requirements,
     merged.jobPosition?.positionCategory,
     merged.jobPosition?.positionType
   );
@@ -359,16 +498,23 @@ export default function ApplicantProfile({
   const { updateUser, user } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
+  const applyJobContext = useMemo(
+    () => getApplyJobContext(location),
+    [location]
+  );
+  const isApplyFlow = mode === "information" && hasApplyJobContext(applyJobContext);
   const [profile, setProfile] = useState(defaultProfile);
   const [formData, setFormData] = useState(defaultProfile);
   const [currentStep, setCurrentStep] = useState(mode === "documents" ? 5 : 1);
   const [isEditing, setIsEditing] = useState(autoEdit);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSubmittingApplication, setIsSubmittingApplication] = useState(false);
   const [personalErrors, setPersonalErrors] = useState({});
   const flatInformationLayout = embedded && mode === "information";
   const visibleSteps =
     mode === "information"
-      ? steps.filter((step) => step.id < 5)
+      ? steps
       : mode === "documents"
       ? steps.filter((step) => step.id === 5)
       : steps;
@@ -394,7 +540,10 @@ export default function ApplicantProfile({
 
         if (savedFullProfile) {
           const parsed = JSON.parse(savedFullProfile);
-          const merged = mergeProfile(accountPrefill, parsed);
+          const merged = mergeApplyJobContext(
+            mergeProfile(accountPrefill, parsed),
+            applyJobContext
+          );
           if (isMounted) {
             setProfile(merged);
             setFormData(merged);
@@ -405,29 +554,32 @@ export default function ApplicantProfile({
         if (savedProfile) {
           const parsed = JSON.parse(savedProfile);
 
-          const merged = {
-            ...accountPrefill,
-            personalInfo: {
-              ...accountPrefill.personalInfo,
-              ...parsed,
-              contactNumber: parsed.contactNumber || parsed.phone || "",
-              emailAddress: parsed.emailAddress || parsed.email || "",
-              dob: parsed.dob || parsed.birthDate || "",
-              isSoloParent: parsed.isSoloParent || false,
-              soloParentIdNumber: parsed.soloParentIdNumber || "",
-              isPwd: parsed.isPwd || false,
-              pwdIdNumber: parsed.pwdIdNumber || "",
+          const merged = mergeApplyJobContext(
+            {
+              ...accountPrefill,
+              personalInfo: {
+                ...accountPrefill.personalInfo,
+                ...parsed,
+                contactNumber: parsed.contactNumber || parsed.phone || "",
+                emailAddress: parsed.emailAddress || parsed.email || "",
+                dob: parsed.dob || parsed.birthDate || "",
+                isSoloParent: parsed.isSoloParent || false,
+                soloParentIdNumber: parsed.soloParentIdNumber || "",
+                isPwd: parsed.isPwd || false,
+                pwdIdNumber: parsed.pwdIdNumber || "",
+              },
+              accountDetails: {
+                ...accountPrefill.accountDetails,
+                applicantNumber:
+                  parsed.applicantNumber ||
+                  accountPrefill.accountDetails.applicantNumber,
+                accountStatus:
+                  parsed.accountStatus ||
+                  accountPrefill.accountDetails.accountStatus,
+              },
             },
-            accountDetails: {
-              ...accountPrefill.accountDetails,
-              applicantNumber:
-                parsed.applicantNumber ||
-                accountPrefill.accountDetails.applicantNumber,
-              accountStatus:
-                parsed.accountStatus ||
-                accountPrefill.accountDetails.accountStatus,
-            },
-          };
+            applyJobContext
+          );
 
           if (isMounted) {
             setProfile(merged);
@@ -440,8 +592,9 @@ export default function ApplicantProfile({
       }
 
       if (isMounted) {
-        setProfile(accountPrefill);
-        setFormData(accountPrefill);
+        const merged = mergeApplyJobContext(accountPrefill, applyJobContext);
+        setProfile(merged);
+        setFormData(merged);
       }
     };
 
@@ -452,10 +605,13 @@ export default function ApplicantProfile({
 
         const profilePayload = result.profile || {};
         const serverData = profilePayload.data || {};
-        const merged = mergeProfile(accountPrefill, {
-          ...serverData,
-          uan: profilePayload.uan,
-        });
+        const merged = mergeApplyJobContext(
+          mergeProfile(accountPrefill, {
+            ...serverData,
+            uan: profilePayload.uan,
+          }),
+          applyJobContext
+        );
         setProfile(merged);
         setFormData(merged);
 
@@ -474,7 +630,7 @@ export default function ApplicantProfile({
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [applyJobContext, updateUser]);
 
 
   const fullName = useMemo(() => {
@@ -641,19 +797,70 @@ export default function ApplicantProfile({
     }
   };
 
-  const handleStepBack = () => {
-    const activeStep = visibleSteps.some((step) => step.id === currentStep)
-      ? currentStep
-      : visibleSteps[0]?.id || 1;
-    const currentIndex = visibleSteps.findIndex((step) => step.id === activeStep);
+  const submitApplicationFromProfile = async (profileOverride) => {
+    if (isSubmittingApplication) return false;
 
-    if (currentIndex > 0) {
-      setCurrentStep(visibleSteps[currentIndex - 1].id);
-      return;
+    const sourceProfile = mergeApplyJobContext(
+      profileOverride || formData,
+      applyJobContext
+    );
+    const jobOpeningId = sourceProfile.jobPosition?.jobOpeningId;
+
+    if (!jobOpeningId) {
+      showToast({
+        type: "error",
+        message: "Select a vacancy before submitting your application.",
+      });
+      return false;
     }
 
-    if (!embedded) {
-      navigate(-1);
+    const nextPersonalErrors = validatePersonalInfoData(sourceProfile.personalInfo);
+
+    if (Object.keys(nextPersonalErrors).length > 0) {
+      setPersonalErrors(nextPersonalErrors);
+      setCurrentStep(1);
+      showToast({
+        type: "error",
+        message: "Please fix the Personal Information fields before submitting.",
+      });
+      return false;
+    }
+
+    setIsSubmittingApplication(true);
+
+    try {
+      if (hasProfileChanges(sourceProfile, profile)) {
+        const saved = await handleSave(sourceProfile);
+
+        if (!saved) {
+          return false;
+        }
+      }
+
+      await apiRequest("/api/applications", {
+        method: "POST",
+        body: JSON.stringify({
+          jobOpeningId,
+          requirementFiles: sourceProfile.jobPosition?.personalSubmissionRequired
+            ? {}
+            : getRequirementFileIds(sourceProfile.jobPosition?.files || {}),
+        }),
+      });
+
+      showToast({
+        type: "success",
+        message: "Application submitted.",
+      });
+      navigate("/applications");
+      return true;
+    } catch (error) {
+      showToast({
+        type: "error",
+        message: error.message || "Failed to submit application.",
+      });
+      return false;
+    } finally {
+      setIsSubmittingApplication(false);
     }
   };
 
@@ -762,6 +969,7 @@ export default function ApplicantProfile({
                 steps={visibleSteps}
                 currentStep={activeStep}
                 setCurrentStep={setCurrentStep}
+                lockFutureSteps={isApplyFlow}
               />
             )}
 
@@ -772,14 +980,6 @@ export default function ApplicantProfile({
                   : "min-h-[540px] rounded-2xl bg-slate-50 p-6 ring-1 ring-slate-200 md:p-10"
               }
             >
-              {visibleSteps.findIndex((step) => step.id === activeStep) > 0 && (
-                <BackButton
-                  onClick={handleStepBack}
-                  className="mb-4"
-                  ariaLabel="Go back"
-                />
-              )}
-
               <h2 className="oas-page-title mb-8 uppercase text-[#003a78]">
                 {visibleSteps.find((s) => s.id === activeStep)?.title}
               </h2>
@@ -791,8 +991,11 @@ export default function ApplicantProfile({
                 updateFormData={updateFormData}
                 isEditing={isEditing}
                 onSave={handleSave}
+                onFinalSave={isApplyFlow ? submitApplicationFromProfile : null}
                 isSaving={isSaving}
+                isSubmittingApplication={isSubmittingApplication}
                 steps={visibleSteps}
+                finalSubmitLabel={isApplyFlow ? "Submit Application" : "Save Changes"}
                 flatSections={flatInformationLayout}
                 personalErrors={personalErrors}
                 setPersonalErrors={setPersonalErrors}
@@ -813,22 +1016,87 @@ function RenderStepContent({
   updateFormData,
   isEditing,
   onSave,
+  onFinalSave,
   isSaving,
+  isSubmittingApplication = false,
   steps,
+  finalSubmitLabel = "Save Changes",
   flatSections = false,
   personalErrors = {},
   setPersonalErrors,
 }) {
+  const [pendingNavigation, setPendingNavigation] = useState(null);
   const currentIndex = steps.findIndex((step) => step.id === currentStep);
+  const previousStep = steps[currentIndex - 1]?.id;
   const nextStep = steps[currentIndex + 1]?.id;
-  const footerLabel = nextStep ? "Next Step" : "Save Changes";
+  const footerLabel = nextStep ? "Next Step" : finalSubmitLabel;
   const saveWithSection = (section, data) =>
     onSave?.({
       ...formData,
       [section]: data,
     });
+  const finalSaveWithSection = (section, data) => {
+    const nextProfile = {
+      ...formData,
+      [section]: data,
+    };
 
-  switch (currentStep) {
+    return onFinalSave ? onFinalSave(nextProfile) : onSave?.(nextProfile);
+  };
+
+  const requestStepNavigation = ({
+    section,
+    data,
+    targetStep,
+    direction = "next",
+    action,
+  }) => {
+    updateFormData(section, data);
+
+    if (section === "personalInfo") {
+      setPersonalErrors?.(validatePersonalInfoData(data));
+    }
+
+    const missingFields = getMissingFieldsForSection(section, data);
+    const continueAction = action || (() => setCurrentStep(targetStep));
+
+    if (missingFields.length > 0) {
+      setPendingNavigation({
+        direction,
+        missingFields,
+        onConfirm: continueAction,
+      });
+      return;
+    }
+
+    continueAction();
+  };
+
+  const handleBack = (section, data) => {
+    if (!previousStep) return;
+
+    requestStepNavigation({
+      section,
+      data,
+      targetStep: previousStep,
+      direction: "back",
+    });
+  };
+
+  const handleNext = (section, data) => {
+    requestStepNavigation({
+      section,
+      data,
+      targetStep: nextStep,
+      direction: "next",
+      action: nextStep
+        ? () => setCurrentStep(nextStep)
+        : () => saveWithSection(section, data),
+    });
+  };
+
+  const content = (() => {
+    switch (currentStep) {
     case 1:
       return (
         <PersonalInfo
@@ -839,13 +1107,10 @@ function RenderStepContent({
           onValidationErrorsChange={setPersonalErrors}
           onChange={(data) => updateFormData("personalInfo", data)}
           onNext={(data) => {
-            updateFormData("personalInfo", data);
-            if (nextStep) {
-              setCurrentStep(nextStep);
-            } else {
-              saveWithSection("personalInfo", data);
-            }
+            handleNext("personalInfo", data);
           }}
+          onBack={(data) => handleBack("personalInfo", data)}
+          showBack={Boolean(previousStep)}
           footerLabel={footerLabel}
         />
       );
@@ -859,13 +1124,10 @@ function RenderStepContent({
           flatSections={flatSections}
           onChange={(data) => updateFormData("educationalBackground", data)}
           onNext={(data) => {
-            updateFormData("educationalBackground", data);
-            if (nextStep) {
-              setCurrentStep(nextStep);
-            } else {
-              saveWithSection("educationalBackground", data);
-            }
+            handleNext("educationalBackground", data);
           }}
+          onBack={(data) => handleBack("educationalBackground", data)}
+          showBack={Boolean(previousStep)}
           footerLabel={footerLabel}
         />
       );
@@ -879,13 +1141,10 @@ function RenderStepContent({
           flatSections={flatSections}
           onChange={(data) => updateFormData("eligibility", data)}
           onNext={(data) => {
-            updateFormData("eligibility", data);
-            if (nextStep) {
-              setCurrentStep(nextStep);
-            } else {
-              saveWithSection("eligibility", data);
-            }
+            handleNext("eligibility", data);
           }}
+          onBack={(data) => handleBack("eligibility", data)}
+          showBack={Boolean(previousStep)}
           footerLabel={footerLabel}
         />
       );
@@ -899,13 +1158,10 @@ function RenderStepContent({
           flatSections={flatSections}
           onChange={(data) => updateFormData("learningDevelopment", data)}
           onNext={(data) => {
-            updateFormData("learningDevelopment", data);
-            if (nextStep) {
-              setCurrentStep(nextStep);
-            } else {
-              saveWithSection("learningDevelopment", data);
-            }
+            handleNext("learningDevelopment", data);
           }}
+          onBack={(data) => handleBack("learningDevelopment", data)}
+          showBack={Boolean(previousStep)}
           footerLabel={footerLabel}
         />
       );
@@ -914,17 +1170,39 @@ function RenderStepContent({
       return (
         <Attachment
           data={formData.jobPosition}
-          disabled={!isEditing}
+          disabled={!isEditing || isSubmittingApplication}
           onChange={(data) => updateFormData("jobPosition", data)}
           onNext={(data) => updateFormData("jobPosition", data)}
-          onSave={(data) => saveWithSection("jobPosition", data)}
-          isSaving={isSaving}
+          onSave={(data) => finalSaveWithSection("jobPosition", data)}
+          onBack={(data) => handleBack("jobPosition", data)}
+          showBack={Boolean(previousStep)}
+          isSaving={isSaving || isSubmittingApplication}
+          submitLabel={footerLabel}
         />
       );
 
     default:
       return null;
-  }
+    }
+  })();
+
+  return (
+    <>
+      {content}
+      {pendingNavigation && (
+        <IncompleteFieldsModal
+          direction={pendingNavigation.direction}
+          missingFields={pendingNavigation.missingFields}
+          onCancel={() => setPendingNavigation(null)}
+          onConfirm={() => {
+            const confirmAction = pendingNavigation.onConfirm;
+            setPendingNavigation(null);
+            confirmAction?.();
+          }}
+        />
+      )}
+    </>
+  );
 }
 
 function ProfileHeader({
@@ -983,7 +1261,12 @@ function ProfileHeader({
   );
 }
 
-function VerticalStepper({ steps, currentStep, setCurrentStep }) {
+function VerticalStepper({
+  steps,
+  currentStep,
+  setCurrentStep,
+  lockFutureSteps = false,
+}) {
   const currentIndex = steps.findIndex((step) => step.id === currentStep);
   const activeIndex = currentIndex >= 0 ? currentIndex : 0;
   const activeStep = steps[activeIndex] || steps[0];
@@ -1005,12 +1288,16 @@ function VerticalStepper({ steps, currentStep, setCurrentStep }) {
           {steps.map((step) => {
             const isDone = currentStep > step.id;
             const isActive = currentStep === step.id;
+            const isLocked = lockFutureSteps && step.id > currentStep;
 
             return (
               <button
                 key={step.id}
                 type="button"
-                onClick={() => setCurrentStep(step.id)}
+                onClick={() => {
+                  if (!isLocked) setCurrentStep(step.id);
+                }}
+                disabled={isLocked}
                 aria-label={step.title}
                 title={step.title}
                 className={`h-2 rounded-full transition ${
@@ -1019,7 +1306,7 @@ function VerticalStepper({ steps, currentStep, setCurrentStep }) {
                     : isDone
                     ? "bg-green-500"
                     : "bg-slate-200"
-                }`}
+                } disabled:cursor-not-allowed disabled:opacity-60`}
               />
             );
           })}
@@ -1034,20 +1321,24 @@ function VerticalStepper({ steps, currentStep, setCurrentStep }) {
 
           <div className="space-y-4">
             {steps.map((step) => {
-              const isDone = currentStep > step.id;
-              const isActive = currentStep === step.id;
+            const isDone = currentStep > step.id;
+            const isActive = currentStep === step.id;
+            const isLocked = lockFutureSteps && step.id > currentStep;
 
-              return (
-                <button
-                  key={step.id}
-                  type="button"
-                  onClick={() => setCurrentStep(step.id)}
-                  className={`relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition ${
+            return (
+              <button
+                key={step.id}
+                type="button"
+                onClick={() => {
+                  if (!isLocked) setCurrentStep(step.id);
+                }}
+                disabled={isLocked}
+                className={`relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition ${
                     isActive
                       ? "bg-slate-50 shadow-sm ring-1 ring-slate-200"
                       : "hover:bg-slate-50"
-                  }`}
-                >
+                  } disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent`}
+              >
                   <span
                     className={`relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold transition ${
                       isDone
@@ -1089,7 +1380,9 @@ function VerticalStepper({ steps, currentStep, setCurrentStep }) {
       </div>
 
       <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-xs font-medium leading-5 text-slate-700 ring-1 ring-slate-200">
-        Click any step to preview or update that section.
+        {lockFutureSteps
+          ? "Complete each step to continue. You can return to earlier sections anytime."
+          : "Click any step to preview or update that section."}
       </div>
     </div>
     </>
@@ -1098,8 +1391,10 @@ function VerticalStepper({ steps, currentStep, setCurrentStep }) {
 
 function mergeProfile(baseProfile, parsedProfile) {
   const parsedJobPosition = parsedProfile.jobPosition || {};
-  const parsedRequirements = getPositionApplicationRequirements(
-    parsedJobPosition.positionCategory
+  const parsedRequirements = getSavedOrPositionRequirements(
+    parsedJobPosition.requirements,
+    parsedJobPosition.positionCategory,
+    parsedJobPosition.positionType
   );
 
   return {
@@ -1140,10 +1435,12 @@ function PersonalInfo({
   data = {},
   onChange,
   onNext,
+  onBack,
   disabled = false,
   isSaving = false,
   validationErrors = {},
   onValidationErrorsChange,
+  showBack = false,
   footerLabel = "Next Step",
 }) {
   const errors = validationErrors || {};
@@ -1175,7 +1472,8 @@ function PersonalInfo({
   });
 
   useEffect(() => {
-    setPersonal({
+    let isActive = true;
+    const nextPersonal = {
       firstName: data.firstName || "",
       noMiddleName: data.noMiddleName ?? false,
       middleName: data.middleName || "",
@@ -1200,7 +1498,15 @@ function PersonalInfo({
       soloParentIdNumber: data.soloParentIdNumber || "",
       isPwd: data.isPwd ?? false,
       pwdIdNumber: data.pwdIdNumber || "",
+    };
+
+    queueMicrotask(() => {
+      if (isActive) setPersonal(nextPersonal);
     });
+
+    return () => {
+      isActive = false;
+    };
   }, [data]);
 
   const suffixOptions = ["Jr.", "Sr.", "II", "III", "IV", "V", "VI"];
@@ -1341,25 +1647,24 @@ function PersonalInfo({
     return Object.keys(newErrors).length === 0;
   };
 
+  const getNextPersonalData = () => normalizePersonalInfo(personal);
+
   const handleNext = (e) => {
     e.preventDefault();
 
-    if (!disabled && !validateForm()) return;
+    if (!disabled) {
+      validateForm();
+    }
 
-    onNext?.({
-      ...personal,
-      middleName: personal.noMiddleName ? "" : personal.middleName,
-      nationalityInput: requiresNationalityDetail(personal.nationality)
-        ? personal.nationalityInput
-        : "",
-      religionInput: personal.religion === "Others" ? personal.religionInput : "",
-      ethnicGroup: personal.hasEthnicGroup ? personal.ethnicGroup : "",
-      disability: personal.hasDisability ? personal.disability : "",
-      soloParentIdNumber: personal.isSoloParent
-        ? personal.soloParentIdNumber
-        : "",
-      pwdIdNumber: personal.isPwd ? personal.pwdIdNumber : "",
-    });
+    onNext?.(getNextPersonalData());
+  };
+
+  const handleBack = () => {
+    if (!disabled) {
+      validateForm();
+    }
+
+    onBack?.(getNextPersonalData());
   };
 
   return (
@@ -1671,7 +1976,12 @@ function PersonalInfo({
         </div>
       </div>
 
-      <StepFooter onNextSubmit label={footerLabel} disabled={isSaving} />
+      <StepFooter
+        onBack={showBack ? handleBack : null}
+        onNextSubmit
+        label={footerLabel}
+        disabled={isSaving}
+      />
     </form>
   );
 }
@@ -1682,9 +1992,11 @@ function EducationalBackground({
   data,
   onChange,
   onNext,
+  onBack,
   disabled = false,
   isSaving = false,
   flatSections = false,
+  showBack = false,
   footerLabel = "Next Step",
 }) {
   const [education, setEducation] = useState({
@@ -1697,14 +2009,23 @@ function EducationalBackground({
   });
 
   useEffect(() => {
-    setEducation({
+    let isActive = true;
+    const nextEducation = {
       bachelors: data?.bachelors || [
         { school: "", course: "", year: "", award: "" },
       ],
       postGraduate: data?.postGraduate || [
         { school: "", course: "", year: "", award: "" },
       ],
+    };
+
+    queueMicrotask(() => {
+      if (isActive) setEducation(nextEducation);
     });
+
+    return () => {
+      isActive = false;
+    };
   }, [data]);
 
   const sync = (updated) => {
@@ -1771,7 +2092,12 @@ function EducationalBackground({
         onRemove={() => removeItem("postGraduate")}
       />
 
-      <StepFooter onNextSubmit label={footerLabel} disabled={isSaving} />
+      <StepFooter
+        onBack={showBack ? () => onBack?.(education) : null}
+        onNextSubmit
+        label={footerLabel}
+        disabled={isSaving}
+      />
     </form>
   );
 }
@@ -1873,9 +2199,11 @@ function Eligibility({
   data,
   onChange,
   onNext,
+  onBack,
   disabled = false,
   isSaving = false,
   flatSections = false,
+  showBack = false,
   footerLabel = "Next Step",
 }) {
   const [eligibility, setEligibility] = useState({
@@ -1901,7 +2229,8 @@ function Eligibility({
   });
 
   useEffect(() => {
-    setEligibility({
+    let isActive = true;
+    const nextEligibility = {
       eligibilities: data?.eligibilities || [
         {
           type: "",
@@ -1921,7 +2250,15 @@ function Eligibility({
           toYear: "",
         },
       ],
+    };
+
+    queueMicrotask(() => {
+      if (isActive) setEligibility(nextEligibility);
     });
+
+    return () => {
+      isActive = false;
+    };
   }, [data]);
 
   const sync = (updated) => {
@@ -2162,7 +2499,12 @@ function Eligibility({
         )}
       </div>
 
-      <StepFooter onNextSubmit label={footerLabel} disabled={isSaving} />
+      <StepFooter
+        onBack={showBack ? () => onBack?.(eligibility) : null}
+        onNextSubmit
+        label={footerLabel}
+        disabled={isSaving}
+      />
     </form>
   );
 }
@@ -2173,9 +2515,11 @@ function LearningDevelopment({
   data,
   onChange,
   onNext,
+  onBack,
   disabled = false,
   isSaving = false,
   flatSections = false,
+  showBack = false,
   footerLabel = "Next Step",
 }) {
   const [learning, setLearning] = useState({
@@ -2191,7 +2535,8 @@ function LearningDevelopment({
   });
 
   useEffect(() => {
-    setLearning({
+    let isActive = true;
+    const nextLearning = {
       trainings: data?.trainings || [
         {
           title: "",
@@ -2201,7 +2546,15 @@ function LearningDevelopment({
           conductedBy: "",
         },
       ],
+    };
+
+    queueMicrotask(() => {
+      if (isActive) setLearning(nextLearning);
     });
+
+    return () => {
+      isActive = false;
+    };
   }, [data]);
 
   const sync = (updated) => {
@@ -2343,26 +2696,48 @@ function LearningDevelopment({
         )}
       </div>
 
-      <StepFooter onNextSubmit label={footerLabel} disabled={isSaving} />
+      <StepFooter
+        onBack={showBack ? () => onBack?.(learning) : null}
+        onNextSubmit
+        label={footerLabel}
+        disabled={isSaving}
+      />
     </form>
   );
 }
 
 /* ================= ATTACHMENT ================= */
 
-function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false }) {
+function Attachment({
+  data,
+  onChange,
+  onNext,
+  onSave,
+  onBack,
+  isSaving,
+  disabled = false,
+  showBack = false,
+  submitLabel = "Save Profile",
+}) {
   const { showToast } = useToast();
   const [libraryFiles, setLibraryFiles] = useState([]);
   const [isLoadingLibrary, setIsLoadingLibrary] = useState(true);
   const positionCategory = data?.positionCategory || "";
   const positionType = data?.positionType || "";
   const submissionRule = getApplicationSubmissionRule(positionType);
-  const requiresPersonalSubmission =
-    positionCategory === "Teaching" && submissionRule.requiresPersonalSubmission;
+  const requiresPersonalSubmission = submissionRule.requiresPersonalSubmission;
+  const isVacancyLocked = Boolean(data?.jobOpeningId && positionType);
 
   const requirements = useMemo(
-    () => getPositionApplicationRequirements(positionCategory, positionType),
-    [positionCategory, positionType]
+    () =>
+      isVacancyLocked
+        ? getSavedOrPositionRequirements(
+            data?.requirements,
+            positionCategory,
+            positionType
+          )
+        : getPositionApplicationRequirements(positionCategory, positionType),
+    [data?.requirements, isVacancyLocked, positionCategory, positionType]
   );
   const positionOptions = useMemo(
     () => getHardcodedPositionOptions(positionCategory),
@@ -2412,6 +2787,9 @@ function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false
       ...(data || {}),
       positionCategory,
       positionType,
+      jobOpeningId: data?.jobOpeningId || "",
+      selectedJob: data?.selectedJob || null,
+      requirements,
       files: filesByField,
       ...updates,
     });
@@ -2601,6 +2979,7 @@ function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false
     syncAttachmentData({
       positionCategory: value,
       positionType: "",
+      requirements: nextRequirements,
       files: filesByField,
     });
   };
@@ -2608,7 +2987,6 @@ function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false
   const handlePositionChange = (value) => {
     const nextSubmissionRule = getApplicationSubmissionRule(value);
     const nextRequiresPersonalSubmission =
-      positionCategory === "Teaching" &&
       nextSubmissionRule.requiresPersonalSubmission;
     const nextRequirements = getPositionApplicationRequirements(
       positionCategory,
@@ -2620,6 +2998,7 @@ function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false
     syncAttachmentData({
       positionCategory,
       positionType: value,
+      requirements: nextRequirements,
       files: nextRequiresPersonalSubmission ? {} : filesByField,
       personalSubmissionRequired: nextRequiresPersonalSubmission,
       requirementSubmissionMode: nextRequiresPersonalSubmission
@@ -2628,18 +3007,23 @@ function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false
     });
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const nextData = {
+  const getNextAttachmentData = () => ({
       ...(data || {}),
+      jobOpeningId: data?.jobOpeningId || "",
+      selectedJob: data?.selectedJob || null,
       positionCategory,
       positionType,
+      requirements,
       files: requiresPersonalSubmission ? {} : filesByField,
       personalSubmissionRequired: requiresPersonalSubmission,
       requirementSubmissionMode: requiresPersonalSubmission
         ? "personal"
         : "online",
-    };
+    });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const nextData = getNextAttachmentData();
     onNext?.(nextData);
     onSave?.(nextData);
   };
@@ -2649,13 +3033,28 @@ function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-4">
         <h2 className="oas-panel-title">
-          Attachments / Requirements
+          List of Requirements
         </h2>
         <p className="text-sm text-slate-500">
-          Select a position to show its fixed upload requirements.
+          {isVacancyLocked
+            ? "Requirements are based on the vacancy you selected."
+            : "Select a position to show its fixed List of Requirements."}
         </p>
 
-        <div className="grid grid-cols-1 gap-4 rounded-xl border border-slate-200 bg-white p-4 md:grid-cols-2">
+        {isVacancyLocked ? (
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+              Selected Vacancy
+            </p>
+            <h3 className="mt-2 break-words text-lg font-bold text-slate-950 [overflow-wrap:anywhere]">
+              {positionType}
+            </h3>
+            <p className="mt-1 text-sm text-slate-600">
+              {positionCategory || "Position category unavailable"}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 rounded-xl border border-slate-200 bg-white p-4 md:grid-cols-2">
           <div>
             <label
               htmlFor="applicant-position-category"
@@ -2706,12 +3105,16 @@ function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false
               </select>
             </div>
           )}
-        </div>
+          </div>
+        )}
 
         {requiresPersonalSubmission && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
             <p className="font-bold">{submissionRule.notice?.title}</p>
-            <p className="mt-1">{submissionRule.notice?.message}</p>
+            <p className="mt-1">
+              Documentary requirements for this vacancy must be submitted
+              personally to HR/Admin. No online upload is required here.
+            </p>
           </div>
         )}
 
@@ -2742,7 +3145,6 @@ function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false
                   return (
                     <option key={requirement.field} value={requirement.field}>
                       {requirement.label}
-                      {requirement.required === false ? " (Optional)" : ""}
                       {count > 0 ? ` - ${count} file(s)` : ""}
                     </option>
                   );
@@ -2862,20 +3264,19 @@ function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false
 
       {!isLoadingLibrary && !showAttachments && !requiresPersonalSubmission && (
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-600">
-          Select a position above to show upload requirements.
+          {isVacancyLocked
+            ? "No online upload requirements are configured for this vacancy."
+            : "Select a position above to show the List of Requirements."}
         </div>
       )}
 
       {!disabled && (
-        <div className="flex items-center justify-end pt-6">
-          <button
-            type="submit"
-            disabled={isSaving}
-            className={primaryButtonClass}
-          >
-            {isSaving ? "Saving..." : "Save Profile"}
-          </button>
-        </div>
+        <StepFooter
+          onBack={showBack ? () => onBack?.(getNextAttachmentData()) : null}
+          onNextSubmit
+          label={isSaving ? "Saving..." : submitLabel}
+          disabled={isSaving}
+        />
       )}
     </form>
     {previewFile && (
@@ -3020,17 +3421,79 @@ function FileUpload({
 
 /* ================= SMALL COMPONENTS ================= */
 
+function IncompleteFieldsModal({
+  direction = "next",
+  missingFields = [],
+  onCancel,
+  onConfirm,
+}) {
+  const isBack = direction === "back";
+  const title = isBack ? "Go back with incomplete fields?" : "Continue with incomplete fields?";
+  const confirmLabel = isBack ? "Go Back" : "Continue";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-6">
+      <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl ring-1 ring-slate-200">
+        <div>
+          <h3 className="text-lg font-bold text-slate-950">{title}</h3>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            The form can move on, but these required fields are still missing.
+          </p>
+        </div>
+
+        <div className="mt-4 max-h-56 overflow-y-auto rounded-xl border border-amber-200 bg-amber-50 p-3">
+          <ul className="space-y-2 text-sm font-medium text-amber-950">
+            {missingFields.map((field) => (
+              <li key={field} className="break-words [overflow-wrap:anywhere]">
+                {field}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onCancel}
+            className={`${secondaryButtonClass} w-full sm:w-auto`}
+          >
+            Stay
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className={`${primaryButtonClass} w-full sm:w-auto`}
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StepFooter({
   onNextSubmit = false,
+  onBack = null,
   label = "Next Step",
   disabled = false,
 }) {
   return (
-    <div className="flex items-center justify-end pt-6">
+    <div className="flex flex-col-reverse gap-2 pt-6 sm:flex-row sm:items-center sm:justify-end">
+      {onBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          disabled={disabled}
+          className={`${secondaryButtonClass} w-full disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto`}
+        >
+          Back
+        </button>
+      )}
       <button
         type={onNextSubmit ? "submit" : "button"}
         disabled={disabled}
-        className={primaryButtonClass}
+        className={`${primaryButtonClass} w-full sm:w-auto`}
       >
         {disabled && label === "Save Changes" ? "Saving..." : label}
       </button>
