@@ -49,6 +49,7 @@ function formatDateTime(value) {
     year: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    hour12: true,
   });
 }
 
@@ -272,14 +273,6 @@ export default function ActivityLogSection() {
 
   return (
     <section className="oas-panel">
-      <div className="oas-panel-header">
-        <h2 className="oas-panel-title">Activity Logs</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Track admin changes to vacancy postings, positions, and application
-          statuses.
-        </p>
-      </div>
-
       {isLoading ? (
         <div className="flex items-center justify-center gap-2 p-8 text-sm text-slate-500">
           <Loader2 className="h-4 w-4 animate-spin" />

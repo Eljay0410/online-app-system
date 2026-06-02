@@ -504,7 +504,7 @@ function ApplyRequirementsModal({
             </h2>
             <p className="mt-1 text-sm text-slate-500">
               {submissionRule.requiresPersonalSubmission
-                ? "Submit your application online, then submit the documentary requirements personally."
+                ? "Submit your application online, then submit the required documents in person to the Division Office."
                 : "Select documents from your reusable library or upload new files."}
             </p>
           </div>
@@ -556,13 +556,11 @@ function ApplyRequirementsModal({
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                   <div>
                     <h3 className="text-sm font-bold text-slate-950">
-                      {submissionRule.requiresPersonalSubmission
-                        ? "Submission instruction"
-                        : "List of Requirements"}
+                      List of Requirements
                     </h3>
                     <p className="mt-1 text-sm text-slate-500">
                       {submissionRule.requiresPersonalSubmission
-                        ? "Your application will still be submitted to HR/Admin."
+                        ? "Your online application will be submitted without file uploads."
                         : "Attached documents are copied into this application when submitted."}
                     </p>
                   </div>
@@ -579,10 +577,37 @@ function ApplyRequirementsModal({
 
                 <div className="mt-3 grid gap-3">
                   {submissionRule.requiresPersonalSubmission ? (
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
-                      <p className="font-bold">{submissionRule.notice?.title}</p>
-                      <p className="mt-1">{submissionRule.notice?.message}</p>
-                    </div>
+                    <>
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+                        <p className="font-bold">{submissionRule.notice?.title}</p>
+                        <p className="mt-1">
+                          Applicants must submit the required documents in person to the Division Office.
+                        </p>
+                      </div>
+                      {jobRequirements.length ? (
+                        <ul className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
+                          {jobRequirements.map((requirement) => (
+                            <li
+                              key={requirement.field || requirement.label}
+                              className="border-b border-slate-200 py-2.5 first:pt-0 last:border-b-0 last:pb-0"
+                            >
+                              <p className="min-w-0 break-words font-semibold text-slate-900 [overflow-wrap:anywhere]">
+                                {requirement.label}
+                              </p>
+                              {requirement.description && (
+                                <p className="mt-1 break-words text-xs leading-5 text-slate-500 [overflow-wrap:anywhere]">
+                                  {requirement.description}
+                                </p>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                          No physical requirements are configured for this vacancy.
+                        </p>
+                      )}
+                    </>
                   ) : jobRequirements.length === 0 ? (
                     <p className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
                       No upload requirements configured for this vacancy.

@@ -81,6 +81,187 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
+function getStatusEmailTemplate(status) {
+  const normalizedStatus = String(status || "").toLowerCase();
+
+  const templates = {
+    submitted: {
+      subject: "We received your application",
+      title: "Thank you for applying",
+      message:
+        "We have received your application for {jobTitle}.",
+      encouragement:
+        "Our team will review your submission soon. We appreciate your interest and effort.",
+      nextStep:
+        "You can sign in to the Online Application System anytime for updates.",
+    },
+    pending_review: {
+      subject: "Your application is in review",
+      title: "We are reviewing your application",
+      message:
+        "Your application for {jobTitle} is now in our review queue.",
+      encouragement:
+        "Thank you for your patience. We are carefully going through each submission.",
+      nextStep:
+        "We will notify you once there is a new update.",
+    },
+    for_compliance: {
+      subject: "Your application is in review",
+      title: "We are reviewing your application",
+      message:
+        "Your application for {jobTitle} is now in our review queue.",
+      encouragement:
+        "Thank you for your patience. We are carefully going through each submission.",
+      nextStep:
+        "We will notify you once there is a new update.",
+    },
+    under_review: {
+      subject: "Your application is under review",
+      title: "Your application is under review",
+      message:
+        "Your application for {jobTitle} is currently under review.",
+      encouragement:
+        "We are taking time to give every applicant a fair and careful review.",
+      nextStep:
+        "We will share the next update as soon as it is ready.",
+    },
+    reviewed: {
+      subject: "Your application has been reviewed",
+      title: "Your application has been reviewed",
+      message:
+        "Your application for {jobTitle} has been reviewed.",
+      encouragement:
+        "We appreciate the time you spent on your submission.",
+      nextStep:
+        "We will contact you if we need anything else.",
+    },
+    qualified: {
+      subject: "Good news - you are qualified",
+      title: "Congratulations, you are qualified",
+      message:
+        "Your application for {jobTitle} has met the qualification requirements.",
+      encouragement:
+        "We are excited to move forward with you.",
+      nextStep:
+        "Please review the note below and keep your lines open for next steps.",
+    },
+    shortlisted: {
+      subject: "You are shortlisted",
+      title: "You are shortlisted",
+      message:
+        "Your application for {jobTitle} has been shortlisted.",
+      encouragement:
+        "We are happy to see your profile stand out.",
+      nextStep:
+        "We will contact you with the next steps soon.",
+    },
+    selected: {
+      subject: "Congratulations - you are selected",
+      title: "You are selected",
+      message:
+        "You have been selected for the next stage for {jobTitle}.",
+      encouragement:
+        "Great job and thank you for your effort.",
+      nextStep:
+        "Please watch your email and phone for instructions.",
+    },
+    hired: {
+      subject: "Welcome to the team",
+      title: "You are hired",
+      message:
+        "We are pleased to offer you the role for {jobTitle}.",
+      encouragement:
+        "Welcome aboard. We look forward to working with you.",
+      nextStep:
+        "Please sign in to view your onboarding details.",
+    },
+    rejected: {
+      subject: "Update on your application",
+      title: "Thank you for applying",
+      message:
+        "We are sorry to inform you that your application for {jobTitle} did not move forward at this time.",
+      encouragement:
+        "Please do not be discouraged. We appreciate your interest and effort.",
+      nextStep:
+        "You are welcome to apply again when new opportunities open.",
+    },
+    disqualified: {
+      subject: "Update on your application",
+      title: "Thank you for applying",
+      message:
+        "We are sorry to inform you that your application for {jobTitle} did not meet the requirements at this time.",
+      encouragement:
+        "Please keep your head up. We appreciate your interest and effort.",
+      nextStep:
+        "You are welcome to apply again when new opportunities open.",
+    },
+    draft: {
+      subject: "Your application is saved as draft",
+      title: "Your application is saved as draft",
+      message:
+        "Your application for {jobTitle} is currently saved as a draft.",
+      encouragement:
+        "Complete your details when you are ready. We are here when you need us.",
+      nextStep:
+        "Sign in to complete and submit your application.",
+    },
+    default: {
+      subject: "Update on your application",
+      title: "Application update",
+      message:
+        "Here is the latest update for your application for {jobTitle}.",
+      encouragement:
+        "Thank you for your patience and interest.",
+      nextStep:
+        "Please sign in to the Online Application System for more details.",
+    },
+  };
+
+  return templates[normalizedStatus] || templates.default;
+}
+
+function getStatusBadgeStyles(status) {
+  const normalizedStatus = String(status || "").toLowerCase();
+
+  if (normalizedStatus === "qualified" || normalizedStatus === "selected") {
+    return {
+      background: "#ecfdf3",
+      border: "#a7f3d0",
+      text: "#065f46",
+    };
+  }
+
+  if (normalizedStatus === "shortlisted" || normalizedStatus === "under_review") {
+    return {
+      background: "#fff7ed",
+      border: "#fdba74",
+      text: "#9a3412",
+    };
+  }
+
+  if (normalizedStatus === "rejected" || normalizedStatus === "disqualified") {
+    return {
+      background: "#fef2f2",
+      border: "#fecaca",
+      text: "#b91c1c",
+    };
+  }
+
+  if (normalizedStatus === "hired") {
+    return {
+      background: "#ecfeff",
+      border: "#a5f3fc",
+      text: "#0e7490",
+    };
+  }
+
+  return {
+    background: "#eff6ff",
+    border: "#bfdbfe",
+    text: "#1d4ed8",
+  };
+}
+
 async function sendApplicationStatusEmail({
   application,
   fromStatus,
@@ -91,35 +272,64 @@ async function sendApplicationStatusEmail({
     return false;
   }
 
-  const fromLabel = applicationStatusLabels[fromStatus] || fromStatus;
   const toLabel = applicationStatusLabels[toStatus] || toStatus;
-  const notes = String(reviewNotes || application.reviewNotes || "").trim();
+  const rawNotes = String(reviewNotes || application.reviewNotes || "").trim();
+  const allowNotes = String(toStatus || "").toLowerCase() === "qualified";
+  const notes = allowNotes ? rawNotes : "";
   const applicantName = application.applicantName || "Applicant";
   const jobTitle = application.jobTitle || application.position || "your application";
   const uan = application.uan || "Not assigned";
   const htmlNotes = escapeHtml(notes).replace(/\n/g, "<br>");
-  const noteBlock = notes
-    ? `\n\nNotes from HR:\n${notes}`
-    : "";
+  const noteBlock = notes ? `\n\nNote from HR:\n${notes}` : "";
+  const template = getStatusEmailTemplate(toStatus);
+  const statusBadge = getStatusBadgeStyles(toStatus);
+  const message = template.message.replace("{jobTitle}", jobTitle);
+  const encouragement = template.encouragement;
+  const nextStep = template.nextStep;
+  const subject = template.subject;
 
   try {
     await sendSystemMail({
       to: application.email,
-      subject: `Application status update - ${toLabel}`,
+      subject,
       text: [
         `Hello ${applicantName},`,
         "",
-        `Your application for ${jobTitle} has been updated from ${fromLabel} to ${toLabel}.`,
+        template.title,
+        message,
+        encouragement,
+        "",
+        `Status: ${toLabel}`,
         `UAN: ${uan}${noteBlock}`,
         "",
-        "Please sign in to the Online Application System for the full details.",
+        nextStep,
       ].join("\n"),
       html: `
-        <p>Hello ${escapeHtml(applicantName)},</p>
-        <p>Your application for <strong>${escapeHtml(jobTitle)}</strong> has been updated from <strong>${escapeHtml(fromLabel)}</strong> to <strong>${escapeHtml(toLabel)}</strong>.</p>
-        <p><strong>UAN:</strong> ${escapeHtml(uan)}</p>
-        ${notes ? `<p><strong>Notes from HR:</strong><br>${htmlNotes}</p>` : ""}
-        <p>Please sign in to the Online Application System for the full details.</p>
+        <div style="margin:0;padding:24px;background:#f1f5f9;font-family:Arial, sans-serif;color:#0f172a;text-align:left;">
+          <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;text-align:left;">
+            <div style="padding:24px 28px;background:#0f172a;color:#ffffff;text-align:left;">
+              <div style="font-size:13px;letter-spacing:0.2em;text-transform:uppercase;opacity:0.8;">Online Application System</div>
+              <h1 style="margin:10px 0 0;font-size:22px;line-height:1.3;">${escapeHtml(template.title)}</h1>
+            </div>
+            <div style="padding:24px 28px;text-align:left;">
+              <p style="margin:0 0 14px;font-size:15px;">Hello ${escapeHtml(applicantName)},</p>
+              <p style="margin:0 0 14px;font-size:15px;">${escapeHtml(message)}</p>
+              <p style="margin:0 0 18px;font-size:14px;color:#475569;">${escapeHtml(encouragement)}</p>
+              <div style="margin:18px auto 20px;max-width:420px;border-radius:14px;border:1px solid #e2e8f0;background:#f8fafc;padding:14px;text-align:center;">
+                <div style="margin:0 0 10px;display:inline-block;padding:6px 12px;border-radius:999px;border:1px solid ${statusBadge.border};background:${statusBadge.background};color:${statusBadge.text};font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;">
+                  Status: ${escapeHtml(toLabel)}
+                </div>
+                <p style="margin:0 0 6px;font-size:14px;"><strong>Position:</strong> ${escapeHtml(jobTitle)}</p>
+                <p style="margin:0;font-size:14px;"><strong>UAN:</strong> ${escapeHtml(uan)}</p>
+              </div>
+              ${notes ? `<div style="margin:18px 0 0;padding:14px;border-radius:12px;background:#f8fafc;border:1px solid #e2e8f0;text-align:left;"><p style="margin:0 0 6px;font-weight:700;font-size:13px;">Note from HR</p><p style="margin:0;font-size:14px;color:#334155;">${htmlNotes}</p></div>` : ""}
+              <p style="margin:22px 0 0;font-size:14px;color:#475569;">${escapeHtml(nextStep)}</p>
+            </div>
+            <div style="padding:16px 28px;border-top:1px solid #e2e8f0;background:#f8fafc;font-size:12px;color:#64748b;text-align:left;">
+              Thank you for your interest in DepEd opportunities.
+            </div>
+          </div>
+        </div>
       `,
       headers: {
         "X-OAS-Email-Purpose": "application_status",
@@ -688,16 +898,16 @@ export async function updateApplicationStatus(req, res) {
     const result = await client.query(
       `WITH updated AS (
          UPDATE job_applications
-         SET status = $2,
+         SET status = $2::varchar(30),
              review_notes = COALESCE($3, review_notes),
              admin_remarks = COALESCE($3, admin_remarks),
              reviewed_by = CASE
-               WHEN $2 IN ('reviewed', 'qualified', 'disqualified', 'shortlisted', 'selected', 'hired', 'rejected')
+               WHEN $2::varchar(30) IN ('reviewed', 'qualified', 'disqualified', 'shortlisted', 'selected', 'hired', 'rejected')
                THEN $4
                ELSE reviewed_by
              END,
              reviewed_at = CASE
-               WHEN $2 IN ('reviewed', 'qualified', 'disqualified', 'shortlisted', 'selected', 'hired', 'rejected')
+               WHEN $2::varchar(30) IN ('reviewed', 'qualified', 'disqualified', 'shortlisted', 'selected', 'hired', 'rejected')
                THEN NOW()
                ELSE reviewed_at
              END,

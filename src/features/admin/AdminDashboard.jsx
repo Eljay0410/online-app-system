@@ -19,8 +19,12 @@ import {
   getInitialSidebarCollapsed,
   getSidebarContentPadding,
 } from "../../lib/sidebar";
-import { getFixedApplicationRequirements } from "../../lib/applicationRequirements";
 import {
+  getApplicationSubmissionRule,
+  getFixedApplicationRequirements,
+} from "../../lib/applicationRequirements";
+import {
+  formatTime,
   getJobUploadRequirements,
   VacancySummaryTable,
 } from "../jobs/jobPostingUi";
@@ -64,6 +68,17 @@ const statusLabels = {
   under_review: "Under Review",
 };
 
+const statusFilterOptions = [
+  "submitted",
+  "reviewed",
+  "qualified",
+  "disqualified",
+  "shortlisted",
+  "selected",
+  "rejected",
+  "hired",
+].map((status) => [status, statusLabels[status]]);
+
 const applicationStatusTransitions = {
   draft: ["submitted", "rejected"],
   submitted: ["reviewed", "qualified", "disqualified", "rejected"],
@@ -106,21 +121,6 @@ const cardPageSizeOptions = [6, 9, 12];
 const tablePageSizeOptions = [10, 25, 50];
 const defaultPositionPageSize = 10;
 const positionPageSizeOptions = [10, 25, 50];
-const requirementReviewStatuses = [
-  "pending",
-  "checked",
-  "incomplete",
-  "invalid",
-];
-const requirementReviewStatusLabels = {
-  pending: "Pending",
-  checked: "Checked",
-  incomplete: "Incomplete",
-  invalid: "Invalid",
-  approved: "Checked",
-  missing: "Incomplete",
-  rejected: "Invalid",
-};
 
 const adminPageMeta = {
   "job-posting": {
@@ -241,48 +241,8 @@ function getStatusOptionClass(status) {
   return "bg-slate-50 text-slate-700";
 }
 
-function getRequirementReviewStatusClass(status) {
-  const normalizedStatus = normalizeRequirementReviewStatus(status);
-
-  if (normalizedStatus === "checked") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  }
-
-  if (normalizedStatus === "incomplete") {
-    return "border-orange-200 bg-orange-50 text-orange-800";
-  }
-
-  if (normalizedStatus === "invalid") {
-    return "border-red-200 bg-red-50 text-red-700";
-  }
-
-  return "border-blue-200 bg-blue-50 text-blue-700";
-}
-
 function getRequirementFileName(file) {
   return file?.name || file?.fileName || file?.filename || "No file attached";
-}
-
-function normalizeRequirementReviewStatus(status) {
-  const normalizedStatus = String(status || "").toLowerCase();
-
-  if (normalizedStatus === "approved") return "checked";
-  if (normalizedStatus === "missing") return "incomplete";
-  if (normalizedStatus === "rejected") return "invalid";
-
-  return normalizedStatus || "pending";
-}
-
-function buildRequirementDrafts(requirements = []) {
-  return Object.fromEntries(
-    requirements.map((requirement) => [
-      String(requirement.id || requirement.field),
-      {
-        status: normalizeRequirementReviewStatus(requirement.status),
-        remarks: requirement.remarks || "",
-      },
-    ])
-  );
 }
 
 function getControlClass(error, baseClass) {
@@ -307,10 +267,6 @@ function validateJobOpeningForm(form) {
 
   if (!form.positionId) {
     errors.positionId = "Select a position from the Position Library.";
-  }
-
-  if (!String(form.title || "").trim()) {
-    errors.title = "Position title is required.";
   }
 
   if (!String(form.salaryGrade || "").trim()) {
@@ -412,6 +368,30 @@ function normalizeComparableValue(field, value) {
   return String(value ?? "").trim();
 }
 
+function normalizeAdminApplication(application = {}, fallback = {}) {
+  return {
+    ...fallback,
+    ...application,
+    status: application.status || fallback.status || "submitted",
+    reviewNotes: application.reviewNotes ?? fallback.reviewNotes ?? "",
+    requirements: Array.isArray(application.requirements)
+      ? application.requirements
+      : Array.isArray(fallback.requirements)
+        ? fallback.requirements
+        : [],
+    jobRequirements: Array.isArray(application.jobRequirements)
+      ? application.jobRequirements
+      : Array.isArray(fallback.jobRequirements)
+        ? fallback.jobRequirements
+        : [],
+    jobItems: Array.isArray(application.jobItems)
+      ? application.jobItems
+      : Array.isArray(fallback.jobItems)
+        ? fallback.jobItems
+        : [],
+  };
+}
+
 function hasPatchChanges(source = {}, updates = {}) {
   return Object.entries(updates).some(
     ([field, value]) =>
@@ -463,7 +443,7 @@ export default function AdminDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [jobToDelete, setJobToDelete] = useState(null);
-  const [reviewNotes, setReviewNotes] = useState({});
+  const [pendingStatusUpdate, setPendingStatusUpdate] = useState(null);
   const [applicationPagination, setApplicationPagination] = useState({
     limit: defaultApplicationPageSize,
     offset: 0,
@@ -481,7 +461,6 @@ export default function AdminDashboard() {
   const { showToast } = useToast();
 
   const [selectedPosition, setSelectedPosition] = useState("all");
-  const [selectedLocation, setSelectedLocation] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState("all");
   const [selectedDate, setSelectedDate] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -538,7 +517,6 @@ export default function AdminDashboard() {
 
     if (debouncedSearchTerm) params.set("q", debouncedSearchTerm);
     if (selectedPosition !== "all") params.set("position", selectedPosition);
-    if (selectedLocation !== "all") params.set("school", selectedLocation);
     if (selectedStatus !== "all") params.set("status", selectedStatus);
     if (selectedDate) {
       params.set("date", selectedDate);
@@ -565,14 +543,6 @@ export default function AdminDashboard() {
         setApplicationFilterOptions(
           result.filters || { positions: [], locations: [], schools: [] }
         );
-        setReviewNotes(
-          Object.fromEntries(
-            nextApplications.map((application) => [
-              application.id,
-              application.reviewNotes || "",
-            ])
-          )
-        );
       })
       .catch((err) => {
         if (isMounted) {
@@ -596,7 +566,6 @@ export default function AdminDashboard() {
     dateTo,
     debouncedSearchTerm,
     selectedDate,
-    selectedLocation,
     selectedPosition,
     selectedStatus,
     showToast,
@@ -658,9 +627,18 @@ export default function AdminDashboard() {
       const result = await apiRequest("/api/admin/job-openings", {
         method: "POST",
         body: JSON.stringify({
-          ...form,
-          vacancy: getVacancyTotal(form.vacancyItems),
           positionId: form.positionId ? Number(form.positionId) : null,
+          vacancyItems: form.vacancyItems,
+          deadline: form.deadline,
+          deadlineTime: form.deadlineTime,
+          salaryGrade: form.salaryGrade,
+          salaryAmount: form.salaryAmount,
+          education: form.education,
+          training: form.training,
+          experience: form.experience,
+          eligibility: form.eligibility,
+          status: form.status,
+          description: form.description,
         }),
       });
 
@@ -718,16 +696,16 @@ export default function AdminDashboard() {
     }
   };
 
-  const updateApplicationStatus = async (application, status) => {
-    const reviewNote =
-      reviewNotes[application.id] ?? application.reviewNotes ?? "";
+  const updateApplicationStatus = async (application, status, reviewNote = "") => {
+    const normalizedReviewNote = String(reviewNote || "").trim();
+    const statusChanged =
+      normalizeComparableValue("status", application.status) !==
+      normalizeComparableValue("status", status);
+    const reviewNoteChanged =
+      normalizeComparableValue("reviewNotes", application.reviewNotes) !==
+      normalizeComparableValue("reviewNotes", normalizedReviewNote);
 
-    if (
-      normalizeComparableValue("status", application.status) ===
-        normalizeComparableValue("status", status) &&
-      normalizeComparableValue("reviewNotes", application.reviewNotes) ===
-        normalizeComparableValue("reviewNotes", reviewNote)
-    ) {
+    if (!statusChanged && !reviewNoteChanged) {
       showToast({ type: "info", message: "No changes were made." });
       return { skipped: true, application };
     }
@@ -738,88 +716,36 @@ export default function AdminDashboard() {
         method: "PATCH",
         body: JSON.stringify({
           status,
-          reviewNotes: reviewNote,
+          reviewNotes: normalizedReviewNote,
         }),
       }
     );
 
+    const updatedApplication = result.application;
+
+    if (!updatedApplication?.id) {
+      throw new Error("Status update did not return the updated application.");
+    }
+
+    const normalizedApplication = normalizeAdminApplication(
+      updatedApplication,
+      application
+    );
+
     setApplications((prev) =>
       prev.map((item) =>
-        item.id === application.id ? result.application : item
+        item.id === application.id ? normalizedApplication : item
       )
     );
-    setReviewNotes((current) => ({
-      ...current,
-      [result.application.id]: result.application.reviewNotes || "",
-    }));
-
-    showToast({ type: "success", message: "Application status updated." });
-    return { skipped: false, application: result.application };
+    showToast({
+      type: "success",
+      message: result.notification?.emailSent
+        ? "Application updated and applicant notified."
+        : "Application update saved.",
+    });
+    return { skipped: false, application: normalizedApplication };
   };
 
-  const reviewApplicationRequirement = async (
-    application,
-    requirement,
-    updates
-  ) => {
-    try {
-      const result = await apiRequest(
-        `/api/admin/applications/${application.id}/requirements/${requirement.id}`,
-        {
-          method: "PATCH",
-          body: JSON.stringify(updates),
-        }
-      );
-
-      setApplications((prev) =>
-        prev.map((item) =>
-          item.id === result.application.id ? result.application : item
-        )
-      );
-      setViewApplication(result.application);
-      setReviewNotes((current) => ({
-        ...current,
-        [result.application.id]: result.application.reviewNotes || "",
-      }));
-      showToast({ type: "success", message: "Requirement review saved." });
-
-      return result.application;
-    } catch (err) {
-      showToast({
-        type: "error",
-        message: err.message || "Failed to save requirement review.",
-      });
-      throw err;
-    }
-  };
-
-  const assignApplication = async (application, jobOpeningItemId) => {
-    try {
-      const result = await apiRequest(
-        `/api/admin/applications/${application.id}/assignment`,
-        {
-          method: "PATCH",
-          body: JSON.stringify({ jobOpeningItemId }),
-        }
-      );
-
-      setApplications((prev) =>
-        prev.map((item) =>
-          item.id === result.application.id ? result.application : item
-        )
-      );
-      setViewApplication(result.application);
-      showToast({ type: "success", message: "Applicant assignment saved." });
-
-      return result.application;
-    } catch (err) {
-      showToast({
-        type: "error",
-        message: err.message || "Failed to save assignment.",
-      });
-      throw err;
-    }
-  };
 
   const formatDate = (dateValue) => {
     if (!dateValue) return "No date";
@@ -912,16 +838,6 @@ export default function AdminDashboard() {
     ).sort();
   }, [applicationFilterOptions.positions, positions]);
 
-  const schools = useMemo(() => {
-    return (
-      applicationFilterOptions.schools ||
-      applicationFilterOptions.locations ||
-      []
-    )
-      .filter(Boolean)
-      .sort();
-  }, [applicationFilterOptions.locations, applicationFilterOptions.schools]);
-
   const filteredApplications = applications;
 
   const contentPadding = getSidebarContentPadding(isSidebarCollapsed);
@@ -968,9 +884,7 @@ export default function AdminDashboard() {
               isLoading={isLoadingApplications}
               filteredApplications={filteredApplications}
               positions={applicationPositions}
-              schools={schools}
               selectedPosition={selectedPosition}
-              selectedLocation={selectedLocation}
               selectedStatus={selectedStatus}
               selectedDate={selectedDate}
               dateFrom={dateFrom}
@@ -978,10 +892,6 @@ export default function AdminDashboard() {
               searchTerm={searchTerm}
               setSelectedPosition={(value) => {
                 setSelectedPosition(value);
-                setApplicationPage(1);
-              }}
-              setSelectedLocation={(value) => {
-                setSelectedLocation(value);
                 setApplicationPage(1);
               }}
               setSelectedStatus={(value) => {
@@ -1002,9 +912,9 @@ export default function AdminDashboard() {
               }}
               setSearchTerm={setSearchTerm}
               setViewApplication={setViewApplication}
-              updateApplicationStatus={updateApplicationStatus}
-              reviewNotes={reviewNotes}
-              setReviewNotes={setReviewNotes}
+              openStatusUpdate={(application, status) =>
+                setPendingStatusUpdate({ application, status })
+              }
               pagination={applicationPagination}
               page={applicationPage}
               pageSize={applicationPageSize}
@@ -1085,8 +995,16 @@ export default function AdminDashboard() {
           getApplicationPosition={getApplicationPosition}
           getApplicationLocation={getApplicationLocation}
           getApplicationDate={getApplicationDate}
-          onReviewRequirement={reviewApplicationRequirement}
-          onAssignApplication={assignApplication}
+        />
+      )}
+
+      {pendingStatusUpdate && (
+        <ApplicationStatusUpdateModal
+          update={pendingStatusUpdate}
+          statusLabels={statusLabels}
+          getApplicantName={getApplicantName}
+          onClose={() => setPendingStatusUpdate(null)}
+          onSave={updateApplicationStatus}
         />
       )}
 
@@ -1205,14 +1123,12 @@ function CreateJobOpeningModal({
               </JobFormField>
             </div>
 
-            <JobFormField label="Position Title" error={errors.title} required>
+            <JobFormField label="Position Title">
               <input
                 value={form.title}
                 disabled
-                onChange={(event) => handleFormChange("title", event.target.value)}
                 placeholder="Select a Position Library item"
-                aria-invalid={Boolean(errors.title)}
-                className={getControlClass(errors.title, disabledInputControlClass)}
+                className={disabledInputControlClass}
               />
             </JobFormField>
 
@@ -1440,10 +1356,7 @@ function VacancyItemsEditor({ items = [], errors = [], onChange }) {
 
   return (
     <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
-          School / Station Vacancy Breakdown
-        </p>
+      <div className="flex items-center justify-end gap-3">
         <button
           type="button"
           onClick={addItem}
@@ -1694,13 +1607,10 @@ function JobPostingSection(props) {
 
     try {
       const updateResult = await updateJob(editingJob, {
-        title: editForm.title,
         vacancyItems: editForm.vacancyItems,
-        vacancy: getVacancyTotal(editForm.vacancyItems),
         deadline: editForm.deadline,
         deadlineTime: editForm.deadlineTime,
         positionId: editForm.positionId ? Number(editForm.positionId) : null,
-        positionCategory: editForm.positionCategory,
         salaryGrade: editForm.salaryGrade,
         salaryAmount: editForm.salaryAmount,
         education: editForm.education,
@@ -1746,14 +1656,7 @@ function JobPostingSection(props) {
 
   return (
     <section className="oas-panel">
-      <div className="oas-panel-header flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="oas-panel-title">Manage Vacancies</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Create, update, and monitor vacancy postings in one place.
-          </p>
-        </div>
-
+      <div className="flex justify-end border-b border-slate-200 bg-white px-4 py-3 sm:px-5 sm:py-4">
         <button
           type="button"
           onClick={onCreateJob}
@@ -1788,7 +1691,7 @@ function JobPostingSection(props) {
               <div className="flex items-center justify-between gap-3">
                 <dt className="font-semibold text-slate-500">Deadline</dt>
                 <dd className="text-right font-semibold text-slate-900">
-                  {formatDate(job.deadline)} {job.deadlineTime || ""}
+                  {formatDate(job.deadline)} {formatTime(job.deadlineTime)}
                 </dd>
               </div>
             </dl>
@@ -1854,7 +1757,7 @@ function JobPostingSection(props) {
                 <td className="px-5 py-4 text-slate-700">{job.vacancy}</td>
 
                 <td className="px-5 py-4 text-slate-700">
-                  {formatDate(job.deadline)} {job.deadlineTime || ""}
+                  {formatDate(job.deadline)} {formatTime(job.deadlineTime)}
                 </td>
 
                 <td className="px-5 py-4">
@@ -1995,18 +1898,11 @@ function JobPostingSection(props) {
                 </JobFormField>
               </div>
 
-              <JobFormField label="Position Title" error={editErrors.title} required>
+              <JobFormField label="Position Title">
                 <input
                   value={editForm.title}
                   disabled
-                  onChange={(event) =>
-                    updateEditField("title", event.target.value)
-                  }
-                  aria-invalid={Boolean(editErrors.title)}
-                  className={getControlClass(
-                    editErrors.title,
-                    disabledInputControlClass
-                  )}
+                  className={disabledInputControlClass}
                 />
               </JobFormField>
 
@@ -2211,14 +2107,7 @@ function JobPostingSectionLegacy({
 
   return (
     <section className="oas-panel">
-      <div className="oas-panel-header flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="oas-panel-title">Manage Vacancies</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Create, update, and monitor vacancy postings in one place.
-          </p>
-        </div>
-
+      <div className="flex justify-end border-b border-slate-200 bg-white px-4 py-3 sm:px-5 sm:py-4">
         <button
           type="button"
           onClick={onCreateJob}
@@ -2244,7 +2133,7 @@ function JobPostingSectionLegacy({
 
                 <p className="text-sm text-slate-500">
                   {job.location} • {job.vacancy} vacancy • Deadline{" "}
-                  {formatDate(job.deadline)} {job.deadlineTime || ""}
+                  {formatDate(job.deadline)} {formatTime(job.deadlineTime)}
                 </p>
 
                 <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -2473,14 +2362,7 @@ function PositionManagerSection({ positions, setPositions }) {
   return (
     <>
       <section className="oas-panel">
-        <div className="oas-panel-header flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h2 className="oas-panel-title">Position Library</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              These titles can be selected when creating DepEd-style vacancy postings.
-            </p>
-          </div>
-
+        <div className="flex justify-end border-b border-slate-200 bg-white px-4 py-3 sm:px-5 sm:py-4">
           <button
             type="button"
             onClick={openAddPosition}
@@ -2652,29 +2534,125 @@ function PositionManagerSection({ positions, setPositions }) {
   );
 }
 
+function ApplicationStatusUpdateModal({
+  update,
+  statusLabels,
+  getApplicantName,
+  onClose,
+  onSave,
+}) {
+  const { showToast } = useToast();
+  const [remarks, setRemarks] = useState(update.application.reviewNotes || "");
+  const [isSaving, setIsSaving] = useState(false);
+  const nextStatusLabel = statusLabels[update.status] || update.status;
+
+  const saveStatusUpdate = async () => {
+    if (isSaving) return;
+
+    setIsSaving(true);
+    try {
+      await onSave(update.application, update.status, remarks);
+      onClose();
+    } catch (err) {
+      showToast({
+        type: "error",
+        message: err.message || "Failed to send application update.",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-start justify-center overflow-x-hidden overflow-y-auto bg-black/50 p-2 sm:items-center sm:p-6">
+      <div className="w-full min-w-0 max-w-[calc(100vw-1rem)] overflow-hidden rounded-lg bg-white shadow-2xl sm:max-w-lg sm:rounded-xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-5">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-700">
+              Status Update
+            </p>
+            <h3 className="mt-1 break-words text-lg font-bold text-slate-900 [overflow-wrap:anywhere]">
+              {getApplicantName(update.application)}
+            </h3>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSaving}
+            className="shrink-0 rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            aria-label="Close status update"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="px-4 py-4 sm:px-5">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+              New Status
+            </p>
+            <p className="mt-1 text-sm font-bold text-slate-900">
+              {nextStatusLabel}
+            </p>
+          </div>
+
+          <label className="mt-4 block">
+            <span className="text-sm font-semibold text-slate-700">
+              Remarks
+            </span>
+            <textarea
+              value={remarks}
+              onChange={(event) => setRemarks(event.target.value)}
+              placeholder="Optional remarks for the applicant"
+              className="mt-2 min-h-28 w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </label>
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-slate-200 px-4 py-4 sm:px-5">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSaving}
+            className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            onClick={saveStatusUpdate}
+            disabled={isSaving}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#0056b3] px-4 text-sm font-semibold text-white hover:bg-[#003a78] disabled:cursor-not-allowed disabled:bg-slate-300"
+          >
+            {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+            Send update
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ApplicantListSection({
   isLoading,
   filteredApplications,
   positions,
-  schools,
   selectedPosition,
-  selectedLocation,
   selectedStatus,
   selectedDate,
   dateFrom,
   dateTo,
   searchTerm,
   setSelectedPosition,
-  setSelectedLocation,
   setSelectedStatus,
   setSelectedDate,
   setDateFrom,
   setDateTo,
   setSearchTerm,
   setViewApplication,
-  updateApplicationStatus,
-  reviewNotes,
-  setReviewNotes,
+  openStatusUpdate,
   pagination,
   page,
   pageSize,
@@ -2688,11 +2666,14 @@ function ApplicantListSection({
   getApplicantName,
   getApplicantEmail,
 }) {
-  const { showToast } = useToast();
+  const applicationRows = Array.isArray(filteredApplications)
+    ? filteredApplications.filter(Boolean)
+    : [];
+  const positionOptions = Array.isArray(positions) ? positions : [];
+  const labels = statusLabels || {};
   const hasFilters =
     Boolean(searchTerm.trim()) ||
     selectedPosition !== "all" ||
-    selectedLocation !== "all" ||
     selectedStatus !== "all" ||
     Boolean(selectedDate) ||
     Boolean(dateFrom) ||
@@ -2700,17 +2681,8 @@ function ApplicantListSection({
 
   return (
     <section className="oas-panel">
-      <div className="oas-panel-header">
-        <h2 className="oas-panel-title">Applicant List</h2>
-
-        <p className="mt-1 text-sm text-slate-500">
-          View all applicants, filter by position or school, and open each
-          applicant&apos;s application form.
-        </p>
-      </div>
-
       <div className="border-b border-slate-200 bg-slate-50 px-3 py-3 sm:px-5 sm:py-4">
-        <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-[minmax(0,1.2fr)_170px_170px_155px_220px_auto]">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-[minmax(0,1.2fr)_180px_170px_220px_auto]">
           <div className="relative col-span-2 xl:col-span-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
 
@@ -2730,23 +2702,9 @@ function ApplicantListSection({
             className="h-10 min-w-0 rounded-lg border border-slate-300 bg-white px-2 text-[12px] outline-none focus:ring-2 focus:ring-blue-500 sm:h-11 sm:rounded-xl sm:px-3 sm:text-sm"
           >
             <option value="all">All Positions</option>
-            {positions.map((position) => (
+            {positionOptions.map((position) => (
               <option key={position} value={position}>
                 {position}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={selectedLocation}
-            onChange={(event) => setSelectedLocation(event.target.value)}
-            aria-label="Filter by school"
-            className="h-10 min-w-0 rounded-lg border border-slate-300 bg-white px-2 text-[12px] outline-none focus:ring-2 focus:ring-blue-500 sm:h-11 sm:rounded-xl sm:px-3 sm:text-sm"
-          >
-            <option value="all">All Schools</option>
-            {schools.map((school) => (
-              <option key={school} value={school}>
-                {school}
               </option>
             ))}
           </select>
@@ -2758,7 +2716,7 @@ function ApplicantListSection({
             className="h-10 min-w-0 rounded-lg border border-slate-300 bg-white px-2 text-[12px] outline-none focus:ring-2 focus:ring-blue-500 sm:h-11 sm:rounded-xl sm:px-3 sm:text-sm"
           >
             <option value="all">All Statuses</option>
-            {Object.entries(statusLabels).map(([status, label]) => (
+            {statusFilterOptions.map(([status, label]) => (
               <option key={status} value={status}>
                 {label}
               </option>
@@ -2787,7 +2745,6 @@ function ApplicantListSection({
               onClick={() => {
                 setSearchTerm("");
                 setSelectedPosition("all");
-                setSelectedLocation("all");
                 setSelectedStatus("all");
                 setSelectedDate("");
                 setDateFrom("");
@@ -2802,17 +2759,12 @@ function ApplicantListSection({
         </div>
       </div>
 
-      {!isLoading && filteredApplications.length > 0 && (
+      {!isLoading && applicationRows.length > 0 && (
         <div className="grid gap-2 p-2 sm:p-4 md:hidden">
-          {filteredApplications.map((application) => {
-            const isReviewNoteLocked = isApplicationStatusFinal(
-              application.status
-            );
-
-            return (
+          {applicationRows.map((application) => (
               <article
                 key={application.id}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-3 shadow-sm"
+                className="min-w-0 max-w-full overflow-hidden rounded-lg border border-slate-200 bg-white px-3 py-3 shadow-sm"
               >
               <div className="min-w-0">
                 <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-blue-700">
@@ -2853,13 +2805,7 @@ function ApplicantListSection({
                 value={application.status}
                 disabled={isApplicationStatusFinal(application.status)}
                 onChange={(event) =>
-                  updateApplicationStatus(application, event.target.value).catch(
-                    (err) =>
-                      showToast({
-                        type: "error",
-                        message: err.message || "Failed to update application.",
-                      })
-                  )
+                  openStatusUpdate(application, event.target.value)
                 }
                 className={`mt-3 h-9 w-full cursor-pointer rounded-lg border px-3 text-xs font-semibold outline-none transition ${getStatusBadgeClass(
                   application.status
@@ -2871,36 +2817,22 @@ function ApplicantListSection({
                     value={value}
                     className={`font-semibold ${getStatusOptionClass(value)}`}
                   >
-                    {statusLabels[value]}
+                    {labels[value]}
                   </option>
                 ))}
               </select>
 
-                <textarea
-                  value={
-                    reviewNotes[application.id] ?? application.reviewNotes ?? ""
-                  }
-                  disabled={isReviewNoteLocked}
-                  onChange={(event) =>
-                    setReviewNotes((current) => ({
-                      ...current,
-                      [application.id]: event.target.value,
-                    }))
-                  }
-                  placeholder="Notes from HR"
-                  className="mt-2 min-h-14 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
-                />
-
-                <button
-                  type="button"
-                  onClick={() => setViewApplication(application)}
-                  className="oas-action-button oas-card-action-button mt-2"
-                >
-                  View
-                </button>
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setViewApplication(application)}
+                    className="oas-action-button oas-card-action-button"
+                  >
+                    View
+                  </button>
+                </div>
               </article>
-            );
-          })}
+            ))}
         </div>
       )}
 
@@ -2919,12 +2851,7 @@ function ApplicantListSection({
           </thead>
 
           <tbody>
-            {filteredApplications.map((application) => {
-              const isReviewNoteLocked = isApplicationStatusFinal(
-                application.status
-              );
-
-              return (
+            {applicationRows.map((application) => (
                 <tr
                   key={application.id}
                   className="border-t border-slate-100 align-top"
@@ -2960,16 +2887,7 @@ function ApplicantListSection({
                     value={application.status}
                     disabled={isApplicationStatusFinal(application.status)}
                     onChange={(event) =>
-                      updateApplicationStatus(
-                        application,
-                        event.target.value
-                      ).catch((err) =>
-                        showToast({
-                          type: "error",
-                          message:
-                            err.message || "Failed to update application.",
-                        })
-                      )
+                      openStatusUpdate(application, event.target.value)
                     }
                     className={`h-10 min-w-[155px] cursor-pointer rounded-full border px-3 text-sm font-semibold outline-none transition ${getStatusBadgeClass(
                       application.status
@@ -2983,27 +2901,10 @@ function ApplicantListSection({
                           value
                         )}`}
                       >
-                        {statusLabels[value]}
+                        {labels[value]}
                       </option>
                     ))}
                   </select>
-
-                    <textarea
-                      value={
-                        reviewNotes[application.id] ??
-                        application.reviewNotes ??
-                        ""
-                      }
-                      disabled={isReviewNoteLocked}
-                      onChange={(event) =>
-                        setReviewNotes((current) => ({
-                          ...current,
-                          [application.id]: event.target.value,
-                        }))
-                      }
-                      placeholder="Notes from HR"
-                      className="mt-2 min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
-                    />
                 </td>
 
                 <td className="px-5 py-4 text-right">
@@ -3016,25 +2917,24 @@ function ApplicantListSection({
                   </button>
                 </td>
                 </tr>
-              );
-            })}
+              ))}
           </tbody>
         </table>
 
       </div>
 
-      {!isLoading && filteredApplications.length === 0 && (
+      {!isLoading && applicationRows.length === 0 && (
         <EmptyState label="No applicants found." />
       )}
 
       {isLoading && <LoadingState label="Loading applicants..." />}
 
-      {!isLoading && filteredApplications.length > 0 && (
+      {!isLoading && applicationRows.length > 0 && (
         <PaginationControls
           page={page}
           pageSize={pageSize}
-          totalItems={pagination?.total || filteredApplications.length}
-          currentCount={filteredApplications.length}
+          totalItems={pagination?.total || applicationRows.length}
+          currentCount={applicationRows.length}
           onPageChange={onPageChange}
           onPageSizeChange={onPageSizeChange}
           pageSizeOptions={applicantPageSizeOptions}
@@ -3058,14 +2958,6 @@ function JobListingSection({ jobs, isLoading, formatDate }) {
 
   return (
     <section className="oas-panel">
-      <div className="oas-panel-header">
-        <h2 className="oas-panel-title">Vacancies</h2>
-
-        <p className="mt-1 text-sm text-slate-500">
-          View all posted vacancies and open their full details.
-        </p>
-      </div>
-
       {isLoading ? (
         <LoadingState label="Loading vacancies..." />
       ) : jobs.length === 0 ? (
@@ -3095,7 +2987,7 @@ function JobListingSection({ jobs, isLoading, formatDate }) {
 
                 <p className="truncate">
                   <span className="font-semibold">Deadline:</span>{" "}
-                  {formatDate(job.deadline)} {job.deadlineTime || ""}
+                  {formatDate(job.deadline)} {formatTime(job.deadlineTime)}
                 </p>
               </div>
 
@@ -3143,8 +3035,8 @@ function JobListingDetailsModal({ job, onClose }) {
   const requirements = getJobUploadRequirements(job);
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/50 p-3 sm:items-center sm:p-6">
-      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl sm:max-h-[92vh]">
+    <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-x-hidden overflow-y-auto bg-black/50 p-2 sm:items-center sm:p-6">
+      <div className="flex max-h-[calc(100dvh-1rem)] w-full min-w-0 max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-lg bg-white shadow-2xl sm:max-h-[92vh] sm:max-w-3xl sm:rounded-xl">
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-4 py-3 sm:gap-4 sm:px-6 sm:py-5">
           <div className="min-w-0">
             <h3 className="break-words text-base font-bold leading-6 text-slate-900 [overflow-wrap:anywhere] sm:text-xl">
@@ -3164,8 +3056,8 @@ function JobListingDetailsModal({ job, onClose }) {
           </button>
         </div>
 
-        <div className="min-h-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
-          <VacancySummaryTable job={job} />
+        <div className="min-h-0 min-w-0 overflow-x-hidden overflow-y-auto px-3 py-4 sm:px-6 sm:py-5">
+          <VacancySummaryTable job={job} showHeading={false} />
 
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
             <span>Status</span>
@@ -3242,21 +3134,11 @@ function ApplicationFormModal({
   getApplicationPosition,
   getApplicationLocation,
   getApplicationDate,
-  onReviewRequirement,
-  onAssignApplication,
 }) {
   const [previewFile, setPreviewFile] = useState(null);
-  const [assignmentItemId, setAssignmentItemId] = useState(
-    application.assignment?.jobOpeningItemId || ""
-  );
-  const [isSavingAssignment, setIsSavingAssignment] = useState(false);
   const requirements = Array.isArray(application.requirements)
     ? application.requirements
     : [];
-  const [requirementDrafts, setRequirementDrafts] = useState(() =>
-    buildRequirementDrafts(requirements)
-  );
-  const [savingRequirementId, setSavingRequirementId] = useState(null);
   const applicationData =
     application.raw ||
     application.applicationData ||
@@ -3287,16 +3169,23 @@ function ApplicationFormModal({
     application.job ||
     application.jobOpening ||
     {};
+  const applicationPosition = getApplicationPosition(application);
+  const submissionRule = getApplicationSubmissionRule(
+    jobPosition.positionType || applicationPosition
+  );
+  const requiresPersonalSubmission = Boolean(
+    application.personalSubmissionRequired ||
+      application.requirementSubmissionMode === "personal" ||
+      applicationData.personalSubmissionRequired ||
+      applicationData.requirementSubmissionMode === "personal" ||
+      submissionRule.requiresPersonalSubmission
+  );
 
   const files =
     jobPosition.files || application.files || application.attachments || {};
   const vacancyItems = Array.isArray(application.jobItems)
     ? application.jobItems
     : [];
-  const canAssign = ["qualified", "shortlisted", "selected", "hired"].includes(
-    application.status
-  );
-
   const fullName =
     getApplicantName(application) ||
     [
@@ -3309,73 +3198,22 @@ function ApplicationFormModal({
       .join(" ") ||
     "Unnamed Applicant";
 
-  const updateRequirementDraft = (requirement, field, value) => {
-    const draftKey = String(requirement.id || requirement.field);
-
-    setRequirementDrafts((current) => ({
-      ...current,
-      [draftKey]: {
-        ...(current[draftKey] || {
-          status: requirement.status || "pending",
-          remarks: requirement.remarks || "",
-        }),
-        [field]: value,
-      },
-    }));
-  };
-
-  const saveRequirementReview = async (requirement) => {
-    if (!onReviewRequirement) return;
-
-    const draftKey = String(requirement.id || requirement.field);
-    const draft = requirementDrafts[draftKey] || {
-      status: requirement.status || "pending",
-      remarks: requirement.remarks || "",
-    };
-
-    setSavingRequirementId(draftKey);
-
-    try {
-      await onReviewRequirement(application, requirement, {
-        status: draft.status,
-        remarks: draft.remarks,
-      });
-    } catch {
-      // Toast is handled by the parent updater.
-    } finally {
-      setSavingRequirementId(null);
-    }
-  };
-
-  const saveAssignment = async () => {
-    if (!assignmentItemId || !onAssignApplication) return;
-
-    setIsSavingAssignment(true);
-    try {
-      await onAssignApplication(application, assignmentItemId);
-    } catch {
-      // Parent handler shows the toast.
-    } finally {
-      setIsSavingAssignment(false);
-    }
-  };
-
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-black/50 p-4 sm:p-6">
-      <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl sm:max-h-[92vh]">
+    <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-x-hidden overflow-y-auto bg-black/50 p-2 sm:items-center sm:p-6">
+      <div className="flex max-h-[calc(100dvh-1rem)] w-full min-w-0 max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-lg bg-white shadow-2xl sm:max-h-[92vh] sm:max-w-5xl sm:rounded-xl">
         <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 px-4 py-5 sm:px-6">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">
               Application Form
             </p>
 
-            <h3 className="mt-1 break-words text-2xl font-bold text-slate-900 [overflow-wrap:anywhere]">
+            <h3 className="mt-1 break-words text-xl font-bold text-slate-900 [overflow-wrap:anywhere] sm:text-2xl">
               {fullName}
             </h3>
 
             <p className="mt-1 break-words text-sm text-slate-500 [overflow-wrap:anywhere]">
               {application.uan || "No UAN"} /{" "}
-              {getApplicationPosition(application)} /{" "}
+              {applicationPosition} /{" "}
               {formatDate(getApplicationDate(application))}
             </p>
           </div>
@@ -3389,27 +3227,28 @@ function ApplicationFormModal({
           </button>
         </div>
 
-        <div className="min-h-0 overflow-y-auto px-4 py-5 sm:px-6">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <SummaryItem label="Email" value={getApplicantEmail(application)} />
-
-            <SummaryItem
-              label="Position"
-              value={getApplicationPosition(application)}
-            />
-
-            <SummaryItem
-              label="Location"
-              value={getApplicationLocation(application)}
-            />
-
-            <SummaryItem
-              label="Date Applied"
-              value={formatDate(getApplicationDate(application))}
-            />
+        <div className="min-h-0 min-w-0 overflow-x-hidden overflow-y-auto px-3 py-4 sm:px-6 sm:py-5">
+          <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-3 sm:rounded-xl sm:p-4">
+            <dl className="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                ["Email", getApplicantEmail(application)],
+                ["Position", applicationPosition],
+                ["Location", getApplicationLocation(application)],
+                ["Date Applied", formatDate(getApplicationDate(application))],
+              ].map(([label, value]) => (
+                <div key={label} className="min-w-0">
+                  <dt className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    {label}
+                  </dt>
+                  <dd className="mt-2 break-words text-sm font-semibold text-slate-900 [overflow-wrap:anywhere]">
+                    {value || "N/A"}
+                  </dd>
+                </div>
+              ))}
+            </dl>
           </div>
 
-          <div className="mt-6 space-y-6">
+          <div className="mt-4 min-w-0 max-w-full space-y-4 sm:mt-6 sm:space-y-6">
             <ApplicationSection title="Personal Information">
               <InfoGrid
                 items={[
@@ -3519,7 +3358,13 @@ function ApplicationFormModal({
               />
             </ApplicationSection>
 
-            <ApplicationSection title="Vacancy Position and Attachments">
+            <ApplicationSection
+              title={
+                requiresPersonalSubmission
+                  ? "Vacancy Position"
+                  : "Vacancy Position and Attachments"
+              }
+            >
               <InfoGrid
                 items={[
                   [
@@ -3531,7 +3376,7 @@ function ApplicationFormModal({
                   [
                     "Position Type",
                     jobPosition.positionType ||
-                      getApplicationPosition(application) ||
+                      applicationPosition ||
                       "N/A",
                   ],
                   ["Location", getApplicationLocation(application)],
@@ -3541,12 +3386,12 @@ function ApplicationFormModal({
               />
 
               {vacancyItems.length > 0 && (
-                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="mt-4 min-w-0 max-w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-3 sm:rounded-xl">
                   <h5 className="text-sm font-bold text-slate-800">
                     School / Station Vacancy Items
                   </h5>
 
-                  <div className="mt-3 overflow-x-auto">
+                  <div className="mt-3 w-full max-w-full overflow-x-auto overscroll-x-contain">
                     <table className="w-full min-w-[520px] text-left text-xs">
                       <thead className="uppercase text-slate-500">
                         <tr>
@@ -3576,42 +3421,6 @@ function ApplicationFormModal({
                       </tbody>
                     </table>
                   </div>
-
-                  <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-                    <select
-                      value={assignmentItemId}
-                      onChange={(event) => setAssignmentItemId(event.target.value)}
-                      disabled={!canAssign || !onAssignApplication}
-                      className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
-                    >
-                      <option value="">
-                        {canAssign
-                          ? "Assign selected applicant"
-                          : "Mark applicant qualified/shortlisted/selected first"}
-                      </option>
-                      {vacancyItems.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.schoolStation}
-                          {item.subjectArea ? ` - ${item.subjectArea}` : ""} (
-                          {item.assignedCount}/{item.vacancyCount})
-                        </option>
-                      ))}
-                    </select>
-
-                    <button
-                      type="button"
-                      onClick={saveAssignment}
-                      disabled={
-                        !assignmentItemId ||
-                        !canAssign ||
-                        isSavingAssignment ||
-                        !onAssignApplication
-                      }
-                      className="inline-flex h-10 items-center justify-center rounded-lg bg-[#0056b3] px-4 text-sm font-semibold text-white hover:bg-[#003a78] disabled:cursor-not-allowed disabled:bg-slate-300"
-                    >
-                      {isSavingAssignment ? "Saving..." : "Save Assignment"}
-                    </button>
-                  </div>
                 </div>
               )}
 
@@ -3626,130 +3435,54 @@ function ApplicationFormModal({
                       const draftKey = String(
                         requirement.id || requirement.field
                       );
-                      const normalizedRequirementStatus =
-                        normalizeRequirementReviewStatus(requirement.status);
-                      const draft = requirementDrafts[draftKey] || {
-                        status: normalizedRequirementStatus,
-                        remarks: requirement.remarks || "",
-                      };
                       const requirementFile = requirement.file;
-                      const isSaving = savingRequirementId === draftKey;
-                      const hasChanges =
-                        draft.status !== normalizedRequirementStatus ||
-                        draft.remarks !== (requirement.remarks || "");
 
                       return (
                         <div
                           key={draftKey}
-                          className="rounded-xl border border-slate-200 bg-slate-50 p-3"
+                          className="min-w-0 max-w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-3 sm:rounded-xl"
                         >
-                          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                            <div className="min-w-0">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <p className="break-words text-sm font-bold text-slate-900 [overflow-wrap:anywhere]">
-                                  {requirement.label || requirement.field}
-                                  {requirement.required ? (
-                                    <span className="ml-1 text-red-600">*</span>
-                                  ) : null}
-                                </p>
-                                <span
-                                  className={`inline-flex rounded-md border px-2 py-0.5 text-[11px] font-semibold ${getRequirementReviewStatusClass(
-                                    normalizedRequirementStatus
-                                  )}`}
-                                >
-                                  {requirementReviewStatusLabels[
-                                    normalizedRequirementStatus
-                                  ] ||
-                                    normalizedRequirementStatus ||
-                                    "Pending"}
-                                </span>
-                              </div>
+                          <div className="min-w-0 max-w-full">
+                            <p className="break-words text-sm font-bold text-slate-900 [overflow-wrap:anywhere]">
+                              {requirement.label || requirement.field}
+                              {requirement.required ? (
+                                <span className="ml-1 text-red-600">*</span>
+                              ) : null}
+                            </p>
 
-                              <p className="mt-1 break-words text-sm text-slate-600 [overflow-wrap:anywhere]">
-                                {getRequirementFileName(requirementFile)}
-                              </p>
+                            <p className="mt-1 break-words text-sm text-slate-600 [overflow-wrap:anywhere]">
+                              {getRequirementFileName(requirementFile)}
+                            </p>
 
-                              {requirementFile?.previewUrl && (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setPreviewFile({
-                                      ...requirementFile,
-                                      name: getRequirementFileName(
-                                        requirementFile
-                                      ),
-                                    })
-                                  }
-                                  className="mt-2 text-sm font-semibold text-blue-700 hover:underline"
-                                >
-                                  View document
-                                </button>
-                              )}
-                            </div>
-
-                            <div className="grid min-w-0 gap-2 sm:grid-cols-[190px_minmax(0,1fr)_auto] lg:w-[560px]">
-                              <select
-                                value={draft.status}
-                                onChange={(event) =>
-                                  updateRequirementDraft(
-                                    requirement,
-                                    "status",
-                                    event.target.value
-                                  )
-                                }
-                                className={`h-10 rounded-lg border px-3 text-sm font-semibold outline-none ${getRequirementReviewStatusClass(
-                                  draft.status
-                                )}`}
-                              >
-                                {requirementReviewStatuses.map((status) => (
-                                  <option key={status} value={status}>
-                                    {requirementReviewStatusLabels[status]}
-                                  </option>
-                                ))}
-                              </select>
-
-                              <textarea
-                                value={draft.remarks}
-                                onChange={(event) =>
-                                  updateRequirementDraft(
-                                    requirement,
-                                    "remarks",
-                                    event.target.value
-                                  )
-                                }
-                                placeholder="Remarks for this requirement"
-                                className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                              />
-
+                            {requirementFile?.previewUrl && (
                               <button
                                 type="button"
-                                onClick={() => saveRequirementReview(requirement)}
-                                disabled={
-                                  isSaving || !hasChanges || !onReviewRequirement
+                                onClick={() =>
+                                  setPreviewFile({
+                                    ...requirementFile,
+                                    name: getRequirementFileName(
+                                      requirementFile
+                                    ),
+                                  })
                                 }
-                                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#0056b3] px-3 text-sm font-semibold text-white transition hover:bg-[#003a78] disabled:cursor-not-allowed disabled:bg-slate-300"
+                                className="mt-2 text-sm font-semibold text-blue-700 hover:underline"
                               >
-                                {isSaving ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Save className="h-4 w-4" />
-                                )}
-                                Save
+                                View document
                               </button>
-                            </div>
+                            )}
                           </div>
                         </div>
                       );
                     })}
                   </div>
                 </div>
-              ) : (
+              ) : !requiresPersonalSubmission ? (
                 <div className="mt-4">
                   <h5 className="text-sm font-bold text-slate-800">
                     Attached Files
                   </h5>
 
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <div className="mt-3 grid min-w-0 max-w-full gap-2 sm:grid-cols-2">
                     {Object.entries(files || {}).length > 0 ? (
                       Object.entries(files || {}).map(([key, file]) => (
                         <div
@@ -3787,7 +3520,7 @@ function ApplicationFormModal({
                     )}
                   </div>
                 </div>
-              )}
+              ) : null}
             </ApplicationSection>
           </div>
         </div>
@@ -3813,41 +3546,27 @@ function ApplicationFormModal({
   );
 }
 
-function SummaryItem({ label, value }) {
-  return (
-    <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-4">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-        {label}
-      </p>
-
-      <p className="mt-2 break-words text-sm font-semibold text-slate-900 [overflow-wrap:anywhere]">
-        {value || "N/A"}
-      </p>
-    </div>
-  );
-}
-
 function ApplicationSection({ title, children }) {
   return (
-    <section className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+    <section className="min-w-0 max-w-full overflow-hidden rounded-lg border border-slate-200 bg-white p-3 sm:rounded-xl sm:p-5">
       <h4 className="break-words text-lg font-bold text-blue-950 [overflow-wrap:anywhere]">
         {title}
       </h4>
 
       <div className="mt-3 border-b border-slate-200" />
 
-      <div className="mt-4">{children}</div>
+      <div className="mt-4 min-w-0 max-w-full">{children}</div>
     </section>
   );
 }
 
 function InfoGrid({ items }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="grid min-w-0 max-w-full gap-3 sm:grid-cols-2">
       {items.map(([label, value]) => (
         <div
           key={label}
-          className="min-w-0 rounded-lg bg-slate-50 px-3 py-2 text-sm"
+          className="min-w-0 max-w-full overflow-hidden rounded-lg bg-slate-50 px-3 py-2 text-sm"
         >
           <p className="break-words font-semibold text-slate-700 [overflow-wrap:anywhere]">
             {label}
@@ -3864,7 +3583,7 @@ function InfoGrid({ items }) {
 
 function RecordList({ title, records, fields }) {
   return (
-    <div className="mt-4 first:mt-0">
+    <div className="mt-4 min-w-0 max-w-full first:mt-0">
       <h5 className="break-words text-sm font-bold text-slate-800 [overflow-wrap:anywhere]">
         {title}
       </h5>
@@ -3874,13 +3593,13 @@ function RecordList({ title, records, fields }) {
           records.map((record, index) => (
             <div
               key={index}
-              className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 p-3"
+              className="min-w-0 max-w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-3"
             >
               <p className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
                 Entry {index + 1}
               </p>
 
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid min-w-0 gap-2 sm:grid-cols-2">
                 {fields.map(([label, key]) => (
                   <div key={key} className="min-w-0 text-sm">
                     <span className="break-words font-semibold text-slate-700 [overflow-wrap:anywhere]">

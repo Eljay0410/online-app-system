@@ -2075,13 +2075,44 @@ const Attachment = ({ data, onChange, onNext }) => {
       )}
 
       {requiresPersonalSubmission ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900">
-          <p className="font-semibold">{submissionRule.notice?.title}</p>
-          <p className="mt-1">
-            Documentary requirements for this vacancy must be submitted
-            personally to HR/Admin. You may continue your online application
-            without uploading files here.
-          </p>
+        <div className="space-y-4">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900">
+            <p className="font-semibold">{submissionRule.notice?.title}</p>
+            <p className="mt-1">
+              Applicants must submit the required documents in person to the Division Office.
+            </p>
+          </div>
+          {currentUploadRequirements.length > 0 ? (
+            <div>
+              <h2 className="text-lg font-semibold text-slate-700">
+                List of Requirements
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                These documents must be submitted in person to the Division Office.
+              </p>
+              <ul className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                {currentUploadRequirements.map((requirement) => (
+                  <li
+                    key={requirement.field || requirement.label}
+                    className="rounded-xl border border-slate-200 bg-white p-4"
+                  >
+                    <p className="min-w-0 break-words text-sm font-semibold text-slate-800 [overflow-wrap:anywhere]">
+                      {requirement.label}
+                    </p>
+                    {requirement.description && (
+                      <p className="mt-1 break-words text-xs leading-5 text-slate-500 [overflow-wrap:anywhere]">
+                        {requirement.description}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+              No physical requirements are configured for this vacancy.
+            </p>
+          )}
         </div>
       ) : currentUploadRequirements.length > 0 ? (
         <div className="space-y-4">
@@ -2219,6 +2250,11 @@ const Review = ({ data, onSubmit }) => {
   const jobPosition = data?.jobPosition || {};
   const submissionRule = getApplicationSubmissionRule(jobPosition.positionType);
   const requiresPersonalSubmission = submissionRule.requiresPersonalSubmission;
+  const reviewRequirements = normalizeRequirementList(
+    jobPosition.requirements,
+    jobPosition.positionCategory,
+    jobPosition.positionType
+  );
 
   const applicantName =
     [
@@ -2525,6 +2561,26 @@ const Review = ({ data, onSubmit }) => {
                 {submissionRule.notice?.title}
               </p>
               <p className="mt-1">{submissionRule.notice?.message}</p>
+            </div>
+          )}
+
+          {requiresPersonalSubmission && reviewRequirements.length > 0 && (
+            <div>
+              <p className="font-semibold text-slate-800">
+                List of Requirements:
+              </p>
+              <ul className="mt-2 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
+                {reviewRequirements.map((requirement) => (
+                  <li key={requirement.field || requirement.label}>
+                    <strong>{requirement.label}</strong>
+                    {requirement.description && (
+                      <span className="block text-xs leading-5 text-slate-500">
+                        {requirement.description}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 

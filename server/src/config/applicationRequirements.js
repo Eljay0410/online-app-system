@@ -172,7 +172,7 @@ export const nonTeachingApplicationRequirements = [
 export const teacherIPersonalSubmissionNotice = {
   title: "Personal Submission Required",
   message:
-    "Teacher I applicants are not allowed to upload application requirements online. You may still submit your online application for this vacancy posting, but all documentary requirements must be submitted personally to the HR/Admin office.",
+    "Teacher I applicants are not allowed to upload application requirements online. You may still submit your online application for this vacancy posting. Applicants must submit the required documents in person to the Division Office.",
   confirmLabel: "Submit Application",
   cancelLabel: "Cancel",
 };
@@ -280,11 +280,9 @@ export function getAllApplicationRequirements() {
 }
 
 export function getFixedApplicationRequirements(category = "", positionTitle = "") {
-  if (isTeacherIPersonalSubmissionRequired(positionTitle)) {
-    return [];
-  }
-
-  const normalizedCategory = normalizeRequirementCategory(category);
+  const normalizedCategory =
+    normalizeRequirementCategory(category) ||
+    (normalizePositionTitle(positionTitle).includes("teacher") ? "teaching" : "");
 
   if (normalizedCategory === "teaching") {
     return cloneRequirements(teachingApplicationRequirements);
@@ -302,10 +300,6 @@ export function getFixedApplicationRequirement(
   category = "",
   positionTitle = ""
 ) {
-  if (isTeacherIPersonalSubmissionRequired(positionTitle)) {
-    return undefined;
-  }
-
   const normalizedField = String(field || "");
 
   return getFixedApplicationRequirements(category, positionTitle).find(

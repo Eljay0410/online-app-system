@@ -4,12 +4,13 @@ import {
   AlertTriangle,
   ArrowRight,
   BriefcaseBusiness,
+  Download,
   FileText,
   Loader2,
   MessageSquareText,
   X,
 } from "lucide-react";
-import { apiRequest } from "../../lib/api";
+import { API_BASE_URL, apiRequest, getAuthToken } from "../../lib/api";
 import { useAuth } from "../auth/auth";
 import SuperAdminSidebar from "../../components/layout/SuperAdminSidebar";
 import FilePreviewModal from "../../components/ui/FilePreviewModal";
@@ -25,7 +26,9 @@ import {
   VacancyBreakdown,
   VacancyDescription,
   VacancySummaryTable,
+  formatTime,
 } from "../jobs/jobPostingUi";
+import { getApplicationSubmissionRule } from "../../lib/applicationRequirements";
 
 const statusLabels = {
   draft: "Draft",
@@ -100,64 +103,6 @@ const statusStyles = {
   },
 };
 
-const statusGuidance = {
-  submitted: {
-    title: "Pending review",
-    next: "HR will review your submitted requirements.",
-    action: "Keep your contact details active and wait for the first review update.",
-  },
-  pending_review: {
-    title: "Pending review",
-    next: "HR will review your submitted requirements.",
-    action: "Keep your contact details active and wait for the next review update.",
-  },
-  for_compliance: {
-    title: "Pending review",
-    next: "HR will review your submitted requirements.",
-    action: "Keep your contact details active and wait for the next review update.",
-  },
-  under_review: {
-    title: "Under review",
-    next: "HR is reviewing your submitted requirements.",
-    action: "Watch this page and your email for updates.",
-  },
-  reviewed: {
-    title: "Reviewed",
-    next: "HR has reviewed your submitted requirements.",
-    action: "Watch this page and your email for instructions.",
-  },
-  qualified: {
-    title: "Qualified",
-    next: "You passed the current evaluation stage. HR will provide the next instruction.",
-    action: "Keep copies of your documents ready for verification.",
-  },
-  shortlisted: {
-    title: "Shortlisted",
-    next: "You are shortlisted for further evaluation.",
-    action: "Watch this page and your email for instructions.",
-  },
-  selected: {
-    title: "Selected",
-    next: "You have been selected for placement review.",
-    action: "Wait for HR assignment or onboarding instructions.",
-  },
-  disqualified: {
-    title: "Disqualified",
-    next: "This application is closed.",
-    action: "Review future postings and keep your profile updated.",
-  },
-  rejected: {
-    title: "Not selected",
-    next: "This application is closed, but you can still apply to other open vacancies.",
-    action: "Review new postings and keep your profile updated.",
-  },
-  hired: {
-    title: "Hired",
-    next: "Your application has been marked as hired.",
-    action: "Watch for final onboarding instructions from HR.",
-  },
-};
-
 const filterOptions = [
   { value: "all", label: "All" },
   { value: "submitted", label: "Submitted" },
@@ -190,9 +135,6 @@ const formatDate = (value) => {
 const getStatusLabel = (status) =>
   statusLabels[status] || status || "Pending Review";
 
-const getStatusGuidance = (status) =>
-  statusGuidance[status] || statusGuidance.submitted;
-
 const getApplicationPosition = (application) =>
   application.jobTitle || application.position || "Not specified";
 
@@ -202,7 +144,10 @@ const getApplicationLocation = (application) =>
 const getDeadlineText = (application) => {
   const date = formatDate(application.jobDeadline);
   if (date === "N/A") return "No deadline listed";
-  return `${date} ${application.jobDeadlineTime || ""}`.trim();
+  const time = application.jobDeadlineTime
+    ? formatTime(application.jobDeadlineTime)
+    : "";
+  return `${date} ${time}`.trim();
 };
 
 const requirementStatusLabels = {
@@ -234,6 +179,101 @@ const getRequirementStatusClass = (status) =>
 
 const getRequirementFileName = (file) =>
   file?.name || file?.fileName || file?.filename || "No file attached";
+
+const normalizeRequirementKey = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase();
+
+const getRequirementKey = (requirement = {}) =>
+  normalizeRequirementKey(
+    requirement.field || requirement.requirementField || requirement.label
+  );
+
+function buildSubmittedRequirementRows(
+  submittedRequirements = [],
+  vacancyRequirements = []
+) {
+  const submittedByKey = new Map();
+  const usedSubmitted = new Set();
+
+  submittedRequirements.forEach((requirement, index) => {
+    const key = getRequirementKey(requirement) || `submitted-${index}`;
+    const group = submittedByKey.get(key) || [];
+    group.push({ requirement, index });
+    submittedByKey.set(key, group);
+  });
+
+  const rows = [];
+
+  vacancyRequirements.forEach((requirement, index) => {
+    const key = getRequirementKey(requirement) || `vacancy-${index}`;
+    const submittedGroup = submittedByKey.get(key) || [];
+
+    if (submittedGroup.length === 0) {
+      rows.push({
+        ...requirement,
+        id: requirement.id || key,
+        field: requirement.field || key,
+        status: "incomplete",
+        file: null,
+        missing: true,
+      });
+      return;
+    }
+
+    submittedGroup.forEach(({ requirement: submittedRequirement, index: submittedIndex }) => {
+      usedSubmitted.add(submittedIndex);
+      rows.push({
+        ...requirement,
+        ...submittedRequirement,
+        label: submittedRequirement.label || requirement.label,
+        description:
+          submittedRequirement.description || requirement.description || "",
+      });
+    });
+  });
+
+  submittedRequirements.forEach((requirement, index) => {
+    if (!usedSubmitted.has(index)) {
+      rows.push(requirement);
+    }
+  });
+
+  return rows;
+}
+
+function buildFileUrl(path = "") {
+  if (!path) return "";
+  if (/^https?:\/\//i.test(path) || path.startsWith("data:")) return path;
+
+  return `${API_BASE_URL}${path}`;
+}
+
+async function downloadRequirementFile(file = {}) {
+  const path = file.dataUrl || file.downloadUrl || file.previewUrl || "";
+
+  if (!path) return;
+
+  const token = getAuthToken();
+  const response = await fetch(buildFileUrl(path), {
+    headers: token && !path.startsWith("data:") ? { Authorization: `Bearer ${token}` } : {},
+  });
+
+  if (!response.ok) {
+    throw new Error("Could not download this file.");
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = getRequirementFileName(file);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
 
 export default function ApplicantDashboard() {
   const { user } = useAuth();
@@ -633,19 +673,27 @@ function ApplicationDetailsModal({ application, onClose }) {
   const [previewFile, setPreviewFile] = useState(null);
   const status = application.status || "submitted";
   const statusTone = statusStyles[status] || statusStyles.submitted;
-  const guidance = getStatusGuidance(status);
   const position = getApplicationPosition(application);
   const uan = application.uan || "Not assigned";
   const location = getApplicationLocation(application);
-  const deadline = getDeadlineText(application);
   const remarks = String(application.reviewNotes || "").trim();
   const jobUrl = application.jobOpeningId ? `/jobs/${application.jobOpeningId}` : "";
+  const submissionRule = getApplicationSubmissionRule(position);
+  const requiresPersonalSubmission = Boolean(
+    application.personalSubmissionRequired ||
+      application.requirementSubmissionMode === "personal" ||
+      submissionRule.requiresPersonalSubmission
+  );
   const submittedRequirements = Array.isArray(application.requirements)
     ? application.requirements
     : [];
   const vacancyRequirements = Array.isArray(application.jobRequirements)
     ? application.jobRequirements
     : [];
+  const submittedRequirementRows = buildSubmittedRequirementRows(
+    submittedRequirements,
+    vacancyRequirements
+  );
   const vacancyItems = Array.isArray(application.jobItems)
     ? application.jobItems
     : [];
@@ -707,67 +755,26 @@ function ApplicationDetailsModal({ application, onClose }) {
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">
-            <section className="rounded-lg border border-slate-200 bg-slate-50 p-3 sm:p-4">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0">
-                  <h4 className="text-sm font-bold text-slate-900">
-                    Application Status
-                  </h4>
-                  <p className="mt-2 text-sm font-bold text-slate-950">
-                    {guidance.title}
-                  </p>
-                  <p className="mt-1 text-sm leading-6 text-slate-600">
-                    {guidance.next}
-                  </p>
-                  <p className="mt-3 text-sm font-semibold text-slate-700">
-                    {guidance.action}
-                  </p>
-                </div>
-
+            <div className="space-y-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <h3 className="text-sm font-bold text-slate-950">
+                  Vacancy Posting Details
+                </h3>
                 <span
-                  className={`inline-flex shrink-0 items-center gap-2 rounded-md border px-2.5 py-1 text-xs font-semibold ${statusTone.badge}`}
+                  className={`inline-flex w-fit shrink-0 items-center gap-2 rounded-md border px-2.5 py-1 text-xs font-semibold ${statusTone.badge}`}
                 >
                   <span className={`h-1.5 w-1.5 rounded-sm ${statusTone.dot}`} />
                   {getStatusLabel(status)}
                 </span>
               </div>
 
-              <dl className="mt-4 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                  <dt className="text-[11px] font-semibold uppercase text-slate-500">
-                    Date Applied
-                  </dt>
-                  <dd className="mt-1 text-sm font-semibold text-slate-900">
-                    {formatDate(application.createdAt)}
-                  </dd>
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                  <dt className="text-[11px] font-semibold uppercase text-slate-500">
-                    Last Updated
-                  </dt>
-                  <dd className="mt-1 text-sm font-semibold text-slate-900">
-                    {formatDate(application.updatedAt)}
-                  </dd>
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                  <dt className="text-[11px] font-semibold uppercase text-slate-500">
-                    Deadline
-                  </dt>
-                  <dd className="mt-1 text-sm font-semibold text-slate-900">
-                    {deadline}
-                  </dd>
-                </div>
-              </dl>
-            </section>
+              <VacancySummaryTable job={vacancy} showHeading={false} />
 
-            <div className="mt-4 sm:mt-5">
-              <VacancySummaryTable job={vacancy} />
+              <VacancyBreakdown job={vacancy} showHeading={false} />
+              <VacancyDescription job={vacancy} />
+              <QualificationStandards job={vacancy} />
+              <RequirementSummary job={vacancy} />
             </div>
-
-            <VacancyBreakdown job={vacancy} />
-            <VacancyDescription job={vacancy} />
-            <QualificationStandards job={vacancy} />
-            <RequirementSummary job={vacancy} />
 
             {remarks && (
               <section className="mt-4 rounded-lg border border-blue-100 bg-blue-50 p-3 sm:mt-5 sm:p-4">
@@ -781,86 +788,13 @@ function ApplicationDetailsModal({ application, onClose }) {
               </section>
             )}
 
-            <section className="mt-4 rounded-lg border border-slate-200 bg-white p-3 sm:mt-5 sm:p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h4 className="flex items-center gap-2 text-sm font-bold text-slate-900">
-                    <FileText className="h-4 w-4 text-slate-500" />
-                    Submitted Documents
-                  </h4>
-                  <p className="mt-1 text-sm text-slate-600">
-                    Uploaded requirements attached to this application.
-                  </p>
-                </div>
-              </div>
-
-              {submittedRequirements.length > 0 ? (
-                <div className="mt-4 space-y-3">
-                  {submittedRequirements.map((requirement) => {
-                    const requirementStatus = requirement.status || "pending";
-                    const requirementFile = requirement.file;
-
-                    return (
-                      <div
-                        key={requirement.id || requirement.field}
-                        className="rounded-xl border border-slate-200 bg-slate-50 p-3"
-                      >
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="break-words text-sm font-bold text-slate-950 [overflow-wrap:anywhere]">
-                                {requirement.label || requirement.field}
-                                {requirement.required ? (
-                                  <span className="ml-1 text-red-600">*</span>
-                                ) : null}
-                              </h3>
-                              <span
-                                className={`inline-flex rounded-md border px-2 py-0.5 text-[11px] font-semibold ${getRequirementStatusClass(
-                                  requirementStatus
-                                )}`}
-                              >
-                                {getRequirementStatusLabel(requirementStatus)}
-                              </span>
-                            </div>
-
-                            <p className="mt-1 break-words text-sm text-slate-600 [overflow-wrap:anywhere]">
-                              {getRequirementFileName(requirementFile)}
-                            </p>
-
-                            {requirement.remarks && (
-                              <p className="mt-2 rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-sm leading-6 text-orange-900">
-                                {requirement.remarks}
-                              </p>
-                            )}
-                          </div>
-
-                          <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
-                            {requirementFile?.previewUrl && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setPreviewFile({
-                                    ...requirementFile,
-                                    name: getRequirementFileName(requirementFile),
-                                  })
-                                }
-                                className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
-                              >
-                                View
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="mt-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500">
-                  No uploaded documents were attached to this application.
-                </p>
-              )}
-            </section>
+            {!requiresPersonalSubmission && (
+              <SubmittedRequirementsSection
+                requirements={submittedRequirementRows}
+                onPreviewFile={setPreviewFile}
+                onDownloadFile={downloadRequirementFile}
+              />
+            )}
           </div>
 
           <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:justify-end">
@@ -901,6 +835,139 @@ function ApplicationDetailsModal({ application, onClose }) {
         />
       )}
     </div>
+  );
+}
+
+function SubmittedRequirementsSection({
+  requirements = [],
+  onPreviewFile,
+  onDownloadFile,
+}) {
+  return (
+    <section className="mt-5 rounded-lg border border-slate-200 bg-white p-3 sm:p-4">
+      <div>
+        <h4 className="flex items-center gap-2 text-sm font-bold text-slate-900">
+          <FileText className="h-4 w-4 text-slate-500" />
+          Submitted Requirements
+        </h4>
+        <p className="mt-1 text-sm text-slate-600">
+          Uploaded files attached to this application.
+        </p>
+      </div>
+
+      {requirements.length > 0 ? (
+        <div className="mt-4 space-y-3">
+          {requirements.map((requirement, index) => {
+            const requirementFile = requirement.file;
+            const hasFile = Boolean(requirementFile);
+            const requirementStatus = hasFile
+              ? requirement.status || "pending"
+              : "incomplete";
+            const statusLabel = hasFile
+              ? getRequirementStatusLabel(requirementStatus)
+              : "Missing / Not submitted";
+            const canPreview = Boolean(
+              requirementFile?.previewUrl || requirementFile?.dataUrl
+            );
+            const canDownload = Boolean(
+              requirementFile?.downloadUrl ||
+                requirementFile?.previewUrl ||
+                requirementFile?.dataUrl
+            );
+
+            return (
+              <div
+                key={requirement.id || requirement.field || `${requirement.label}-${index}`}
+                className="rounded-xl border border-slate-200 bg-slate-50 p-3"
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="break-words text-sm font-bold text-slate-950 [overflow-wrap:anywhere]">
+                        {requirement.label || requirement.field || "Requirement"}
+                        {requirement.required ? (
+                          <span className="ml-1 text-red-600">*</span>
+                        ) : null}
+                      </h3>
+                      <span
+                        className={`inline-flex rounded-md border px-2 py-0.5 text-[11px] font-semibold ${getRequirementStatusClass(
+                          requirementStatus
+                        )}`}
+                      >
+                        {statusLabel}
+                      </span>
+                    </div>
+
+                    {requirement.description && (
+                      <p className="mt-1 break-words text-xs leading-5 text-slate-500 [overflow-wrap:anywhere]">
+                        {requirement.description}
+                      </p>
+                    )}
+
+                    <p
+                      className={`mt-2 break-words text-sm [overflow-wrap:anywhere] ${
+                        hasFile
+                          ? "font-semibold text-slate-700"
+                          : "font-medium text-orange-800"
+                      }`}
+                    >
+                      {hasFile
+                        ? getRequirementFileName(requirementFile)
+                        : "No file uploaded for this requirement."}
+                    </p>
+
+                    {requirement.remarks && (
+                      <p className="mt-2 rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-sm leading-6 text-orange-900">
+                        {requirement.remarks}
+                      </p>
+                    )}
+                  </div>
+
+                  {hasFile && (
+                    <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
+                      {canPreview && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onPreviewFile?.({
+                              ...requirementFile,
+                              name: getRequirementFileName(requirementFile),
+                            })
+                          }
+                          className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                        >
+                          View
+                        </button>
+                      )}
+                      {canDownload && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            Promise.resolve(onDownloadFile?.(requirementFile)).catch(
+                              () => {
+                                window.alert("Could not download this file.");
+                              }
+                            );
+                          }}
+                          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#0056b3] px-3 text-xs font-semibold text-white transition hover:bg-[#003a78]"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          Download
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="mt-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500">
+          No submitted requirement records were found for this application.
+        </p>
+      )}
+    </section>
   );
 }
 

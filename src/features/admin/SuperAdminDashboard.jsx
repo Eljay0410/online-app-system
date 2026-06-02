@@ -11,7 +11,7 @@ import {
   getSidebarContentPadding,
 } from "../../lib/sidebar";
 import { useAuth } from "../auth/auth";
-import { VacancySummaryTable } from "../jobs/jobPostingUi";
+import { VacancySummaryTable, formatTime } from "../jobs/jobPostingUi";
 
 const emptyAdminForm = {
   firstName: "",
@@ -67,7 +67,7 @@ const formatDate = (value) => {
 };
 
 const formatDeadline = (job, formatDateFn = formatDate) =>
-  `${formatDateFn(job?.deadline)} ${job?.deadlineTime || ""}`.trim();
+  `${formatDateFn(job?.deadline)} ${formatTime(job?.deadlineTime)}`.trim();
 
 const fullName = (user) =>
   [user?.firstName, user?.middleName, user?.lastName].filter(Boolean).join(" ") ||
@@ -969,13 +969,6 @@ function JobListingSection({
 
   return (
     <section className="oas-panel">
-      <div className="oas-panel-header">
-        <h2 className="oas-panel-title">Vacancies</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          View all posted vacancies and open their full details.
-        </p>
-      </div>
-
       {jobs.length === 0 ? (
         <p className="p-6 text-center text-sm text-slate-500">
           No vacancies available.
@@ -1070,7 +1063,7 @@ function JobDetailsModal({ job, onClose }) {
         </div>
 
         <div className="min-h-0 overflow-y-auto p-4 sm:p-5">
-          <VacancySummaryTable job={job} />
+          <VacancySummaryTable job={job} showHeading={false} />
 
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
             <span>Status</span>

@@ -2762,6 +2762,7 @@ function Attachment({
   );
   const [uploadingFields, setUploadingFields] = useState({});
   const [previewFile, setPreviewFile] = useState(null);
+  const [submitConfirmation, setSubmitConfirmation] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -2809,6 +2810,41 @@ function Attachment({
       }, {}),
     [libraryFiles]
   );
+  const requirementProgress = useMemo(
+    () =>
+      requirements.map((requirement) => {
+        const files = mergeFileLists(
+          filesByField?.[requirement.field],
+          libraryFileByField[requirement.field]
+        );
+
+        return {
+          ...requirement,
+          files,
+          count: files.length,
+          isUploaded: files.length > 0,
+        };
+      }),
+    [filesByField, libraryFileByField, requirements]
+  );
+  const completedRequirementCount = requirementProgress.filter(
+    (requirement) => requirement.isUploaded
+  ).length;
+  const requiredRequirementProgress = requirementProgress.filter(
+    (requirement) => requirement.required !== false
+  );
+  const missingRequiredRequirementProgress = requiredRequirementProgress.filter(
+    (requirement) => !requirement.isUploaded
+  );
+  const missingRequiredRequirementCount =
+    missingRequiredRequirementProgress.length;
+  const requirementProgressPercent = requirements.length
+    ? Math.round((completedRequirementCount / requirements.length) * 100)
+    : 0;
+  const selectedRequirementProgress =
+    requirementProgress.find(
+      (requirement) => requirement.field === selectedRequirement?.field
+    ) || null;
   const requirementFields = useMemo(
     () => new Set(requirements.map((requirement) => requirement.field)),
     [requirements]
@@ -3024,6 +3060,22 @@ function Attachment({
   const handleSubmit = (e) => {
     e.preventDefault();
     const nextData = getNextAttachmentData();
+    const hasIncompleteOnlineRequirements =
+      showAttachments && missingRequiredRequirementCount > 0;
+
+    setSubmitConfirmation({
+      kind: hasIncompleteOnlineRequirements ? "incomplete" : "complete",
+      completedCount: completedRequirementCount,
+      totalCount: requirements.length,
+      missingCount: missingRequiredRequirementCount,
+      nextData,
+      showUploadSummary: showAttachments,
+    });
+  };
+
+  const handleConfirmSubmit = () => {
+    const nextData = submitConfirmation?.nextData || getNextAttachmentData();
+    setSubmitConfirmation(null);
     onNext?.(nextData);
     onSave?.(nextData);
   };
@@ -3033,25 +3085,30 @@ function Attachment({
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-4">
         <h2 className="oas-panel-title">
-          List of Requirements
+          Required Documents
         </h2>
         <p className="text-sm text-slate-500">
           {isVacancyLocked
-            ? "Requirements are based on the vacancy you selected."
-            : "Select a position to show its fixed List of Requirements."}
+            ? "Upload the documents needed for your selected vacancy."
+            : "Select a position to show the required documents."}
         </p>
 
         {isVacancyLocked ? (
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-              Selected Vacancy
-            </p>
-            <h3 className="mt-2 break-words text-lg font-bold text-slate-950 [overflow-wrap:anywhere]">
-              {positionType}
-            </h3>
-            <p className="mt-1 text-sm text-slate-600">
-              {positionCategory || "Position category unavailable"}
-            </p>
+          <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-700">
+                  Selected Vacancy
+                </p>
+                <h3 className="mt-1 break-words text-lg font-bold text-slate-950 [overflow-wrap:anywhere]">
+                  {positionType}
+                </h3>
+              </div>
+
+              <span className="w-fit rounded-full border border-blue-200 bg-white px-3 py-1 text-xs font-semibold text-blue-800">
+                {positionCategory || "Position category unavailable"}
+              </span>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 rounded-xl border border-slate-200 bg-white p-4 md:grid-cols-2">
@@ -3109,96 +3166,147 @@ function Attachment({
         )}
 
         {requiresPersonalSubmission && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
-            <p className="font-bold">{submissionRule.notice?.title}</p>
-            <p className="mt-1">
-              Documentary requirements for this vacancy must be submitted
-              personally to HR/Admin. No online upload is required here.
-            </p>
+          <div className="space-y-4">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+              <p className="font-bold">{submissionRule.notice?.title}</p>
+              <p className="mt-1">
+                Applicants must submit the required documents in person to the Division Office.
+              </p>
+            </div>
+            {requirements.length > 0 ? (
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <h2 className="text-sm font-bold text-slate-900">
+                  Required Documents
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  These documents must be submitted in person to the Division Office.
+                </p>
+                <ul className="mt-3 max-h-72 space-y-2.5 overflow-y-auto pr-1 sm:max-h-none sm:overflow-visible sm:pr-0">
+                  {requirements.map((requirement) => (
+                    <li
+                      key={requirement.field || requirement.label}
+                      className="border-b border-slate-200 pb-2.5 last:border-b-0 last:pb-0"
+                    >
+                      <p className="min-w-0 break-words text-sm font-semibold text-slate-800 [overflow-wrap:anywhere]">
+                        {requirement.label}
+                      </p>
+                      {requirement.description && (
+                        <p className="mt-1 break-words text-xs leading-5 text-slate-500 [overflow-wrap:anywhere]">
+                          {requirement.description}
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <p className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                No physical requirements are configured for this vacancy.
+              </p>
+            )}
           </div>
         )}
 
       {showAttachments && (
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <label
-                htmlFor="requirement-category-select"
-                className="block text-sm font-semibold text-slate-700"
-              >
-                Requirement category
-              </label>
-              <select
-                id="requirement-category-select"
-                value={selectedRequirement?.field || ""}
-                onChange={(event) =>
-                  setSelectedRequirementField(event.target.value)
-                }
-                disabled={disabled}
-                className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none transition focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-slate-100"
-              >
-                {requirements.map((requirement) => {
-                  const count = mergeFileLists(
-                    filesByField?.[requirement.field],
-                    libraryFileByField[requirement.field]
-                  ).length;
-
-                  return (
-                    <option key={requirement.field} value={requirement.field}>
-                      {requirement.label}
-                      {count > 0 ? ` - ${count} file(s)` : ""}
-                    </option>
-                  );
-                })}
-              </select>
-
-              <div className="mt-4 grid gap-2">
-                {requirements.map((requirement) => {
-                  const count = mergeFileLists(
-                    filesByField?.[requirement.field],
-                    libraryFileByField[requirement.field]
-                  ).length;
-
-                  return (
-                    <button
-                      key={requirement.field}
-                      type="button"
-                      onClick={() => setSelectedRequirementField(requirement.field)}
-                      className={`flex min-w-0 items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left text-sm transition ${
-                        selectedRequirement?.field === requirement.field
-                          ? "border-blue-500 bg-blue-50 text-blue-900"
-                          : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-white"
-                      }`}
-                    >
-                      <span className="min-w-0 break-words font-medium [overflow-wrap:anywhere]">
-                        {requirement.label}
-                      </span>
-                      <span className="shrink-0 rounded-md bg-white px-2 py-0.5 text-xs font-semibold text-slate-600">
-                        {`${count}/${maxRequirementFilesPerField}`}
-                      </span>
-                    </button>
-                  );
-                })}
+        <div className="grid gap-3 sm:gap-4 lg:grid-cols-[minmax(260px,0.8fr)_minmax(0,1.2fr)]">
+          <div className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Upload Progress
+              </p>
+              <p className="mt-1 text-lg font-bold text-slate-950 sm:text-xl">
+                {completedRequirementCount} of {requirements.length}
+              </p>
+              <p className="mt-1 hidden text-sm text-slate-600 sm:block">
+                document types have files
+              </p>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200 sm:mt-3">
+                <div
+                  className="h-full rounded-full bg-[#0056b3]"
+                  style={{ width: `${requirementProgressPercent}%` }}
+                />
               </div>
             </div>
 
-            {selectedRequirement && (
-              <FileUpload
-                key={selectedRequirement.field}
-                label={selectedRequirement.label}
-                description={selectedRequirement.description}
-                field={selectedRequirement.field}
-                files={mergeFileLists(
-                  filesByField?.[selectedRequirement.field],
-                  libraryFileByField[selectedRequirement.field]
-                )}
-                disabled={disabled}
-                uploading={Boolean(uploadingFields[selectedRequirement.field])}
-                onFileChange={handleFileChange}
-                onRemoveFile={handleRemoveFile}
-                onPreviewFile={setPreviewFile}
-              />
-            )}
+            <label
+              htmlFor="requirement-category-select"
+              className="mt-4 block text-sm font-semibold text-slate-700"
+            >
+              Choose document type
+            </label>
+            <select
+              id="requirement-category-select"
+              value={selectedRequirement?.field || ""}
+              onChange={(event) =>
+                setSelectedRequirementField(event.target.value)
+              }
+              disabled={disabled}
+              className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none transition focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-slate-100"
+            >
+              {requirementProgress.map((requirement) => (
+                <option key={requirement.field} value={requirement.field}>
+                  {requirement.label} ({requirement.count}/
+                  {maxRequirementFilesPerField})
+                </option>
+              ))}
+            </select>
+
+            <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:mt-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-bold text-slate-900">
+                  Still needed
+                </p>
+                <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+                  {missingRequiredRequirementCount}
+                </span>
+              </div>
+
+              {missingRequiredRequirementProgress.length > 0 ? (
+                <>
+                <p className="mt-2 text-xs font-medium text-slate-500 sm:hidden">
+                  Required document types without files.
+                </p>
+                <div className="mt-3 hidden max-h-40 space-y-2 overflow-y-auto pr-1 sm:block">
+                  {missingRequiredRequirementProgress.map((requirement) => (
+                    <button
+                      key={requirement.field}
+                      type="button"
+                      onClick={() =>
+                        setSelectedRequirementField(requirement.field)
+                      }
+                      className="flex w-full min-w-0 items-center gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2 text-left text-sm text-slate-700 transition hover:border-amber-300 hover:bg-amber-50"
+                    >
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-amber-400" />
+                      <span className="min-w-0 break-words font-semibold [overflow-wrap:anywhere]">
+                        {requirement.label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                </>
+              ) : (
+                <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
+                  All required document types have files.
+                </p>
+              )}
+            </div>
           </div>
+
+          {selectedRequirement && (
+            <FileUpload
+              key={selectedRequirement.field}
+              label={selectedRequirement.label}
+              description={selectedRequirement.description}
+              field={selectedRequirement.field}
+              files={selectedRequirementProgress?.files || []}
+              disabled={disabled}
+              uploading={Boolean(uploadingFields[selectedRequirement.field])}
+              onFileChange={handleFileChange}
+              onRemoveFile={handleRemoveFile}
+              onPreviewFile={setPreviewFile}
+            />
+          )}
+        </div>
       )}
       </div>
 
@@ -3266,7 +3374,7 @@ function Attachment({
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-600">
           {isVacancyLocked
             ? "No online upload requirements are configured for this vacancy."
-            : "Select a position above to show the List of Requirements."}
+            : "Select a position above to show the required documents."}
         </div>
       )}
 
@@ -3283,6 +3391,14 @@ function Attachment({
       <FilePreviewModal
         file={previewFile}
         onClose={() => setPreviewFile(null)}
+      />
+    )}
+    {submitConfirmation && (
+      <RequirementSubmitConfirmationModal
+        confirmation={submitConfirmation}
+        isSaving={isSaving}
+        onCancel={() => setSubmitConfirmation(null)}
+        onConfirm={handleConfirmSubmit}
       />
     )}
     </>
@@ -3302,20 +3418,42 @@ function FileUpload({
 }) {
   const fileList = normalizeFileList(files);
   const hasFiles = fileList.length > 0;
+  const fileCountText = `${fileList.length} ${
+    fileList.length === 1 ? "file" : "files"
+  } uploaded`;
 
   return (
-    <div className="space-y-2">
-      <div>
-        <label className="block text-sm font-medium text-slate-700">
-          {label}
-        </label>
-        {description && (
-          <p className="mt-1 text-xs text-slate-500">{description}</p>
-        )}
+    <section className="min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="hidden text-xs font-semibold uppercase tracking-[0.16em] text-blue-700 sm:block">
+            Selected Document
+          </p>
+          <h3 className="break-words text-base font-bold text-slate-950 [overflow-wrap:anywhere] sm:mt-1 sm:text-xl">
+            {label}
+          </h3>
+        </div>
+        <span
+          className={`w-fit shrink-0 rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-3 sm:text-xs ${
+            hasFiles
+              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+              : "border-slate-200 bg-slate-50 text-slate-600"
+          }`}
+        >
+          {hasFiles ? fileCountText : "Needs files"}
+        </span>
       </div>
 
+      {description && (
+        <div className="mt-3 max-h-20 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3 sm:mt-4 sm:max-h-none sm:overflow-visible">
+          <p className="break-words text-xs leading-5 text-slate-600 [overflow-wrap:anywhere] sm:text-sm sm:leading-6">
+            {description}
+          </p>
+        </div>
+      )}
+
       {disabled ? (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
           {hasFiles ? (
             <ul className="space-y-2">
               {fileList.map((file) => (
@@ -3356,7 +3494,7 @@ function FileUpload({
 
           <label
             htmlFor={`profile-${field}`}
-            className={`flex h-24 w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 transition hover:border-slate-400 hover:bg-slate-50 ${
+            className={`mt-3 flex min-h-24 w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-blue-200 bg-blue-50 px-3 py-4 text-center transition hover:border-blue-300 hover:bg-blue-50/80 sm:mt-4 sm:min-h-28 sm:px-4 sm:py-5 ${
               uploading ? "cursor-wait opacity-70" : "cursor-pointer"
             }`}
           >
@@ -3365,56 +3503,161 @@ function FileUpload({
                 Uploading...
               </span>
             ) : !hasFiles ? (
-              <span className="text-sm text-slate-500">
-                Upload document(s)
-              </span>
+              <>
+                <span className="text-sm font-bold text-blue-900 sm:text-base">
+                  Choose files
+                </span>
+                <span className="mt-1 text-xs text-blue-700 sm:text-sm">
+                  Select documents from your device
+                </span>
+              </>
             ) : (
-              <span className="px-2 text-center text-sm font-medium text-green-600">
-                {fileList.length} file(s) uploaded
-              </span>
+              <>
+                <span className="text-sm font-bold text-blue-900 sm:text-base">
+                  Add more files
+                </span>
+                <span className="mt-1 text-xs text-blue-700 sm:text-sm">
+                  {fileCountText}
+                </span>
+              </>
             )}
           </label>
 
-          <p className="text-xs leading-5 text-slate-500">
-            Images, PDF, TXT, DOC, or DOCX only. Max {maxRequirementUploadBatch} files per upload and {maxRequirementFilesPerField} files per category.
+          <p className="mt-2 text-xs leading-5 text-slate-500 sm:mt-3 sm:text-sm sm:leading-6">
+            Accepted: images, PDF, TXT, DOC, or DOCX. Max{" "}
+            {maxRequirementUploadBatch} per upload, {maxRequirementFilesPerField} total.
           </p>
 
           {hasFiles && (
-            <ul className="space-y-2 text-sm">
-              {fileList.map((file) => (
-                <li
-                  key={file.id || file.name}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2"
-                >
-                  <p className="break-words font-medium text-slate-700 [overflow-wrap:anywhere]">
-                    {file.name || "Uploaded document"}
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-3">
-                    {(file.previewUrl || file.dataUrl) && (
+          <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:mt-4">
+            <div className="flex items-center justify-between gap-3">
+              <h4 className="text-sm font-bold text-slate-900">
+                Uploaded files
+              </h4>
+              <span className="text-xs font-semibold text-slate-500">
+                {fileList.length}/{maxRequirementFilesPerField}
+              </span>
+            </div>
+
+              <ul className="mt-3 max-h-44 space-y-2 overflow-y-auto pr-1 text-sm sm:max-h-56">
+                {fileList.map((file) => (
+                  <li
+                    key={file.id || file.name}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 sm:py-3"
+                  >
+                    <p className="break-words font-semibold text-slate-700 [overflow-wrap:anywhere]">
+                      {file.name || "Uploaded document"}
+                    </p>
+                    <div className="mt-2 flex flex-col gap-2 sm:mt-3 sm:flex-row sm:flex-wrap">
+                      {(file.previewUrl || file.dataUrl) && (
+                        <button
+                          type="button"
+                          onClick={() => onPreviewFile(file)}
+                          className="inline-flex h-9 w-full items-center justify-center rounded-lg border border-blue-200 bg-blue-50 px-3 text-xs font-semibold text-blue-700 hover:bg-blue-100 sm:w-auto"
+                        >
+                          View document
+                        </button>
+                      )}
+
                       <button
                         type="button"
-                        onClick={() => onPreviewFile(file)}
-                        className="font-semibold text-blue-700 hover:underline"
+                        onClick={() => onRemoveFile(field, file)}
+                        disabled={uploading}
+                        className="inline-flex h-9 w-full items-center justify-center rounded-lg border border-red-200 bg-white px-3 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                       >
-                        View document
+                        Remove
                       </button>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => onRemoveFile(field, file)}
-                      disabled={uploading}
-                      className="font-semibold text-red-600 hover:underline"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+          </div>
           )}
         </>
       )}
+    </section>
+  );
+}
+
+function RequirementSubmitConfirmationModal({
+  confirmation,
+  isSaving = false,
+  onCancel,
+  onConfirm,
+}) {
+  const isIncomplete = confirmation?.kind === "incomplete";
+  const title = isIncomplete
+    ? "Submit with incomplete documents?"
+    : "Ready to submit?";
+  const body = isIncomplete
+    ? `You still have ${confirmation.missingCount} required document ${
+        confirmation.missingCount === 1 ? "type" : "types"
+      } without files. You can submit now, but please be sure this is what you want to send.`
+    : "Please double-check your information and uploaded documents before submitting.";
+  const confirmLabel = isIncomplete ? "Submit Anyway" : "Submit Application";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 px-4 py-6 sm:items-center">
+      <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl ring-1 ring-slate-200">
+        <div>
+          <h3 className="text-lg font-bold text-slate-950">{title}</h3>
+          <p className="mt-2 text-sm leading-6 text-slate-600">{body}</p>
+        </div>
+
+        {confirmation.showUploadSummary && (
+          <div
+            className={`mt-4 rounded-xl border p-3 ${
+              isIncomplete
+                ? "border-amber-200 bg-amber-50 text-amber-950"
+                : "border-emerald-200 bg-emerald-50 text-emerald-900"
+            }`}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm font-bold">Upload Progress</span>
+              <span className="text-sm font-bold">
+                {confirmation.completedCount}/{confirmation.totalCount}
+              </span>
+            </div>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/70">
+              <div
+                className={`h-full rounded-full ${
+                  isIncomplete ? "bg-amber-500" : "bg-emerald-500"
+                }`}
+                style={{
+                  width: `${
+                    confirmation.totalCount
+                      ? Math.round(
+                          (confirmation.completedCount /
+                            confirmation.totalCount) *
+                            100
+                        )
+                      : 0
+                  }%`,
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isSaving}
+            className={`${secondaryButtonClass} w-full sm:w-auto`}
+          >
+            Review Again
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={isSaving}
+            className={`${primaryButtonClass} w-full sm:w-auto`}
+          >
+            {isSaving ? "Submitting..." : confirmLabel}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
