@@ -33,6 +33,42 @@ function getDeadlineAt(row) {
   return Number.isNaN(deadlineAt.getTime()) ? null : deadlineAt;
 }
 
+function normalizeRequirementList(requirements, category = "", positionTitle = "") {
+  const fallback = getFixedApplicationRequirements(category, positionTitle);
+  const list =
+    typeof requirements === "string"
+      ? (() => {
+          try {
+            return JSON.parse(requirements);
+          } catch {
+            return [];
+          }
+        })()
+      : requirements;
+
+  if (!Array.isArray(list) || list.length === 0) {
+    return fallback;
+  }
+
+  const normalized = list
+    .map((requirement, index) => {
+      const field = String(requirement?.field || "").trim();
+      const label = String(requirement?.label || "").trim();
+
+      if (!field && !label) return null;
+
+      return {
+        field: field || `requirement_${index + 1}`,
+        label: label || field || `Requirement ${index + 1}`,
+        description: String(requirement?.description || "").trim(),
+        required: requirement?.required !== false,
+      };
+    })
+    .filter(Boolean);
+
+  return normalized.length ? normalized : fallback;
+}
+
 export function mapJobOpening(row) {
   const deadlineAt = getDeadlineAt(row);
   const storedStatus = row.status || "open";
@@ -67,7 +103,11 @@ export function mapJobOpening(row) {
     eligibility: row.eligibility || "",
     status,
     description: row.description || "",
-    requirements: getFixedApplicationRequirements(row.position_category, row.title),
+    requirements: normalizeRequirementList(
+      row.requirements,
+      row.position_category,
+      row.title
+    ),
     vacancyItems: vacancyItems.map((item) => ({
       id: item.id,
       jobOpeningId: item.job_opening_id || item.jobOpeningId || row.id,
@@ -89,7 +129,7 @@ export function mapJobPosition(row) {
     id: row.id,
     category: row.category || "",
     title: row.title || "",
-    requirements: getFixedApplicationRequirements(row.category, row.title),
+    requirements: normalizeRequirementList(row.requirements, row.category, row.title),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -170,6 +210,7 @@ export function mapApplication(row) {
     jobLocation: row.job_location || job.location || "",
     jobDistrict: row.job_district || job.district || "",
     jobBarangay: row.job_barangay || job.barangay || "",
+    jobVacancy: row.job_vacancy ?? job.vacancy ?? "",
     jobDeadline: row.job_deadline || job.deadline || null,
     jobDeadlineTime: getTimePart(row.job_deadline_time || job.deadlineTime),
     jobPositionCategory:
@@ -181,7 +222,9 @@ export function mapApplication(row) {
     jobTraining: row.job_training || job.training || "",
     jobExperience: row.job_experience || job.experience || "",
     jobEligibility: row.job_eligibility || job.eligibility || "",
-    jobRequirements: getFixedApplicationRequirements(
+    jobDescription: row.job_description || job.description || "",
+    jobRequirements: normalizeRequirementList(
+      row.job_requirements || job.requirements || jobPosition.requirements,
       row.job_position_category ||
         job.positionCategory ||
         job.position_category ||

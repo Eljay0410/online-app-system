@@ -4,9 +4,9 @@ import { apiRequest } from "../../lib/api";
 import PaginationControls from "../../components/ui/PaginationControls";
 
 const actionLabels = {
-  "job_opening.created": "Created job posting",
-  "job_opening.updated": "Updated job posting",
-  "job_opening.deleted": "Deleted job posting",
+  "job_opening.created": "Created vacancy posting",
+  "job_opening.updated": "Updated vacancy posting",
+  "job_opening.deleted": "Deleted vacancy posting",
   "job_position.created": "Created position",
   "job_position.updated": "Updated position",
   "job_position.deleted": "Deleted position",
@@ -18,7 +18,7 @@ const defaultActivityLogPageSize = 10;
 const activityLogPageSizeOptions = [10, 25, 50];
 
 const jobOpeningChangeFields = [
-  ["title", "Job title"],
+  ["title", "Vacancy title"],
   ["location", "Location"],
   ["district", "District"],
   ["barangay", "Barangay"],
@@ -28,13 +28,13 @@ const jobOpeningChangeFields = [
   ["positionCategory", "Category"],
   ["status", "Status"],
   ["description", "Description"],
-  ["requirements", "Upload requirements"],
+  ["requirements", "List of Requirements"],
 ];
 
 const positionChangeFields = [
   ["category", "Category"],
   ["title", "Position title"],
-  ["requirements", "Upload requirements"],
+  ["requirements", "List of Requirements"],
 ];
 
 function formatDateTime(value) {
@@ -140,20 +140,20 @@ function getActivitySummary(log) {
 
   switch (log.action) {
     case "job_opening.created":
-      return `Created job posting "${target}" with ${formatActivityValue(
+      return `Created vacancy posting "${target}" with ${formatActivityValue(
         "vacancy",
         metadata.vacancy
       )} vacancy and ${formatStatus(metadata.status)} status.`;
     case "job_opening.updated":
-      return `Updated job posting "${target}".`;
+      return `Updated vacancy posting "${target}".`;
     case "job_opening.deleted":
-      return `Deleted job posting "${target}".`;
+      return `Deleted vacancy posting "${target}".`;
     case "job_position.created":
-      return `Created ${metadata.category || "job"} position "${target}".`;
+      return `Created ${metadata.category || "vacancy"} position "${target}".`;
     case "job_position.updated":
       return `Updated position "${target}".`;
     case "job_position.deleted":
-      return `Deleted ${metadata.category || "job"} position "${target}".`;
+      return `Deleted ${metadata.category || "vacancy"} position "${target}".`;
     case "application.status_changed":
       return `Changed applicant status for "${target}" from ${formatStatus(
         metadata.fromStatus
@@ -275,7 +275,7 @@ export default function ActivityLogSection() {
       <div className="oas-panel-header">
         <h2 className="oas-panel-title">Activity Logs</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Track admin changes to job postings, positions, and application
+          Track admin changes to vacancy postings, positions, and application
           statuses.
         </p>
       </div>

@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowRight,
   BriefcaseBusiness,
-  CalendarDays,
   FileText,
   Loader2,
-  MapPin,
   MessageSquareText,
   X,
 } from "lucide-react";
@@ -21,6 +19,13 @@ import {
   getInitialSidebarCollapsed,
   getSidebarContentPadding,
 } from "../../lib/sidebar";
+import {
+  QualificationStandards,
+  RequirementSummary,
+  VacancyBreakdown,
+  VacancyDescription,
+  VacancySummaryTable,
+} from "../jobs/jobPostingUi";
 
 const statusLabels = {
   draft: "Draft",
@@ -200,18 +205,6 @@ const getDeadlineText = (application) => {
   return `${date} ${application.jobDeadlineTime || ""}`.trim();
 };
 
-const getRequirementCount = (application) => {
-  if (Array.isArray(application.requirements) && application.requirements.length) {
-    return application.requirements.length;
-  }
-
-  if (Array.isArray(application.jobRequirements)) {
-    return application.jobRequirements.length;
-  }
-
-  return 0;
-};
-
 const requirementStatusLabels = {
   pending: "Pending",
   checked: "Checked",
@@ -244,6 +237,8 @@ const getRequirementFileName = (file) =>
 
 export default function ApplicantDashboard() {
   const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [applications, setApplications] = useState([]);
   const [profile, setProfile] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -259,6 +254,8 @@ export default function ApplicantDashboard() {
   });
   const [statusCounts, setStatusCounts] = useState({ all: 0 });
   const { showToast } = useToast();
+  const restoreApplicationId = location.state?.restoreApplicationId;
+  const restoreApplication = location.state?.restoreApplication || null;
 
   useEffect(() => {
     let isMounted = true;
@@ -311,6 +308,42 @@ export default function ApplicantDashboard() {
       isMounted = false;
     };
   }, [page, pageSize, showToast, statusFilter]);
+
+  useEffect(() => {
+    if (!restoreApplicationId || selectedApplication) return undefined;
+
+    const restoredFromPage = applications.find(
+      (application) => String(application.id) === String(restoreApplicationId)
+    );
+    const restoredFromState =
+      restoreApplication &&
+      String(restoreApplication.id) === String(restoreApplicationId)
+        ? restoreApplication
+        : null;
+    const restoredApplication = restoredFromPage || restoredFromState;
+
+    if (!restoredApplication) return undefined;
+
+    let isActive = true;
+
+    queueMicrotask(() => {
+      if (!isActive) return;
+
+      setSelectedApplication(restoredApplication);
+      navigate(location.pathname, { replace: true, state: null });
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, [
+    applications,
+    location.pathname,
+    navigate,
+    restoreApplication,
+    restoreApplicationId,
+    selectedApplication,
+  ]);
 
   const counts = useMemo(
     () => ({
@@ -537,7 +570,6 @@ function ApplicationRow({ application, onSelect }) {
   const position = getApplicationPosition(application);
   const uan = application.uan || "Not assigned";
   const location = getApplicationLocation(application);
-  const jobUrl = application.jobOpeningId ? `/jobs/${application.jobOpeningId}` : "";
 
   return (
     <article
@@ -591,14 +623,6 @@ function ApplicationRow({ application, onSelect }) {
           >
             View details
           </button>
-          {jobUrl && (
-            <Link
-              to={jobUrl}
-              className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              Job post
-            </Link>
-          )}
         </div>
       </div>
     </article>
@@ -616,25 +640,52 @@ function ApplicationDetailsModal({ application, onClose }) {
   const deadline = getDeadlineText(application);
   const remarks = String(application.reviewNotes || "").trim();
   const jobUrl = application.jobOpeningId ? `/jobs/${application.jobOpeningId}` : "";
-  const requirementCount = getRequirementCount(application);
-  const requirements =
-    Array.isArray(application.requirements) && application.requirements.length
-      ? application.requirements
-      : Array.isArray(application.jobRequirements)
-        ? application.jobRequirements
-        : [];
+  const submittedRequirements = Array.isArray(application.requirements)
+    ? application.requirements
+    : [];
+  const vacancyRequirements = Array.isArray(application.jobRequirements)
+    ? application.jobRequirements
+    : [];
+  const vacancyItems = Array.isArray(application.jobItems)
+    ? application.jobItems
+    : [];
+  const vacancyCount =
+    application.jobVacancy ||
+    vacancyItems.reduce(
+      (sum, item) => sum + Math.max(0, Number(item.vacancyCount) || 0),
+      0
+    ) ||
+    "N/A";
+  const vacancy = {
+    id: application.jobOpeningId,
+    title: position,
+    location,
+    vacancy: vacancyCount,
+    vacancyItems,
+    salaryGrade: application.jobSalaryGrade || "",
+    salaryAmount: application.jobSalaryAmount || "",
+    deadline: application.jobDeadline || null,
+    deadlineTime: application.jobDeadlineTime || "",
+    education: application.jobEducation || "",
+    training: application.jobTraining || "",
+    experience: application.jobExperience || "",
+    eligibility: application.jobEligibility || "",
+    requirements: vacancyRequirements,
+    description: application.jobDescription || "",
+    positionCategory: application.jobPositionCategory || "",
+  };
 
   return (
     <div
-      className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/55 p-4 sm:items-center"
+      className="fixed inset-0 z-[90] flex items-start justify-center overflow-y-auto bg-slate-950/55 p-3 sm:p-6"
       onClick={onClose}
     >
       <section
-        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+        className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:max-h-[calc(100dvh-3rem)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className={`border-l-4 ${statusTone.accent}`}>
-          <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-5">
+        <div className={`flex min-h-0 flex-1 flex-col border-l-4 ${statusTone.accent}`}>
+          <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 px-5 py-5">
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                 Application Details
@@ -655,59 +706,71 @@ function ApplicationDetailsModal({ application, onClose }) {
             </button>
           </div>
 
-          <div className="min-h-0 overflow-y-auto px-5 py-5">
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <div className="flex flex-wrap items-center gap-2">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">
+            <section className="rounded-lg border border-slate-200 bg-slate-50 p-3 sm:p-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <h4 className="text-sm font-bold text-slate-900">
+                    Application Status
+                  </h4>
+                  <p className="mt-2 text-sm font-bold text-slate-950">
+                    {guidance.title}
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-slate-600">
+                    {guidance.next}
+                  </p>
+                  <p className="mt-3 text-sm font-semibold text-slate-700">
+                    {guidance.action}
+                  </p>
+                </div>
+
                 <span
-                  className={`inline-flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs font-semibold ${statusTone.badge}`}
+                  className={`inline-flex shrink-0 items-center gap-2 rounded-md border px-2.5 py-1 text-xs font-semibold ${statusTone.badge}`}
                 >
                   <span className={`h-1.5 w-1.5 rounded-sm ${statusTone.dot}`} />
                   {getStatusLabel(status)}
                 </span>
-                <span className="text-xs font-semibold text-slate-400">
-                  Updated {formatDate(application.updatedAt)}
-                </span>
               </div>
-              <p className="mt-3 text-sm font-bold text-slate-950">
-                {guidance.title}
-              </p>
-              <p className="mt-1 text-sm leading-6 text-slate-600">
-                {guidance.next}
-              </p>
-              <p className="mt-3 text-sm font-semibold text-slate-700">
-                {guidance.action}
-              </p>
+
+              <dl className="mt-4 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                  <dt className="text-[11px] font-semibold uppercase text-slate-500">
+                    Date Applied
+                  </dt>
+                  <dd className="mt-1 text-sm font-semibold text-slate-900">
+                    {formatDate(application.createdAt)}
+                  </dd>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                  <dt className="text-[11px] font-semibold uppercase text-slate-500">
+                    Last Updated
+                  </dt>
+                  <dd className="mt-1 text-sm font-semibold text-slate-900">
+                    {formatDate(application.updatedAt)}
+                  </dd>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                  <dt className="text-[11px] font-semibold uppercase text-slate-500">
+                    Deadline
+                  </dt>
+                  <dd className="mt-1 text-sm font-semibold text-slate-900">
+                    {deadline}
+                  </dd>
+                </div>
+              </dl>
+            </section>
+
+            <div className="mt-4 sm:mt-5">
+              <VacancySummaryTable job={vacancy} />
             </div>
 
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <DetailBlock
-                icon={CalendarDays}
-                label="Date applied"
-                value={formatDate(application.createdAt)}
-              />
-              <DetailBlock
-                icon={CalendarDays}
-                label="Deadline"
-                value={deadline}
-              />
-              <DetailBlock
-                icon={MapPin}
-                label="School / location"
-                value={location}
-              />
-              <DetailBlock
-                icon={FileText}
-                label="Upload requirements"
-                value={
-                  requirementCount > 0
-                    ? `${requirementCount} requirement(s) for this posting`
-                    : "No upload requirements configured"
-                }
-              />
-            </div>
+            <VacancyBreakdown job={vacancy} />
+            <VacancyDescription job={vacancy} />
+            <QualificationStandards job={vacancy} />
+            <RequirementSummary job={vacancy} />
 
             {remarks && (
-              <section className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4">
+              <section className="mt-4 rounded-lg border border-blue-100 bg-blue-50 p-3 sm:mt-5 sm:p-4">
                 <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-blue-700">
                   <MessageSquareText className="h-3.5 w-3.5" />
                   HR remarks
@@ -718,22 +781,22 @@ function ApplicationDetailsModal({ application, onClose }) {
               </section>
             )}
 
-            {requirements.length > 0 && (
-              <section className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                      <FileText className="h-3.5 w-3.5" />
-                      Requirement Documents
-                    </p>
-                    <p className="mt-1 text-sm text-slate-600">
-                      These are the document copies submitted for this specific application.
-                    </p>
-                  </div>
+            <section className="mt-4 rounded-lg border border-slate-200 bg-white p-3 sm:mt-5 sm:p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h4 className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                    <FileText className="h-4 w-4 text-slate-500" />
+                    Submitted Documents
+                  </h4>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Uploaded requirements attached to this application.
+                  </p>
                 </div>
+              </div>
 
+              {submittedRequirements.length > 0 ? (
                 <div className="mt-4 space-y-3">
-                  {requirements.map((requirement) => {
+                  {submittedRequirements.map((requirement) => {
                     const requirementStatus = requirement.status || "pending";
                     const requirementFile = requirement.file;
 
@@ -792,11 +855,15 @@ function ApplicationDetailsModal({ application, onClose }) {
                     );
                   })}
                 </div>
-              </section>
-            )}
+              ) : (
+                <p className="mt-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500">
+                  No uploaded documents were attached to this application.
+                </p>
+              )}
+            </section>
           </div>
 
-          <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:justify-end">
+          <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:justify-end">
             <button
               type="button"
               onClick={onClose}
@@ -808,9 +875,18 @@ function ApplicationDetailsModal({ application, onClose }) {
               <Link
                 to={jobUrl}
                 className="oas-action-button"
-                onClick={onClose}
+                state={{
+                  returnTo: "/applications",
+                  fromLabel: "My Applications",
+                  restoreApplicationId: application.id,
+                  restoreApplication: application,
+                  returnState: {
+                    restoreApplicationId: application.id,
+                    restoreApplication: application,
+                  },
+                }}
               >
-                View job post
+                View vacancy post
               </Link>
             )}
           </div>
@@ -821,37 +897,8 @@ function ApplicationDetailsModal({ application, onClose }) {
         <FilePreviewModal
           file={previewFile}
           onClose={() => setPreviewFile(null)}
+          backLabel="Back to application details"
         />
-      )}
-    </div>
-  );
-}
-
-function DetailBlock({
-  icon,
-  label,
-  value,
-  className = "",
-  valueClassName = "",
-  dotClassName = "",
-}) {
-  const Icon = icon;
-
-  return (
-    <div className={`rounded-xl border border-slate-200 bg-white p-4 ${className}`}>
-      <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-        {Icon && <Icon className="h-3.5 w-3.5 text-slate-400" />}
-        {label}
-      </p>
-      {valueClassName ? (
-        <span
-          className={`mt-3 inline-flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs font-semibold ${valueClassName}`}
-        >
-          {dotClassName && <span className={`h-1.5 w-1.5 rounded-sm ${dotClassName}`} />}
-          {value}
-        </span>
-      ) : (
-        <p className="mt-2 text-sm font-medium leading-6 text-slate-900">{value}</p>
       )}
     </div>
   );
@@ -869,7 +916,7 @@ function EmptyState({ title, message }) {
         to="/"
         className={`${compactButtonClass} mt-5 gap-2 border border-slate-300 bg-white text-slate-700 hover:bg-slate-50`}
       >
-        Browse Jobs
+        Browse Vacancies
         <ArrowRight className="h-4 w-4" />
       </Link>
     </div>

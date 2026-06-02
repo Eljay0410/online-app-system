@@ -72,6 +72,10 @@ export function getJobSubmissionRule(job = {}) {
 }
 
 export function getJobUploadRequirements(job = {}) {
+  if (Array.isArray(job?.requirements) && job.requirements.length > 0) {
+    return job.requirements;
+  }
+
   return getFixedApplicationRequirements(
     job?.positionCategory || "",
     getJobPositionTitle(job)
@@ -87,6 +91,42 @@ export function JobInfoCard({ label, value, icon }) {
         {value}
       </p>
     </div>
+  );
+}
+
+export function VacancySummaryTable({ job }) {
+  const rows = [
+    ["Vacancies", job?.vacancy || "N/A"],
+    ["Place of Assignment", job?.location || "N/A"],
+    ["Salary Grade", job?.salaryGrade || "N/A"],
+    ["Salary Amount", job?.salaryAmount || "N/A"],
+    ["Deadline Date", formatDate(job?.deadline)],
+    ["Deadline Time", formatTime(job?.deadlineTime)],
+  ];
+
+  return (
+    <section className="rounded-lg border border-slate-200 bg-slate-50 p-3 sm:p-4">
+      <h4 className="text-sm font-bold text-slate-900">Vacancy Summary</h4>
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full min-w-[360px] text-left text-sm">
+          <tbody>
+            {rows.map(([label, value]) => (
+              <tr
+                key={label}
+                className="border-t border-slate-200 first:border-t-0"
+              >
+                <th className="w-40 px-3 py-2 text-xs font-bold uppercase text-slate-500">
+                  {label}
+                </th>
+                <td className="break-words px-3 py-2 font-semibold text-slate-900 [overflow-wrap:anywhere]">
+                  {value}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
@@ -135,6 +175,23 @@ export function VacancyBreakdown({ job }) {
   );
 }
 
+export function VacancyDescription({ job }) {
+  const description = String(job?.description || "").trim();
+
+  if (!description) return null;
+
+  return (
+    <section className="mt-4 rounded-lg border border-slate-200 bg-white p-3 sm:mt-5 sm:p-4">
+      <h4 className="text-sm font-bold text-slate-900">
+        Vacancy Description
+      </h4>
+      <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-slate-600 [overflow-wrap:anywhere]">
+        {description}
+      </p>
+    </section>
+  );
+}
+
 export function QualificationStandards({ job }) {
   return (
     <section className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:mt-5 sm:p-4">
@@ -158,7 +215,7 @@ export function RequirementSummary({ job }) {
   return (
     <section className="mt-4 rounded-lg border border-slate-200 bg-white p-3 sm:mt-5 sm:p-4">
       <h4 className="text-sm font-bold text-slate-900">
-        Upload Requirements
+        List of Requirements
       </h4>
       {submissionRule.requiresPersonalSubmission ? (
         <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-900">

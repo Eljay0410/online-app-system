@@ -11,6 +11,7 @@ import {
   getSidebarContentPadding,
 } from "../../lib/sidebar";
 import { useAuth } from "../auth/auth";
+import { VacancySummaryTable } from "../jobs/jobPostingUi";
 
 const emptyAdminForm = {
   firstName: "",
@@ -21,7 +22,7 @@ const emptyAdminForm = {
 const pageMeta = {
   dashboard: {
     title: "System Overview",
-    description: "Monitor accounts, job postings, and applications.",
+    description: "Monitor accounts, vacancy postings, and applications.",
   },
   "user-management": {
     title: "User Management",
@@ -32,8 +33,8 @@ const pageMeta = {
     description: "HR/Admin office accounts managed by the Superadmin.",
   },
   "job-listing": {
-    title: "Job Listing",
-    description: "View posted job openings from HR/Admin.",
+    title: "Vacancies",
+    description: "View posted vacancies from HR/Admin.",
   },
   "activity-logs": {
     title: "Activity Logs",
@@ -628,13 +629,13 @@ function Overview({ totals, overview }) {
     <div className="space-y-5">
       <div className="grid grid-cols-3 gap-2 sm:gap-4">
         <Stat label="Users" value={totals.users} />
-        <Stat label="Job Postings" value={totals.jobs} />
+        <Stat label="Vacancy Postings" value={totals.jobs} />
         <Stat label="Applications" value={totals.applications} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Breakdown title="Users by Role" items={overview.users} labelKey="role" />
-        <Breakdown title="Jobs by Status" items={overview.jobs} labelKey="status" />
+        <Breakdown title="Vacancies by Status" items={overview.jobs} labelKey="status" />
         <Breakdown
           title="Applications by Status"
           items={overview.applications}
@@ -969,15 +970,15 @@ function JobListingSection({
   return (
     <section className="oas-panel">
       <div className="oas-panel-header">
-        <h2 className="oas-panel-title">Job Listing</h2>
+        <h2 className="oas-panel-title">Vacancies</h2>
         <p className="mt-1 text-sm text-slate-500">
-          View all posted job openings and open their full details.
+          View all posted vacancies and open their full details.
         </p>
       </div>
 
       {jobs.length === 0 ? (
         <p className="p-6 text-center text-sm text-slate-500">
-          No job listings available.
+          No vacancies available.
         </p>
       ) : (
         <div className="grid gap-3 p-4 sm:gap-4 sm:p-5 md:grid-cols-2 xl:grid-cols-3">
@@ -1031,14 +1032,13 @@ function JobListingSection({
           onPageChange={onPageChange}
           onPageSizeChange={onPageSizeChange}
           pageSizeOptions={jobCardPageSizeOptions}
-          itemLabel="job openings"
+          itemLabel="vacancies"
         />
       )}
 
       {selectedJob && (
         <JobDetailsModal
           job={selectedJob}
-          formatDate={formatDate}
           onClose={() => setSelectedJob(null)}
         />
       )}
@@ -1046,7 +1046,7 @@ function JobListingSection({
   );
 }
 
-function JobDetailsModal({ job, formatDate, onClose }) {
+function JobDetailsModal({ job, onClose }) {
   return (
     <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/50 p-3 sm:items-center sm:p-6">
       <div className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl sm:max-h-[92dvh]">
@@ -1063,20 +1063,18 @@ function JobDetailsModal({ job, formatDate, onClose }) {
             type="button"
             onClick={onClose}
             className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-            aria-label="Close job details"
+            aria-label="Close vacancy details"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         <div className="min-h-0 overflow-y-auto p-4 sm:p-5">
-          <div className="grid gap-3 sm:grid-cols-3">
-            <JobDetailItem label="Vacancies" value={job.vacancy} />
-            <JobDetailItem
-              label="Application Deadline"
-              value={formatDeadline(job, formatDate)}
-            />
-            <JobDetailItem label="Status" value={<JobStatusPill status={job.status} />} />
+          <VacancySummaryTable job={job} />
+
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+            <span>Status</span>
+            <JobStatusPill status={job.status} />
           </div>
 
           <section className="mt-4 rounded-lg border border-slate-200 p-3 sm:mt-5 sm:p-4">
@@ -1088,7 +1086,7 @@ function JobDetailsModal({ job, formatDate, onClose }) {
 
           <section className="mt-4 rounded-lg border border-slate-200 p-3 sm:mt-5 sm:p-4">
             <h4 className="text-sm font-bold text-slate-900">
-              Upload Requirements
+              List of Requirements
             </h4>
             {job.requirements?.length ? (
               <ul className="mt-3 space-y-2.5">
@@ -1117,7 +1115,7 @@ function JobDetailsModal({ job, formatDate, onClose }) {
               </ul>
             ) : (
               <p className="mt-3 text-sm text-slate-500">
-                No upload requirements configured.
+                No requirements configured.
               </p>
             )}
           </section>
@@ -1133,17 +1131,6 @@ function JobDetailsModal({ job, formatDate, onClose }) {
           </button>
         </div>
       </div>
-    </div>
-  );
-}
-
-function JobDetailItem({ label, value }) {
-  return (
-    <div className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 p-3">
-      <p className="text-xs font-bold uppercase text-slate-500">{label}</p>
-      <p className="mt-1 break-words text-sm font-semibold text-slate-900 [overflow-wrap:anywhere]">
-        {value}
-      </p>
     </div>
   );
 }

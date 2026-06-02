@@ -19,11 +19,11 @@ import {
 import { useToast } from "../../components/ui/toastContext";
 import {
   DeadlineDetails,
-  JobInfoCard,
   QualificationStandards,
   RequirementSummary,
   summarizeVacancyItems,
   VacancyBreakdown,
+  VacancySummaryTable,
 } from "./jobPostingUi";
 
 const jobPageSizeOptions = [6, 9, 12];
@@ -61,7 +61,7 @@ export default function JobOpenings() {
     if (job?.positionCategory) params.set("category", job.positionCategory);
 
     const query = params.toString();
-    return `/apply${query ? `?${query}` : ""}`;
+    return `/applicant-information${query ? `?${query}` : ""}`;
   };
 
   useEffect(() => {
@@ -89,7 +89,7 @@ export default function JobOpenings() {
         if (!shortSearchNoticeRef.current) {
           showToast({
             type: "info",
-            message: "Type at least 2 characters to search job openings.",
+            message: "Type at least 2 characters to search vacancies.",
           });
           shortSearchNoticeRef.current = true;
         }
@@ -128,7 +128,7 @@ export default function JobOpenings() {
           setJobs([]);
           showToast({
             type: "error",
-            message: error.message || "Unable to load available job openings.",
+            message: error.message || "Unable to load available vacancies.",
           });
         }
       } finally {
@@ -230,11 +230,11 @@ export default function JobOpenings() {
         {isLoading ? (
           <div className="oas-panel flex items-center justify-center gap-2 p-10 text-slate-500">
             <Loader2 className="h-5 w-5 animate-spin" />
-            Loading job openings...
+            Loading vacancies...
           </div>
         ) : jobs.length === 0 ? (
           <div className="oas-panel p-10 text-center text-slate-500">
-            No job openings match your filters.
+            No vacancies match your filters.
           </div>
         ) : (
           <>
@@ -311,7 +311,7 @@ export default function JobOpenings() {
               setPage(1);
             }}
             pageSizeOptions={jobPageSizeOptions}
-            itemLabel="job openings"
+            itemLabel="vacancies"
             className="rounded-xl border border-slate-200 shadow-sm"
           />
           </>
@@ -391,21 +391,14 @@ function JobDetailsModal({ job, onClose, onApply }) {
             type="button"
             onClick={onClose}
             className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-            aria-label="Close job details"
+            aria-label="Close vacancy details"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         <div className="min-h-0 overflow-y-auto px-4 py-4 sm:px-5">
-          <div className="grid gap-3 sm:grid-cols-3">
-            <JobInfoCard label="Vacancies" value={job.vacancy} />
-            <JobInfoCard label="Salary Grade" value={job.salaryGrade || "N/A"} />
-            <JobInfoCard
-              label="Deadline"
-              value={<DeadlineDetails job={job} compact />}
-            />
-          </div>
+          <VacancySummaryTable job={job} />
 
           <VacancyBreakdown job={job} />
           <QualificationStandards job={job} />

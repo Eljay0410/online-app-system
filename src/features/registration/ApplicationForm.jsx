@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -11,7 +11,6 @@ import {
   X,
 } from "lucide-react";
 import { apiRequest } from "../../lib/api";
-import BackButton from "../../components/ui/BackButton";
 import {
   getApplicationSubmissionRule,
   getFixedApplicationRequirements,
@@ -33,9 +32,48 @@ const acceptedRequirementFileTypes = [
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ];
 
-function buildRequirementFileMap(positionCategory = "", positionType = "") {
+function normalizeRequirementList(
+  requirements = [],
+  positionCategory = "",
+  positionType = ""
+) {
+  const source =
+    Array.isArray(requirements) && requirements.length > 0
+      ? requirements
+      : getFixedApplicationRequirements(positionCategory, positionType);
+
+  return source
+    .map((requirement, index) => {
+      const field = String(requirement?.field || "").trim();
+      const label = String(requirement?.label || "").trim();
+
+      if (!field && !label) return null;
+
+      return {
+        field: field || `requirement_${index + 1}`,
+        label: label || field || `Requirement ${index + 1}`,
+        description: String(requirement?.description || "").trim(),
+        required: requirement?.required !== false,
+      };
+    })
+    .filter(Boolean);
+}
+
+function getVacancyRequirements(vacancy, positionCategory = "", positionType = "") {
+  return normalizeRequirementList(
+    vacancy?.requirements,
+    positionCategory,
+    positionType
+  );
+}
+
+function buildRequirementFileMap(
+  positionCategory = "",
+  positionType = "",
+  requirements = []
+) {
   return Object.fromEntries(
-    getFixedApplicationRequirements(positionCategory, positionType).map(
+    normalizeRequirementList(requirements, positionCategory, positionType).map(
       (requirement) => [requirement.field, []]
     )
   );
@@ -1854,12 +1892,17 @@ const Attachment = ({ data, onChange, onNext }) => {
   const jobOpeningId = data?.jobOpeningId || selectedJob.id || "";
   const submissionRule = getApplicationSubmissionRule(positionType);
   const requiresPersonalSubmission = submissionRule.requiresPersonalSubmission;
-  const currentUploadRequirements = getFixedApplicationRequirements(
+  const currentUploadRequirements = getVacancyRequirements(
+    selectedJob,
     positionCategory,
     positionType
   );
   const [files, setFiles] = useState(() => {
-    const fileMap = buildRequirementFileMap(positionCategory, positionType);
+    const fileMap = buildRequirementFileMap(
+      positionCategory,
+      positionType,
+      currentUploadRequirements
+    );
 
     for (const [field, value] of Object.entries(data?.files || {})) {
       fileMap[field] = normalizeRequirementFiles(value);
@@ -1878,6 +1921,7 @@ const Attachment = ({ data, onChange, onNext }) => {
       jobOpeningId,
       positionCategory,
       positionType,
+      requirements: currentUploadRequirements,
       files,
       personalSubmissionRequired: requiresPersonalSubmission,
       requirementSubmissionMode: requiresPersonalSubmission
@@ -1994,6 +2038,7 @@ const Attachment = ({ data, onChange, onNext }) => {
       jobOpeningId,
       positionCategory,
       positionType,
+      requirements: currentUploadRequirements,
       files: requiresPersonalSubmission ? {} : files,
       requirementFiles: requiresPersonalSubmission
         ? {}
@@ -2042,7 +2087,7 @@ const Attachment = ({ data, onChange, onNext }) => {
         <div className="space-y-4">
           <div>
             <h2 className="text-lg font-semibold text-slate-700">
-              Attachments / Requirements
+              List of Requirements
             </h2>
             <p className="mt-1 text-sm text-slate-500">
               Upload available documents for this vacancy. Missing documents
@@ -2289,7 +2334,7 @@ const Review = ({ data, onSubmit }) => {
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
               Review your details carefully. Submitting will save the
               application and generate your UAN. Updates after submission will
-              only apply to new job postings.
+              only apply to new vacancy applications.
             </p>
           </div>
 
@@ -2466,7 +2511,7 @@ const Review = ({ data, onSubmit }) => {
 
         <section className="space-y-3">
           <h2 className="text-lg font-semibold text-blue-900">
-            Job Position and Attachments
+            Vacancy Position and List of Requirements
           </h2>
           <div className="border-b border-slate-300" />
           <p className="text-sm text-slate-700">
@@ -2521,8 +2566,8 @@ const Review = ({ data, onSubmit }) => {
           <div className="flex gap-3 rounded-lg bg-amber-50 p-4">
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
             <p>
-              Submitting saves a snapshot for this job. Changes you make later
-              will only apply to new applications.
+              Submitting saves a snapshot for this vacancy. Changes you make
+              later will only apply to new applications.
             </p>
           </div>
         </div>
@@ -2667,7 +2712,6 @@ import { getStoredUser } from "../auth/auth";
 
 const ApplicationForm = () => {
   const location = useLocation();
-  const navigate = useNavigate();
   const storedUser = getStoredUser();
   const selectedJob = location?.state?.job;
   const params = new URLSearchParams(location.search);
@@ -2735,7 +2779,16 @@ const ApplicationForm = () => {
       positionCategory: routeCategory || "",
       positionType: routePosition || "",
       jobOpeningId: routeJobId || "",
-      files: buildRequirementFileMap(routeCategory, routePosition),
+      requirements: getVacancyRequirements(
+        selectedJob || {},
+        routeCategory,
+        routePosition
+      ),
+      files: buildRequirementFileMap(
+        routeCategory,
+        routePosition,
+        selectedJob?.requirements
+      ),
     },
   }));
 
@@ -2754,15 +2807,6 @@ const ApplicationForm = () => {
     { id: 5, title: "REQUIREMENTS" },
     { id: 6, title: "REVIEW" },
   ];
-
-  const handleStepBack = () => {
-    if (currentStep > 1) {
-      setCurrentStep((prev) => Math.max(1, prev - 1));
-      return;
-    }
-
-    navigate(-1);
-  };
 
   const renderStepContent = () => {
     switch (currentStep) {
@@ -2937,14 +2981,6 @@ const ApplicationForm = () => {
 
           <div className="flex-1 min-h-[500px]">
             <div className="border-l-[1.5px] border-slate-300 pl-10 h-full">
-              {currentStep > 1 && (
-                <BackButton
-                  onClick={handleStepBack}
-                  className="mb-4"
-                  ariaLabel="Go back"
-                />
-              )}
-
               <h2 className="text-2xl font-bold text-[#003a78] mb-8 tracking-tight uppercase">
                 {steps.find((s) => s.id === currentStep)?.title}
               </h2>

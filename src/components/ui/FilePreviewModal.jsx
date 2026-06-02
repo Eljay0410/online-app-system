@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Download, Loader2, X } from "lucide-react";
+import { ArrowLeft, Download, Loader2, X } from "lucide-react";
 import { API_BASE_URL, getAuthToken } from "../../lib/api";
 
 function getFileName(file = {}) {
@@ -38,7 +38,11 @@ async function fetchProtectedBlob(path) {
   return response.blob();
 }
 
-export default function FilePreviewModal({ file, onClose }) {
+export default function FilePreviewModal({
+  file,
+  onClose,
+  backLabel = "Back to details",
+}) {
   const [objectUrl, setObjectUrl] = useState(file?.dataUrl || "");
   const [isLoading, setIsLoading] = useState(
     Boolean(file?.previewUrl && !file?.dataUrl)
@@ -103,16 +107,31 @@ export default function FilePreviewModal({ file, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/60 p-3 sm:items-center sm:p-6">
+    <div
+      className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/60 p-3 sm:items-center sm:p-6"
+      onClick={(event) => event.stopPropagation()}
+    >
       <section className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-6">
-          <div className="min-w-0">
-            <h2 className="break-words text-base font-bold text-slate-950 [overflow-wrap:anywhere]">
-              {fileName}
-            </h2>
-            <p className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-              {fileType || "file"}
-            </p>
+          <div className="flex min-w-0 gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+              aria-label={backLabel}
+              title={backLabel}
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+
+            <div className="min-w-0">
+              <h2 className="break-words text-base font-bold text-slate-950 [overflow-wrap:anywhere]">
+                {fileName}
+              </h2>
+              <p className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                {fileType || "file"}
+              </p>
+            </div>
           </div>
 
           <button
@@ -172,7 +191,7 @@ export default function FilePreviewModal({ file, onClose }) {
             onClick={onClose}
             className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-100"
           >
-            Close
+            {backLabel}
           </button>
 
           <button

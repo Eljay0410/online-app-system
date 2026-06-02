@@ -22,8 +22,8 @@ const roleNavItems = {
   applicant: [
     {
       id: "jobs",
-      label: "Job Listings",
-      mobileLabel: "Jobs",
+      label: "Vacancies",
+      mobileLabel: "Vacancies",
       icon: Briefcase,
       path: "/",
     },
@@ -41,18 +41,11 @@ const roleNavItems = {
       icon: UserCog,
       path: "/applicant-information",
     },
-    {
-      id: "documents",
-      label: "Requirements / Documents",
-      mobileLabel: "Docs",
-      icon: ClipboardList,
-      path: "/requirements",
-    },
   ],
   admin: [
     {
       id: "job-posting",
-      label: "Manage Job Openings",
+      label: "Manage Vacancies",
       mobileLabel: "Manage",
       icon: Briefcase,
       path: "/admin?section=job-posting",
@@ -72,9 +65,16 @@ const roleNavItems = {
       path: "/admin?section=applicant-list",
     },
     {
+      id: "applicant-management",
+      label: "Applicant Management",
+      mobileLabel: "Manage",
+      icon: Users,
+      path: "/admin?section=applicant-management",
+    },
+    {
       id: "job-listing",
-      label: "Job Listing",
-      mobileLabel: "Jobs",
+      label: "Vacancies",
+      mobileLabel: "Vacancies",
       icon: ClipboardList,
       path: "/admin?section=job-listing",
     },
@@ -109,8 +109,8 @@ const roleNavItems = {
     },
     {
       id: "job-listing",
-      label: "Job Listing",
-      mobileLabel: "Jobs",
+      label: "Vacancies",
+      mobileLabel: "Vacancies",
       icon: Briefcase,
       path: "/superadmin?section=job-listing",
     },

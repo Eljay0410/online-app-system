@@ -24,7 +24,8 @@ export default function ApplicantInformation() {
           <header className="mb-5">
             <h1 className="oas-page-title">Applicant Information</h1>
             <p className="oas-page-description">
-              Update your personal, education, eligibility, and training details.
+              Update your personal, education, eligibility, training, and
+              requirement details.
             </p>
           </header>
 
