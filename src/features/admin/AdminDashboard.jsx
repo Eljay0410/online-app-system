@@ -2,11 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Loader2,
-  Pencil,
   Plus,
   Save,
   Search,
-  Trash2,
   X,
 } from "lucide-react";
 import { apiRequest } from "../../lib/api";
@@ -20,21 +18,20 @@ import {
   getInitialSidebarCollapsed,
   getSidebarContentPadding,
 } from "../../lib/sidebar";
-import {
-  buildSjdmLocationLabel,
-  findSjdmSchool,
-  sjdmDistricts,
-} from "../../lib/sjdmLocations";
+import { getFixedApplicationRequirements } from "../../lib/applicationRequirements";
 
 const emptyJob = {
   title: "",
   location: "",
-  school: "",
   positionId: "",
   positionCategory: "",
-  requirements: [],
-  district: "",
-  barangay: "",
+  salaryGrade: "",
+  salaryAmount: "",
+  education: "",
+  training: "",
+  experience: "",
+  eligibility: "",
+  vacancyItems: [{ schoolStation: "", subjectArea: "", vacancyCount: 1 }],
   vacancy: 1,
   deadline: "",
   deadlineTime: "23:59",
@@ -45,29 +42,36 @@ const emptyJob = {
 const emptyPosition = {
   category: "Teaching",
   title: "",
-  requirements: [],
 };
 
 const statusLabels = {
   draft: "Draft",
-  submitted: "Submitted",
-  pending_review: "Pending Review",
-  for_compliance: "For Compliance",
-  under_review: "Under Review",
+  submitted: "Pending Review",
+  reviewed: "Reviewed",
   qualified: "Qualified",
+  disqualified: "Disqualified",
+  shortlisted: "Shortlisted",
+  selected: "Selected",
   rejected: "Rejected",
   hired: "Hired",
+  pending_review: "Pending Review",
+  for_compliance: "Pending Review",
+  under_review: "Under Review",
 };
 
 const applicationStatusTransitions = {
   draft: ["submitted", "rejected"],
-  submitted: ["pending_review", "under_review", "for_compliance", "rejected"],
-  pending_review: ["under_review", "for_compliance", "rejected"],
-  for_compliance: ["pending_review", "under_review", "rejected"],
-  under_review: ["qualified", "rejected"],
-  qualified: ["hired", "rejected"],
+  submitted: ["reviewed", "qualified", "disqualified", "rejected"],
+  reviewed: ["qualified", "shortlisted", "disqualified", "rejected"],
+  pending_review: ["reviewed", "qualified", "disqualified", "rejected"],
+  for_compliance: ["reviewed", "qualified", "disqualified", "rejected"],
+  under_review: ["reviewed", "qualified", "disqualified", "rejected"],
+  qualified: ["shortlisted", "selected", "hired", "disqualified", "rejected"],
+  shortlisted: ["selected", "hired", "disqualified", "rejected"],
+  selected: ["hired", "disqualified", "rejected"],
   rejected: [],
   hired: [],
+  disqualified: [],
 };
 
 function getApplicationStatusOptions(status) {
@@ -98,17 +102,18 @@ const defaultPositionPageSize = 10;
 const positionPageSizeOptions = [10, 25, 50];
 const requirementReviewStatuses = [
   "pending",
-  "approved",
-  "rejected",
-  "needs_resubmission",
-  "missing",
+  "checked",
+  "incomplete",
+  "invalid",
 ];
 const requirementReviewStatusLabels = {
   pending: "Pending",
-  approved: "Approved",
-  rejected: "Rejected",
-  needs_resubmission: "Needs Resubmission",
-  missing: "Missing",
+  checked: "Checked",
+  incomplete: "Incomplete",
+  invalid: "Invalid",
+  approved: "Checked",
+  missing: "Incomplete",
+  rejected: "Invalid",
 };
 
 const adminPageMeta = {
@@ -118,7 +123,7 @@ const adminPageMeta = {
   },
   positions: {
     title: "Positions",
-    description: "Manage position categories and document requirements.",
+    description: "Manage reusable position titles for vacancy postings.",
   },
   "applicant-list": {
     title: "Applicant List",
@@ -153,7 +158,7 @@ function getStatusBadgeClass(status) {
     return "border-blue-200 bg-blue-50 text-blue-700";
   }
 
-  if (normalizedStatus === "pending_review") {
+  if (normalizedStatus === "pending_review" || normalizedStatus === "reviewed") {
     return "border-indigo-200 bg-indigo-50 text-indigo-700";
   }
 
@@ -161,11 +166,11 @@ function getStatusBadgeClass(status) {
     return "border-orange-200 bg-orange-50 text-orange-700";
   }
 
-  if (normalizedStatus === "under_review") {
+  if (normalizedStatus === "under_review" || normalizedStatus === "shortlisted") {
     return "border-amber-200 bg-amber-50 text-amber-700";
   }
 
-  if (normalizedStatus === "qualified") {
+  if (normalizedStatus === "qualified" || normalizedStatus === "selected") {
     return "border-emerald-200 bg-emerald-50 text-emerald-700";
   }
 
@@ -173,7 +178,11 @@ function getStatusBadgeClass(status) {
     return "border-emerald-300 bg-emerald-50 text-emerald-800";
   }
 
-  if (normalizedStatus === "rejected" || normalizedStatus === "denied") {
+  if (
+    normalizedStatus === "rejected" ||
+    normalizedStatus === "denied" ||
+    normalizedStatus === "disqualified"
+  ) {
     return "border-rose-200 bg-rose-50 text-rose-700";
   }
 
@@ -191,7 +200,7 @@ function getStatusOptionClass(status) {
     return "bg-blue-50 text-blue-700";
   }
 
-  if (normalizedStatus === "pending_review") {
+  if (normalizedStatus === "pending_review" || normalizedStatus === "reviewed") {
     return "bg-indigo-50 text-indigo-700";
   }
 
@@ -199,11 +208,11 @@ function getStatusOptionClass(status) {
     return "bg-orange-50 text-orange-700";
   }
 
-  if (normalizedStatus === "under_review") {
+  if (normalizedStatus === "under_review" || normalizedStatus === "shortlisted") {
     return "bg-amber-50 text-amber-700";
   }
 
-  if (normalizedStatus === "qualified") {
+  if (normalizedStatus === "qualified" || normalizedStatus === "selected") {
     return "bg-emerald-50 text-emerald-700";
   }
 
@@ -211,7 +220,11 @@ function getStatusOptionClass(status) {
     return "bg-emerald-50 text-emerald-800";
   }
 
-  if (normalizedStatus === "rejected" || normalizedStatus === "denied") {
+  if (
+    normalizedStatus === "rejected" ||
+    normalizedStatus === "denied" ||
+    normalizedStatus === "disqualified"
+  ) {
     return "bg-rose-50 text-rose-700";
   }
 
@@ -219,22 +232,18 @@ function getStatusOptionClass(status) {
 }
 
 function getRequirementReviewStatusClass(status) {
-  const normalizedStatus = String(status || "").toLowerCase();
+  const normalizedStatus = normalizeRequirementReviewStatus(status);
 
-  if (normalizedStatus === "approved") {
+  if (normalizedStatus === "checked") {
     return "border-emerald-200 bg-emerald-50 text-emerald-700";
   }
 
-  if (normalizedStatus === "needs_resubmission") {
-    return "border-orange-200 bg-orange-50 text-orange-700";
+  if (normalizedStatus === "incomplete") {
+    return "border-orange-200 bg-orange-50 text-orange-800";
   }
 
-  if (normalizedStatus === "missing") {
-    return "border-slate-300 bg-slate-100 text-slate-700";
-  }
-
-  if (normalizedStatus === "rejected") {
-    return "border-rose-200 bg-rose-50 text-rose-700";
+  if (normalizedStatus === "invalid") {
+    return "border-red-200 bg-red-50 text-red-700";
   }
 
   return "border-blue-200 bg-blue-50 text-blue-700";
@@ -244,12 +253,22 @@ function getRequirementFileName(file) {
   return file?.name || file?.fileName || file?.filename || "No file attached";
 }
 
+function normalizeRequirementReviewStatus(status) {
+  const normalizedStatus = String(status || "").toLowerCase();
+
+  if (normalizedStatus === "approved") return "checked";
+  if (normalizedStatus === "missing") return "incomplete";
+  if (normalizedStatus === "rejected") return "invalid";
+
+  return normalizedStatus || "pending";
+}
+
 function buildRequirementDrafts(requirements = []) {
   return Object.fromEntries(
     requirements.map((requirement) => [
       String(requirement.id || requirement.field),
       {
-        status: requirement.status || "pending",
+        status: normalizeRequirementReviewStatus(requirement.status),
         remarks: requirement.remarks || "",
       },
     ])
@@ -270,36 +289,61 @@ const disabledInputControlClass = `${inputControlClass} disabled:cursor-not-allo
 const textareaControlClass =
   "min-h-36 w-full rounded-lg border px-3 py-2 text-sm text-slate-800 outline-none transition focus:ring-2";
 
-function validateJobOpeningForm(form, { requireLocation = true } = {}) {
+function validateJobOpeningForm(form) {
   const errors = {};
-  const vacancy = Number(form.vacancy);
-
-  if (!String(form.positionCategory || "").trim()) {
-    errors.positionCategory = "Position category is required.";
-  }
-
-  if (!String(form.positionId || "").trim()) {
-    errors.positionId = "Position is required.";
-  }
+  const vacancyItems = Array.isArray(form.vacancyItems)
+    ? form.vacancyItems
+    : [];
 
   if (!String(form.title || "").trim()) {
-    errors.title = "Job title is required.";
+    errors.title = "Position title is required.";
   }
 
-  if (requireLocation && !String(form.district || "").trim()) {
-    errors.district = "District is required.";
+  if (!String(form.salaryGrade || "").trim()) {
+    errors.salaryGrade = "Salary grade is required.";
   }
 
-  if (form.district && !String(form.barangay || "").trim()) {
-    errors.barangay = "Barangay is required.";
+  if (!String(form.salaryAmount || "").trim()) {
+    errors.salaryAmount = "Salary amount is required.";
   }
 
-  if (requireLocation && !String(form.school || "").trim()) {
-    errors.school = "School / office is required.";
+  if (!String(form.education || "").trim()) {
+    errors.education = "Education standard is required.";
   }
 
-  if (!Number.isFinite(vacancy) || vacancy < 1) {
-    errors.vacancy = "Vacancies must be at least 1.";
+  if (!String(form.training || "").trim()) {
+    errors.training = "Training standard is required.";
+  }
+
+  if (!String(form.experience || "").trim()) {
+    errors.experience = "Experience standard is required.";
+  }
+
+  if (!String(form.eligibility || "").trim()) {
+    errors.eligibility = "Eligibility standard is required.";
+  }
+
+  if (vacancyItems.length === 0) {
+    errors.vacancyItems = "At least one school/station vacancy item is required.";
+  } else {
+    const itemErrors = vacancyItems.map((item) => {
+      const itemError = {};
+      const count = Number(item.vacancyCount);
+
+      if (!String(item.schoolStation || "").trim()) {
+        itemError.schoolStation = "School/station is required.";
+      }
+
+      if (!Number.isFinite(count) || count < 1) {
+        itemError.vacancyCount = "Vacancy count must be at least 1.";
+      }
+
+      return itemError;
+    });
+
+    if (itemErrors.some((item) => Object.keys(item).length > 0)) {
+      errors.vacancyItems = itemErrors;
+    }
   }
 
   if (!String(form.deadline || "").trim()) {
@@ -319,7 +363,6 @@ function validateJobOpeningForm(form, { requireLocation = true } = {}) {
 
 function validatePositionForm(form) {
   const errors = {};
-  const requirementErrors = [];
 
   if (!String(form.category || "").trim()) {
     errors.category = "Category is required.";
@@ -327,18 +370,6 @@ function validatePositionForm(form) {
 
   if (!String(form.title || "").trim()) {
     errors.title = "Position title is required.";
-  }
-
-  (form.requirements || []).forEach((requirement, index) => {
-    if (!String(requirement.label || "").trim()) {
-      requirementErrors[index] = {
-        label: "Requirement label is required.",
-      };
-    }
-  });
-
-  if (requirementErrors.length > 0) {
-    errors.requirements = requirementErrors;
   }
 
   return errors;
@@ -359,7 +390,7 @@ function normalizeComparableValue(field, value) {
   if (field === "vacancy") return Number(value || 0);
   if (field === "positionId") return value ? Number(value) : "";
   if (field === "deadline") return String(value || "").slice(0, 10);
-  if (field === "requirements") {
+  if (field === "requirements" || field === "vacancyItems") {
     return JSON.stringify(value || []);
   }
 
@@ -376,19 +407,18 @@ function hasPatchChanges(source = {}, updates = {}) {
 }
 
 function hasPositionChanges(source = {}, next = {}) {
-  return ["category", "title", "requirements"].some(
+  return ["category", "title"].some(
     (field) =>
       normalizeComparableValue(field, source[field]) !==
       normalizeComparableValue(field, next[field])
   );
 }
 
-function getJobLocation(form) {
-  return buildSjdmLocationLabel({
-    school: form.school,
-    barangay: form.barangay,
-    district: form.district,
-  });
+function getVacancyTotal(items = []) {
+  return (items || []).reduce(
+    (sum, item) => sum + Math.max(0, Number(item.vacancyCount) || 0),
+    0
+  );
 }
 
 export default function AdminDashboard() {
@@ -427,13 +457,13 @@ export default function AdminDashboard() {
 
   const [selectedPosition, setSelectedPosition] = useState("all");
   const [selectedLocation, setSelectedLocation] = useState("all");
+  const [selectedStatus, setSelectedStatus] = useState("all");
+  const [selectedDate, setSelectedDate] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [viewApplication, setViewApplication] = useState(null);
-  const hasFilters =
-    Boolean(searchTerm.trim()) ||
-    selectedPosition !== "all" ||
-    selectedLocation !== "all";
 
   useEffect(() => {
     let isMounted = true;
@@ -484,6 +514,13 @@ export default function AdminDashboard() {
     if (debouncedSearchTerm) params.set("q", debouncedSearchTerm);
     if (selectedPosition !== "all") params.set("position", selectedPosition);
     if (selectedLocation !== "all") params.set("school", selectedLocation);
+    if (selectedStatus !== "all") params.set("status", selectedStatus);
+    if (selectedDate) {
+      params.set("date", selectedDate);
+    } else {
+      if (dateFrom) params.set("dateFrom", dateFrom);
+      if (dateTo) params.set("dateTo", dateTo);
+    }
 
     apiRequest(`/api/admin/applications?${params.toString()}`, {
       dedupe: false,
@@ -530,9 +567,13 @@ export default function AdminDashboard() {
   }, [
     applicationPage,
     applicationPageSize,
+    dateFrom,
+    dateTo,
     debouncedSearchTerm,
+    selectedDate,
     selectedLocation,
     selectedPosition,
+    selectedStatus,
     showToast,
   ]);
 
@@ -593,9 +634,9 @@ export default function AdminDashboard() {
         method: "POST",
         body: JSON.stringify({
           ...form,
-          location: getJobLocation(form),
-          vacancy: Number(form.vacancy),
+          vacancy: getVacancyTotal(form.vacancyItems),
           positionId: form.positionId ? Number(form.positionId) : null,
+          requirements: getFixedApplicationRequirements(),
         }),
       });
 
@@ -728,6 +769,34 @@ export default function AdminDashboard() {
     }
   };
 
+  const assignApplication = async (application, jobOpeningItemId) => {
+    try {
+      const result = await apiRequest(
+        `/api/admin/applications/${application.id}/assignment`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ jobOpeningItemId }),
+        }
+      );
+
+      setApplications((prev) =>
+        prev.map((item) =>
+          item.id === result.application.id ? result.application : item
+        )
+      );
+      setViewApplication(result.application);
+      showToast({ type: "success", message: "Applicant assignment saved." });
+
+      return result.application;
+    } catch (err) {
+      showToast({
+        type: "error",
+        message: err.message || "Failed to save assignment.",
+      });
+      throw err;
+    }
+  };
+
   const formatDate = (dateValue) => {
     if (!dateValue) return "No date";
 
@@ -810,9 +879,14 @@ export default function AdminDashboard() {
 
   const applicationPositions = useMemo(() => {
     return Array.from(
-      new Set((positions || []).map((position) => position.title).filter(Boolean))
+      new Set(
+        (
+          applicationFilterOptions.positions ||
+          (positions || []).map((position) => position.title)
+        ).filter(Boolean)
+      )
     ).sort();
-  }, [positions]);
+  }, [applicationFilterOptions.positions, positions]);
 
   const schools = useMemo(() => {
     return (
@@ -873,6 +947,10 @@ export default function AdminDashboard() {
               schools={schools}
               selectedPosition={selectedPosition}
               selectedLocation={selectedLocation}
+              selectedStatus={selectedStatus}
+              selectedDate={selectedDate}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
               searchTerm={searchTerm}
               setSelectedPosition={(value) => {
                 setSelectedPosition(value);
@@ -880,6 +958,22 @@ export default function AdminDashboard() {
               }}
               setSelectedLocation={(value) => {
                 setSelectedLocation(value);
+                setApplicationPage(1);
+              }}
+              setSelectedStatus={(value) => {
+                setSelectedStatus(value);
+                setApplicationPage(1);
+              }}
+              setSelectedDate={(value) => {
+                setSelectedDate(value);
+                setApplicationPage(1);
+              }}
+              setDateFrom={(value) => {
+                setDateFrom(value);
+                setApplicationPage(1);
+              }}
+              setDateTo={(value) => {
+                setDateTo(value);
                 setApplicationPage(1);
               }}
               setSearchTerm={setSearchTerm}
@@ -964,6 +1058,7 @@ export default function AdminDashboard() {
           getApplicationLocation={getApplicationLocation}
           getApplicationDate={getApplicationDate}
           onReviewRequirement={reviewApplicationRequirement}
+          onAssignApplication={assignApplication}
         />
       )}
 
@@ -991,22 +1086,14 @@ function CreateJobOpeningModal({
   onClose,
   isSaving,
 }) {
-  const selectedDistrict = sjdmDistricts.find(
-    (district) => district.name === form.district
-  );
-  const barangays = selectedDistrict?.barangays || [];
-  const schools = selectedDistrict?.schools || [];
   const filteredPositions = positions.filter(
     (position) => position.category === form.positionCategory
   );
-  const selectedPosition = positions.find(
-    (position) => String(position.id) === String(form.positionId)
-  );
+  const vacancyTotal = getVacancyTotal(form.vacancyItems);
 
   const handlePositionCategoryChange = (value) => {
     handleFormChange("positionCategory", value);
     handleFormChange("positionId", "");
-    handleFormChange("requirements", []);
   };
 
   const handlePositionChange = (value) => {
@@ -1017,16 +1104,6 @@ function CreateJobOpeningModal({
     handleFormChange("positionId", value);
     handleFormChange("title", position?.title || "");
     handleFormChange("positionCategory", position?.category || form.positionCategory);
-    handleFormChange("requirements", position?.requirements || []);
-  };
-
-  const handleSchoolChange = (value) => {
-    const school = findSjdmSchool(form.district, value);
-
-    handleFormChange("school", value);
-    if (school?.barangay) {
-      handleFormChange("barangay", school.barangay);
-    }
   };
 
   return (
@@ -1038,7 +1115,7 @@ function CreateJobOpeningModal({
               Create Job Opening
             </h2>
             <p className="mt-1 text-sm text-slate-500">
-              Fill out the posting details and deadline.
+              Create one parent position posting with multiple school/station vacancy items.
             </p>
           </div>
 
@@ -1055,181 +1132,195 @@ function CreateJobOpeningModal({
 
         <form onSubmit={createJob} className="flex min-h-0 flex-col" noValidate>
           <div className="grid min-h-0 gap-4 overflow-y-auto p-5">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <JobFormField
-            label="Position Category"
-            error={errors.positionCategory}
-            required
-          >
-            <select
-              value={form.positionCategory}
-              onChange={(event) =>
-                handlePositionCategoryChange(event.target.value)
-              }
-              aria-invalid={Boolean(errors.positionCategory)}
-              className={getControlClass(errors.positionCategory, inputControlClass)}
-            >
-              <option value="">Select category</option>
-              <option value="Teaching">Teaching</option>
-              <option value="Non-Teaching">Non-Teaching</option>
-            </select>
-          </JobFormField>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <JobFormField label="Position Category">
+                <select
+                  value={form.positionCategory}
+                  onChange={(event) =>
+                    handlePositionCategoryChange(event.target.value)
+                  }
+                  className={getControlClass("", inputControlClass)}
+                >
+                  <option value="">Optional category</option>
+                  <option value="Teaching">Teaching</option>
+                  <option value="Non-Teaching">Non-Teaching</option>
+                </select>
+              </JobFormField>
 
-          <JobFormField label="Position" error={errors.positionId} required>
-            <select
-              value={form.positionId}
-              onChange={(event) => handlePositionChange(event.target.value)}
-              disabled={!form.positionCategory}
-              aria-invalid={Boolean(errors.positionId)}
-              className={getControlClass(
-                errors.positionId,
-                disabledInputControlClass
-              )}
-            >
-              <option value="">
-                {form.positionCategory
-                  ? "Select position"
-                  : "Select category first"}
-              </option>
-              {filteredPositions.map((position) => (
-                <option key={position.id} value={position.id}>
-                  {position.title}
-                </option>
-              ))}
-            </select>
-          </JobFormField>
-        </div>
+              <JobFormField label="Position Library">
+                <select
+                  value={form.positionId}
+                  onChange={(event) => handlePositionChange(event.target.value)}
+                  disabled={!form.positionCategory}
+                  className={disabledInputControlClass}
+                >
+                  <option value="">
+                    {form.positionCategory
+                      ? "Optional saved position"
+                      : "Select category first"}
+                  </option>
+                  {filteredPositions.map((position) => (
+                    <option key={position.id} value={position.id}>
+                      {position.title}
+                    </option>
+                  ))}
+                </select>
+              </JobFormField>
+            </div>
 
-        <JobFormField label="Job Title" error={errors.title} required>
-          <input
-            value={form.title}
-            onChange={(event) => handleFormChange("title", event.target.value)}
-            placeholder="Enter job title"
-            aria-invalid={Boolean(errors.title)}
-            className={getControlClass(errors.title, inputControlClass)}
-          />
-        </JobFormField>
+            <JobFormField label="Position Title" error={errors.title} required>
+              <input
+                value={form.title}
+                onChange={(event) => handleFormChange("title", event.target.value)}
+                placeholder="Example: Master Teacher I (Secondary)"
+                aria-invalid={Boolean(errors.title)}
+                className={getControlClass(errors.title, inputControlClass)}
+              />
+            </JobFormField>
 
-        <div className="grid gap-4 lg:grid-cols-3">
-          <JobFormField label="District" error={errors.district} required>
-            <select
-              value={form.district}
-              onChange={(event) => {
-                handleFormChange("district", event.target.value);
-                handleFormChange("barangay", "");
-                handleFormChange("school", "");
-              }}
-              aria-invalid={Boolean(errors.district)}
-              className={getControlClass(errors.district, inputControlClass)}
-            >
-              <option value="">Select district</option>
-              {sjdmDistricts.map((district) => (
-                <option key={district.name} value={district.name}>
-                  {district.name}
-                </option>
-              ))}
-            </select>
-          </JobFormField>
-
-          <JobFormField label="School / Office" error={errors.school} required>
-            <SchoolOfficePicker
-              value={form.school}
-              schools={schools}
-              disabled={!form.district}
-              placeholder={
-                form.district ? "Type school / office name" : "Select district first"
-              }
-              selectPlaceholder={
-                form.district ? "Choose from school list" : "Select district first"
-              }
-              onChange={handleSchoolChange}
-              onDelete={() => {
-                handleFormChange("school", "");
-                handleFormChange("barangay", "");
-              }}
-              error={errors.school}
+            <VacancyItemsEditor
+              items={form.vacancyItems}
+              errors={errors.vacancyItems}
+              onChange={(items) => handleFormChange("vacancyItems", items)}
             />
-          </JobFormField>
 
-          <JobFormField label="Barangay" error={errors.barangay} required>
-            <select
-              value={form.barangay}
-              onChange={(event) =>
-                handleFormChange("barangay", event.target.value)
-              }
-              disabled={!form.district}
-              aria-invalid={Boolean(errors.barangay)}
-              className={getControlClass(errors.barangay, disabledInputControlClass)}
-            >
-              <option value="">Select barangay</option>
-              {barangays.map((barangay) => (
-                <option key={barangay} value={barangay}>
-                  {barangay}
-                </option>
-              ))}
-            </select>
-          </JobFormField>
-        </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+              No. of Vacant Items: {vacancyTotal}
+            </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <JobFormField label="Vacancies" error={errors.vacancy} required>
-            <input
-              type="number"
-              min="1"
-              value={form.vacancy}
-              onChange={(event) =>
-                handleFormChange("vacancy", event.target.value)
-              }
-              aria-invalid={Boolean(errors.vacancy)}
-              className={getControlClass(errors.vacancy, inputControlClass)}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <JobFormField label="Salary Grade" error={errors.salaryGrade} required>
+                <input
+                  value={form.salaryGrade}
+                  onChange={(event) =>
+                    handleFormChange("salaryGrade", event.target.value)
+                  }
+                  placeholder="Example: SG-18"
+                  aria-invalid={Boolean(errors.salaryGrade)}
+                  className={getControlClass(errors.salaryGrade, inputControlClass)}
+                />
+              </JobFormField>
+
+              <JobFormField label="Salary Amount" error={errors.salaryAmount} required>
+                <input
+                  value={form.salaryAmount}
+                  onChange={(event) =>
+                    handleFormChange("salaryAmount", event.target.value)
+                  }
+                  placeholder="Example: PHP 49,015"
+                  aria-invalid={Boolean(errors.salaryAmount)}
+                  className={getControlClass(errors.salaryAmount, inputControlClass)}
+                />
+              </JobFormField>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <JobFormField label="Education" error={errors.education} required>
+                <textarea
+                  value={form.education}
+                  onChange={(event) =>
+                    handleFormChange("education", event.target.value)
+                  }
+                  aria-invalid={Boolean(errors.education)}
+                  className={getControlClass(errors.education, textareaControlClass)}
+                />
+              </JobFormField>
+
+              <JobFormField label="Training" error={errors.training} required>
+                <textarea
+                  value={form.training}
+                  onChange={(event) =>
+                    handleFormChange("training", event.target.value)
+                  }
+                  aria-invalid={Boolean(errors.training)}
+                  className={getControlClass(errors.training, textareaControlClass)}
+                />
+              </JobFormField>
+
+              <JobFormField label="Experience" error={errors.experience} required>
+                <textarea
+                  value={form.experience}
+                  onChange={(event) =>
+                    handleFormChange("experience", event.target.value)
+                  }
+                  aria-invalid={Boolean(errors.experience)}
+                  className={getControlClass(errors.experience, textareaControlClass)}
+                />
+              </JobFormField>
+
+              <JobFormField label="Eligibility" error={errors.eligibility} required>
+                <textarea
+                  value={form.eligibility}
+                  onChange={(event) =>
+                    handleFormChange("eligibility", event.target.value)
+                  }
+                  aria-invalid={Boolean(errors.eligibility)}
+                  className={getControlClass(errors.eligibility, textareaControlClass)}
+                />
+              </JobFormField>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-3">
+              <JobFormField
+                label="Application Deadline"
+                error={errors.deadline}
+                required
+              >
+                <input
+                  type="date"
+                  value={form.deadline}
+                  onChange={(event) =>
+                    handleFormChange("deadline", event.target.value)
+                  }
+                  aria-invalid={Boolean(errors.deadline)}
+                  className={getControlClass(errors.deadline, inputControlClass)}
+                />
+              </JobFormField>
+
+              <JobFormField
+                label="Deadline Time"
+                error={errors.deadlineTime}
+                required
+              >
+                <input
+                  type="time"
+                  value={form.deadlineTime}
+                  onChange={(event) =>
+                    handleFormChange("deadlineTime", event.target.value)
+                  }
+                  aria-invalid={Boolean(errors.deadlineTime)}
+                  className={getControlClass(errors.deadlineTime, inputControlClass)}
+                />
+              </JobFormField>
+
+              <JobFormField label="Status" error={errors.status} required>
+                <select
+                  value={form.status}
+                  onChange={(event) => handleFormChange("status", event.target.value)}
+                  aria-invalid={Boolean(errors.status)}
+                  className={getControlClass(errors.status, inputControlClass)}
+                >
+                  <option value="open">Open</option>
+                  <option value="closed">Closed</option>
+                  <option value="draft">Draft</option>
+                </select>
+              </JobFormField>
+            </div>
+
+            <JobFormField label="Description">
+              <textarea
+                value={form.description}
+                onChange={(event) =>
+                  handleFormChange("description", event.target.value)
+                }
+                placeholder="Optional posting notes"
+                className={getControlClass("", textareaControlClass)}
+              />
+            </JobFormField>
+
+            <RequirementPreview
+              requirements={getFixedApplicationRequirements()}
             />
-          </JobFormField>
-
-          <JobFormField
-            label="Application Deadline"
-            error={errors.deadline}
-            required
-          >
-            <input
-              type="date"
-              value={form.deadline}
-              onChange={(event) =>
-                handleFormChange("deadline", event.target.value)
-              }
-              aria-invalid={Boolean(errors.deadline)}
-              className={getControlClass(errors.deadline, inputControlClass)}
-            />
-          </JobFormField>
-
-          <JobFormField
-            label="Deadline Time"
-            error={errors.deadlineTime}
-            required
-          >
-            <input
-              type="time"
-              value={form.deadlineTime}
-              onChange={(event) =>
-                handleFormChange("deadlineTime", event.target.value)
-              }
-              aria-invalid={Boolean(errors.deadlineTime)}
-              className={getControlClass(errors.deadlineTime, inputControlClass)}
-            />
-          </JobFormField>
-        </div>
-
-        <JobFormField label="Description">
-          <textarea
-            value={form.description}
-            onChange={(event) =>
-              handleFormChange("description", event.target.value)
-            }
-            placeholder="Enter job details, qualifications, and requirements"
-            className={getControlClass("", textareaControlClass)}
-          />
-        </JobFormField>
-
-        <RequirementPreview requirements={selectedPosition?.requirements || []} />
 
           </div>
 
@@ -1263,6 +1354,8 @@ function CreateJobOpeningModal({
 }
 
 function JobFormField({ label, required = false, error = "", children }) {
+  const errorText = typeof error === "string" ? error : "";
+
   return (
     <label className="block">
       <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
@@ -1270,83 +1363,139 @@ function JobFormField({ label, required = false, error = "", children }) {
       </span>
 
       <span className="mt-2 block">{children}</span>
-      {error && (
+      {errorText && (
         <span className="mt-1.5 block text-[12px] font-semibold text-red-600">
-          {error}
+          {errorText}
         </span>
       )}
     </label>
   );
 }
 
-function SchoolOfficePicker({
-  value,
-  schools = [],
-  disabled = false,
-  placeholder = "Type school / office name",
-  selectPlaceholder = "Choose from school list",
-  onChange,
-  onDelete,
-  error = "",
-}) {
-  const selectedSchool = schools.find((school) => school.name === value);
-  const canDelete = Boolean(value) && !disabled;
+function VacancyItemsEditor({ items = [], errors = [], onChange }) {
+  const normalizedItems =
+    items.length > 0
+      ? items
+      : [{ schoolStation: "", subjectArea: "", vacancyCount: 1 }];
+  const itemErrors = Array.isArray(errors) ? errors : [];
+
+  const updateItem = (index, field, value) => {
+    onChange(
+      normalizedItems.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [field]: value } : item
+      )
+    );
+  };
+
+  const addItem = () => {
+    onChange([
+      ...normalizedItems,
+      { schoolStation: "", subjectArea: "", vacancyCount: 1 },
+    ]);
+  };
+
+  const removeItem = (index) => {
+    if (normalizedItems.length === 1) return;
+    onChange(normalizedItems.filter((_item, itemIndex) => itemIndex !== index));
+  };
 
   return (
-    <div className="grid gap-2">
-      <select
-        value={selectedSchool ? selectedSchool.name : ""}
-        onChange={(event) => onChange(event.target.value)}
-        disabled={disabled}
-        aria-label="Change school / office from list"
-        aria-invalid={Boolean(error)}
-        className={getControlClass(error, disabledInputControlClass)}
-      >
-        <option value="">{selectPlaceholder}</option>
-        {schools.map((school) => (
-          <option key={school.name} value={school.name}>
-            {school.name} - {school.barangay}
-          </option>
-        ))}
-      </select>
-
-      <div className="flex gap-2">
-        <div className="relative min-w-0 flex-1">
-          <Pencil className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            value={value}
-            onChange={(event) => onChange(event.target.value)}
-            disabled={disabled}
-            placeholder={placeholder}
-            aria-label="Edit school / office name"
-            aria-invalid={Boolean(error)}
-            className={`${getControlClass(
-              error,
-              disabledInputControlClass
-            )} pl-9`}
-          />
-        </div>
-
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+          School / Station Vacancy Breakdown
+        </p>
         <button
           type="button"
-          onClick={onDelete}
-          disabled={!canDelete}
-          title="Delete current school / office selection"
-          aria-label="Delete current school / office selection"
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300"
+          onClick={addItem}
+          className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
         >
-          <Trash2 className="h-4 w-4" />
+          <Plus className="h-4 w-4" />
+          Add item
         </button>
+      </div>
+
+      <div className="mt-3 space-y-3">
+        {normalizedItems.map((item, index) => {
+          const currentErrors = itemErrors[index] || {};
+
+          return (
+            <div
+              key={item.id || index}
+              className="grid gap-3 rounded-lg border border-slate-200 bg-white p-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_120px_auto]"
+            >
+              <JobFormField
+                label="School / Station"
+                error={currentErrors.schoolStation}
+                required
+              >
+                <input
+                  value={item.schoolStation || ""}
+                  onChange={(event) =>
+                    updateItem(index, "schoolStation", event.target.value)
+                  }
+                  placeholder="Example: SPNHS"
+                  className={getControlClass(
+                    currentErrors.schoolStation,
+                    inputControlClass
+                  )}
+                />
+              </JobFormField>
+
+              <JobFormField label="Subject / Learning Area">
+                <input
+                  value={item.subjectArea || ""}
+                  onChange={(event) =>
+                    updateItem(index, "subjectArea", event.target.value)
+                  }
+                  placeholder="Example: MAPEH"
+                  className={getControlClass("", inputControlClass)}
+                />
+              </JobFormField>
+
+              <JobFormField
+                label="Vacancy"
+                error={currentErrors.vacancyCount}
+                required
+              >
+                <input
+                  type="number"
+                  min="1"
+                  value={item.vacancyCount}
+                  onChange={(event) =>
+                    updateItem(index, "vacancyCount", event.target.value)
+                  }
+                  className={getControlClass(
+                    currentErrors.vacancyCount,
+                    inputControlClass
+                  )}
+                />
+              </JobFormField>
+
+              <button
+                type="button"
+                onClick={() => removeItem(index)}
+                disabled={normalizedItems.length === 1}
+                className="self-end justify-self-start rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300"
+              >
+                Remove
+              </button>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function RequirementPreview({ requirements = [] }) {
+function RequirementPreview({
+  requirements = [],
+  emptyMessage = "No upload requirements configured for this position.",
+}) {
   if (!requirements.length) {
     return (
       <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-        No upload requirements configured for this position.
+        {emptyMessage}
       </div>
     );
   }
@@ -1400,38 +1549,31 @@ function getDateInputValue(value) {
 }
 
 function createEditJobForm(job) {
-  const district =
-    job.district ||
-    sjdmDistricts.find((item) => job.location?.includes(item.name))?.name ||
-    "";
-  const barangays =
-    sjdmDistricts.find((item) => item.name === district)?.barangays || [];
-  const schools =
-    sjdmDistricts.find((item) => item.name === district)?.schools || [];
-  const school =
-    job.school ||
-    schools.find((item) => job.location?.includes(item.name))?.name ||
-    "";
-  const barangay =
-    job.barangay ||
-    findSjdmSchool(district, school)?.barangay ||
-    barangays.find((item) => job.location?.includes(item)) ||
-    "";
-
   return {
     title: job.title || "",
     location: job.location || "",
-    school,
-    district,
-    barangay,
+    vacancyItems:
+      job.vacancyItems?.length > 0
+        ? job.vacancyItems.map((item) => ({
+            id: item.id,
+            schoolStation: item.schoolStation || "",
+            subjectArea: item.subjectArea || "",
+            vacancyCount: item.vacancyCount || 1,
+          }))
+        : [{ schoolStation: job.location || "", subjectArea: "", vacancyCount: job.vacancy || 1 }],
     vacancy: job.vacancy || 1,
     deadline: getDateInputValue(job.deadline),
     deadlineTime: job.deadlineTime || "23:59",
     positionId: job.positionId || "",
     positionCategory: job.positionCategory || "",
+    salaryGrade: job.salaryGrade || "",
+    salaryAmount: job.salaryAmount || "",
+    education: job.education || "",
+    training: job.training || "",
+    experience: job.experience || "",
+    eligibility: job.eligibility || "",
     status: job.status === "expired" ? "closed" : job.status || "open",
     description: job.description || "",
-    requirements: job.requirements || [],
   };
 }
 
@@ -1449,16 +1591,8 @@ function JobPostingSection(props) {
   const [editErrors, setEditErrors] = useState({});
   const [isUpdating, setIsUpdating] = useState(false);
   const { showToast } = useToast();
-  const selectedDistrict = sjdmDistricts.find(
-    (district) => district.name === editForm.district
-  );
-  const barangays = selectedDistrict?.barangays || [];
-  const schools = selectedDistrict?.schools || [];
   const filteredPositions = positions.filter(
     (position) => position.category === editForm.positionCategory
-  );
-  const selectedPosition = positions.find(
-    (position) => String(position.id) === String(editForm.positionId)
   );
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -1492,23 +1626,12 @@ function JobPostingSection(props) {
     clearErrorField(setEditErrors, field);
   };
 
-  const updateEditSchool = (value) => {
-    const school = findSjdmSchool(editForm.district, value);
-
-    updateEditField("school", value);
-    if (school?.barangay) {
-      updateEditField("barangay", school.barangay);
-    }
-  };
-
   const saveEditedJob = async (event) => {
     event.preventDefault();
 
     if (isUpdating || !editingJob) return;
 
-    const validationErrors = validateJobOpeningForm(editForm, {
-      requireLocation: false,
-    });
+    const validationErrors = validateJobOpeningForm(editForm);
 
     if (Object.keys(validationErrors).length > 0) {
       setEditErrors(validationErrors);
@@ -1523,23 +1646,23 @@ function JobPostingSection(props) {
     setEditErrors({});
 
     try {
-      const location =
-        getJobLocation(editForm) ||
-        editingJob.location;
-
       const updateResult = await updateJob(editingJob, {
         title: editForm.title,
-        location,
-        district: editForm.district,
-        barangay: editForm.barangay,
-        vacancy: Number(editForm.vacancy),
+        vacancyItems: editForm.vacancyItems,
+        vacancy: getVacancyTotal(editForm.vacancyItems),
         deadline: editForm.deadline,
         deadlineTime: editForm.deadlineTime,
         positionId: editForm.positionId ? Number(editForm.positionId) : null,
         positionCategory: editForm.positionCategory,
+        salaryGrade: editForm.salaryGrade,
+        salaryAmount: editForm.salaryAmount,
+        education: editForm.education,
+        training: editForm.training,
+        experience: editForm.experience,
+        eligibility: editForm.eligibility,
         status: editForm.status,
         description: editForm.description,
-        requirements: editForm.requirements || [],
+        requirements: getFixedApplicationRequirements(),
       });
 
       if (updateResult.skipped) return;
@@ -1774,119 +1897,23 @@ function JobPostingSection(props) {
               className="grid min-h-0 gap-4 overflow-y-auto px-4 py-5 sm:px-6"
               noValidate
             >
-              <JobFormField label="Job Title" error={editErrors.title} required>
-                <input
-                  value={editForm.title}
-                  onChange={(event) =>
-                    updateEditField("title", event.target.value)
-                  }
-                  aria-invalid={Boolean(editErrors.title)}
-                  className={getControlClass(editErrors.title, inputControlClass)}
-                />
-              </JobFormField>
-
-              <div className="grid gap-4 lg:grid-cols-3">
-                <JobFormField label="District" error={editErrors.district}>
-                  <select
-                    value={editForm.district}
-                    onChange={(event) => {
-                      updateEditField("district", event.target.value);
-                      updateEditField("barangay", "");
-                      updateEditField("school", "");
-                    }}
-                    aria-invalid={Boolean(editErrors.district)}
-                    className={getControlClass(editErrors.district, inputControlClass)}
-                  >
-                    <option value="">Keep current location</option>
-                    {sjdmDistricts.map((district) => (
-                      <option key={district.name} value={district.name}>
-                        {district.name}
-                      </option>
-                    ))}
-                  </select>
-                </JobFormField>
-
-                <JobFormField label="School / Office" error={editErrors.school}>
-                  <SchoolOfficePicker
-                    value={editForm.school}
-                    schools={schools}
-                    disabled={!editForm.district}
-                    placeholder={
-                      editForm.district
-                        ? "Type school / office name"
-                        : "Select district first"
-                    }
-                    selectPlaceholder={
-                      editForm.district
-                        ? "Choose from school list"
-                        : "Select district first"
-                    }
-                    onChange={updateEditSchool}
-                    onDelete={() => {
-                      updateEditField("school", "");
-                      updateEditField("barangay", "");
-                    }}
-                    error={editErrors.school}
-                  />
-                </JobFormField>
-
-                <JobFormField label="Barangay" error={editErrors.barangay}>
-                  <select
-                    value={editForm.barangay}
-                    onChange={(event) =>
-                      updateEditField("barangay", event.target.value)
-                    }
-                    disabled={!editForm.district}
-                    aria-invalid={Boolean(editErrors.barangay)}
-                    className={getControlClass(
-                      editErrors.barangay,
-                      disabledInputControlClass
-                    )}
-                  >
-                    <option value="">
-                      {editForm.district
-                        ? "Select barangay"
-                        : "Select district first"}
-                    </option>
-                    {barangays.map((barangay) => (
-                      <option key={barangay} value={barangay}>
-                        {barangay}
-                      </option>
-                    ))}
-                  </select>
-                </JobFormField>
-              </div>
-
               <div className="grid gap-4 sm:grid-cols-2">
-                <JobFormField
-                  label="Position Category"
-                  error={editErrors.positionCategory}
-                  required
-                >
+                <JobFormField label="Position Category">
                   <select
                     value={editForm.positionCategory}
                     onChange={(event) => {
                       updateEditField("positionCategory", event.target.value);
                       updateEditField("positionId", "");
-                      updateEditField("requirements", []);
                     }}
-                    aria-invalid={Boolean(editErrors.positionCategory)}
-                    className={getControlClass(
-                      editErrors.positionCategory,
-                      inputControlClass
-                    )}
+                    className={getControlClass("", inputControlClass)}
                   >
-                    <option value="">Select category</option>
+                    <option value="">Optional category</option>
                     <option value="Teaching">Teaching</option>
                     <option value="Non-Teaching">Non-Teaching</option>
                   </select>
                 </JobFormField>
 
-                <JobFormField
-                  label="Position"
-                  error={editErrors.positionId}
-                  required
-                >
+                <JobFormField label="Position Library">
                   <select
                     value={editForm.positionId}
                     onChange={(event) => {
@@ -1895,18 +1922,13 @@ function JobPostingSection(props) {
                       );
                       updateEditField("positionId", event.target.value);
                       updateEditField("title", position?.title || editForm.title);
-                      updateEditField("requirements", position?.requirements || []);
                     }}
                     disabled={!editForm.positionCategory}
-                    aria-invalid={Boolean(editErrors.positionId)}
-                    className={getControlClass(
-                      editErrors.positionId,
-                      disabledInputControlClass
-                    )}
+                    className={disabledInputControlClass}
                   >
                     <option value="">
                       {editForm.positionCategory
-                        ? "Select position"
+                        ? "Optional saved position"
                         : "Select category first"}
                     </option>
                     {filteredPositions.map((position) => (
@@ -1918,24 +1940,110 @@ function JobPostingSection(props) {
                 </JobFormField>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-3">
-                <JobFormField
-                  label="Vacancies"
-                  error={editErrors.vacancy}
-                  required
-                >
+              <JobFormField label="Position Title" error={editErrors.title} required>
+                <input
+                  value={editForm.title}
+                  onChange={(event) =>
+                    updateEditField("title", event.target.value)
+                  }
+                  aria-invalid={Boolean(editErrors.title)}
+                  className={getControlClass(editErrors.title, inputControlClass)}
+                />
+              </JobFormField>
+
+              <VacancyItemsEditor
+                items={editForm.vacancyItems}
+                errors={editErrors.vacancyItems}
+                onChange={(items) => updateEditField("vacancyItems", items)}
+              />
+
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+                No. of Vacant Items: {getVacancyTotal(editForm.vacancyItems)}
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <JobFormField label="Salary Grade" error={editErrors.salaryGrade} required>
                   <input
-                    type="number"
-                    min="1"
-                    value={editForm.vacancy}
+                    value={editForm.salaryGrade}
                     onChange={(event) =>
-                      updateEditField("vacancy", event.target.value)
+                      updateEditField("salaryGrade", event.target.value)
                     }
-                    aria-invalid={Boolean(editErrors.vacancy)}
-                    className={getControlClass(editErrors.vacancy, inputControlClass)}
+                    className={getControlClass(
+                      editErrors.salaryGrade,
+                      inputControlClass
+                    )}
                   />
                 </JobFormField>
 
+                <JobFormField label="Salary Amount" error={editErrors.salaryAmount} required>
+                  <input
+                    value={editForm.salaryAmount}
+                    onChange={(event) =>
+                      updateEditField("salaryAmount", event.target.value)
+                    }
+                    className={getControlClass(
+                      editErrors.salaryAmount,
+                      inputControlClass
+                    )}
+                  />
+                </JobFormField>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <JobFormField label="Education" error={editErrors.education} required>
+                  <textarea
+                    value={editForm.education}
+                    onChange={(event) =>
+                      updateEditField("education", event.target.value)
+                    }
+                    className={getControlClass(
+                      editErrors.education,
+                      textareaControlClass
+                    )}
+                  />
+                </JobFormField>
+
+                <JobFormField label="Training" error={editErrors.training} required>
+                  <textarea
+                    value={editForm.training}
+                    onChange={(event) =>
+                      updateEditField("training", event.target.value)
+                    }
+                    className={getControlClass(
+                      editErrors.training,
+                      textareaControlClass
+                    )}
+                  />
+                </JobFormField>
+
+                <JobFormField label="Experience" error={editErrors.experience} required>
+                  <textarea
+                    value={editForm.experience}
+                    onChange={(event) =>
+                      updateEditField("experience", event.target.value)
+                    }
+                    className={getControlClass(
+                      editErrors.experience,
+                      textareaControlClass
+                    )}
+                  />
+                </JobFormField>
+
+                <JobFormField label="Eligibility" error={editErrors.eligibility} required>
+                  <textarea
+                    value={editForm.eligibility}
+                    onChange={(event) =>
+                      updateEditField("eligibility", event.target.value)
+                    }
+                    className={getControlClass(
+                      editErrors.eligibility,
+                      textareaControlClass
+                    )}
+                  />
+                </JobFormField>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-3">
                 <JobFormField
                   label="Application Deadline"
                   error={editErrors.deadline}
@@ -1998,7 +2106,7 @@ function JobPostingSection(props) {
               </JobFormField>
 
               <RequirementPreview
-                requirements={selectedPosition?.requirements || editForm.requirements || []}
+                requirements={getFixedApplicationRequirements()}
               />
 
               <div className="sticky bottom-0 -mx-4 flex flex-col-reverse gap-2 border-t border-slate-200 bg-white px-4 pt-4 sm:-mx-6 sm:flex-row sm:justify-end sm:px-6">
@@ -2166,51 +2274,6 @@ function PositionManagerSection({ positions, setPositions }) {
     setPositionErrors({});
   };
 
-  const addRequirement = () => {
-    setDraft((current) => ({
-      ...current,
-      requirements: [
-        ...(current.requirements || []),
-        { label: "", description: "", required: true },
-      ],
-    }));
-  };
-
-  const updateRequirement = (index, field, value) => {
-    setDraft((current) => ({
-      ...current,
-      requirements: (current.requirements || []).map((requirement, itemIndex) =>
-        itemIndex === index ? { ...requirement, [field]: value } : requirement
-      ),
-    }));
-
-    if (field === "label") {
-      setPositionErrors((current) => {
-        if (!current.requirements?.[index]?.label) return current;
-
-        const nextRequirementErrors = [...current.requirements];
-        nextRequirementErrors[index] = {
-          ...nextRequirementErrors[index],
-          label: "",
-        };
-
-        return {
-          ...current,
-          requirements: nextRequirementErrors,
-        };
-      });
-    }
-  };
-
-  const removeRequirement = (index) => {
-    setDraft((current) => ({
-      ...current,
-      requirements: (current.requirements || []).filter(
-        (_requirement, itemIndex) => itemIndex !== index
-      ),
-    }));
-  };
-
   const openAddPosition = () => {
     setDraft(emptyPosition);
     setEditingId(null);
@@ -2223,7 +2286,6 @@ function PositionManagerSection({ positions, setPositions }) {
     setDraft({
       category: position.category || "Teaching",
       title: position.title || "",
-      requirements: position.requirements || [],
     });
     setPositionErrors({});
     setIsPositionFormOpen(true);
@@ -2316,8 +2378,8 @@ function PositionManagerSection({ positions, setPositions }) {
   const isPositionFormModalOpen = isPositionFormOpen || isEditingPosition;
   const positionModalTitle = isEditingPosition ? "Edit Position" : "Add Position";
   const positionModalDescription = isEditingPosition
-    ? "Update the category, title, and upload requirements for this position."
-    : "Create a position applicants can select when job openings are posted.";
+    ? "Update the category and title for this saved position."
+    : "Create a position title admins can reuse when posting vacancies.";
   const positionFormFields = (
     <div className="grid gap-4">
       <JobFormField label="Category" error={positionErrors.category} required>
@@ -2342,99 +2404,7 @@ function PositionManagerSection({ positions, setPositions }) {
         />
       </JobFormField>
 
-      <div>
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
-            Upload Requirements
-          </p>
-
-          <button
-            type="button"
-            onClick={addRequirement}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            <Plus className="h-4 w-4" />
-            Add
-          </button>
-        </div>
-
-        <div className="mt-3 space-y-3">
-          {(draft.requirements || []).map((requirement, index) => (
-            <div
-              key={index}
-              className="rounded-lg border border-slate-200 bg-slate-50 p-3"
-            >
-              <input
-                value={requirement.label}
-                onChange={(event) =>
-                  updateRequirement(index, "label", event.target.value)
-                }
-                placeholder="Requirement label"
-                aria-invalid={Boolean(
-                  positionErrors.requirements?.[index]?.label
-                )}
-                className={getControlClass(
-                  positionErrors.requirements?.[index]?.label,
-                  "h-10 w-full rounded-lg border px-3 text-sm outline-none transition focus:ring-2"
-                )}
-              />
-              {positionErrors.requirements?.[index]?.label && (
-                <p className="mt-1.5 text-[12px] font-semibold text-red-600">
-                  {positionErrors.requirements[index].label}
-                </p>
-              )}
-
-              <textarea
-                value={requirement.description || ""}
-                onChange={(event) =>
-                  updateRequirement(index, "description", event.target.value)
-                }
-                placeholder="Short instruction or description"
-                className="mt-2 min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-              />
-
-              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={requirement.required !== false}
-                    onChange={(event) =>
-                      updateRequirement(index, "required", event.target.checked)
-                    }
-                    className="h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-500"
-                  />
-                  Required from applicant
-                </label>
-
-                <button
-                  type="button"
-                  onClick={() => removeRequirement(index)}
-                  className="oas-danger-button"
-                >
-                  Remove requirement
-                </button>
-              </div>
-            </div>
-          ))}
-
-          {(draft.requirements || []).length === 0 && (
-            <p className="rounded-lg border border-dashed border-slate-300 px-3 py-4 text-center text-sm text-slate-500">
-              Add upload requirements applicants must submit for this position.
-            </p>
-          )}
-
-          {(draft.requirements || []).length > 0 && (
-            <button
-              type="button"
-              onClick={addRequirement}
-              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
-            >
-              <Plus className="h-4 w-4" />
-              Add another requirement
-            </button>
-          )}
-        </div>
-      </div>
+      <RequirementPreview requirements={getFixedApplicationRequirements()} />
     </div>
   );
 
@@ -2445,7 +2415,7 @@ function PositionManagerSection({ positions, setPositions }) {
           <div>
             <h2 className="oas-panel-title">Position Library</h2>
             <p className="mt-1 text-sm text-slate-500">
-              These positions can be selected when creating job openings.
+              These titles can be selected when creating DepEd-style job postings.
             </p>
           </div>
 
@@ -2473,8 +2443,7 @@ function PositionManagerSection({ positions, setPositions }) {
                     {position.title}
                   </p>
                   <p className="text-sm text-slate-500">
-                    {position.category} -{" "}
-                    {position.requirements?.length || 0} requirement(s)
+                    {position.category}
                   </p>
                 </div>
 
@@ -2628,9 +2597,17 @@ function ApplicantListSection({
   schools,
   selectedPosition,
   selectedLocation,
+  selectedStatus,
+  selectedDate,
+  dateFrom,
+  dateTo,
   searchTerm,
   setSelectedPosition,
   setSelectedLocation,
+  setSelectedStatus,
+  setSelectedDate,
+  setDateFrom,
+  setDateTo,
   setSearchTerm,
   setViewApplication,
   updateApplicationStatus,
@@ -2653,7 +2630,11 @@ function ApplicantListSection({
   const hasFilters =
     Boolean(searchTerm.trim()) ||
     selectedPosition !== "all" ||
-    selectedLocation !== "all";
+    selectedLocation !== "all" ||
+    selectedStatus !== "all" ||
+    Boolean(selectedDate) ||
+    Boolean(dateFrom) ||
+    Boolean(dateTo);
 
   return (
     <section className="oas-panel">
@@ -2667,8 +2648,8 @@ function ApplicantListSection({
       </div>
 
       <div className="border-b border-slate-200 bg-slate-50 px-3 py-3 sm:px-5 sm:py-4">
-        <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-[minmax(0,1fr)_220px_220px_auto]">
-          <div className="relative col-span-2 lg:col-span-1">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-[minmax(0,1.2fr)_170px_170px_155px_150px_150px_150px_auto]">
+          <div className="relative col-span-2 xl:col-span-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
 
             <input
@@ -2708,6 +2689,56 @@ function ApplicantListSection({
             ))}
           </select>
 
+          <select
+            value={selectedStatus}
+            onChange={(event) => setSelectedStatus(event.target.value)}
+            aria-label="Filter by status"
+            className="h-10 min-w-0 rounded-lg border border-slate-300 bg-white px-2 text-[12px] outline-none focus:ring-2 focus:ring-blue-500 sm:h-11 sm:rounded-xl sm:px-3 sm:text-sm"
+          >
+            <option value="all">All Statuses</option>
+            {Object.entries(statusLabels).map(([status, label]) => (
+              <option key={status} value={status}>
+                {label}
+              </option>
+            ))}
+          </select>
+
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(event) => {
+              setSelectedDate(event.target.value);
+              if (event.target.value) {
+                setDateFrom("");
+                setDateTo("");
+              }
+            }}
+            aria-label="Filter by specific application date"
+            className="h-10 min-w-0 rounded-lg border border-slate-300 bg-white px-2 text-[12px] outline-none focus:ring-2 focus:ring-blue-500 sm:h-11 sm:rounded-xl sm:px-3 sm:text-sm"
+          />
+
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(event) => {
+              setDateFrom(event.target.value);
+              if (event.target.value) setSelectedDate("");
+            }}
+            aria-label="Filter from application date"
+            className="h-10 min-w-0 rounded-lg border border-slate-300 bg-white px-2 text-[12px] outline-none focus:ring-2 focus:ring-blue-500 sm:h-11 sm:rounded-xl sm:px-3 sm:text-sm"
+          />
+
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(event) => {
+              setDateTo(event.target.value);
+              if (event.target.value) setSelectedDate("");
+            }}
+            aria-label="Filter to application date"
+            className="h-10 min-w-0 rounded-lg border border-slate-300 bg-white px-2 text-[12px] outline-none focus:ring-2 focus:ring-blue-500 sm:h-11 sm:rounded-xl sm:px-3 sm:text-sm"
+          />
+
           {hasFilters && (
             <button
               type="button"
@@ -2715,8 +2746,12 @@ function ApplicantListSection({
                 setSearchTerm("");
                 setSelectedPosition("all");
                 setSelectedLocation("all");
+                setSelectedStatus("all");
+                setSelectedDate("");
+                setDateFrom("");
+                setDateTo("");
               }}
-              className="col-span-2 inline-flex h-10 items-center justify-center gap-1.5 justify-self-start rounded-lg border border-slate-200 bg-white px-3 text-[12px] font-semibold text-slate-600 hover:bg-slate-100 sm:col-span-1 sm:justify-self-end sm:px-4 sm:text-sm lg:h-11"
+              className="col-span-2 inline-flex h-10 items-center justify-center gap-1.5 justify-self-start rounded-lg border border-slate-200 bg-white px-3 text-[12px] font-semibold text-slate-600 hover:bg-slate-100 sm:col-span-1 sm:justify-self-end sm:px-4 sm:text-sm xl:h-11"
             >
               <X className="h-4 w-4" />
               Clear filters
@@ -3064,6 +3099,8 @@ function JobListingSection({ jobs, isLoading, formatDate }) {
 }
 
 function JobListingDetailsModal({ job, onClose, formatDate }) {
+  const requirements = getFixedApplicationRequirements();
+
   return (
     <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/50 p-3 sm:items-center sm:p-6">
       <div className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl sm:max-h-[92vh]">
@@ -3108,9 +3145,9 @@ function JobListingDetailsModal({ job, onClose, formatDate }) {
               Upload Requirements
             </h4>
 
-            {job.requirements?.length > 0 ? (
+            {requirements.length > 0 ? (
               <ul className="mt-3 space-y-2.5">
-                {job.requirements.map((requirement) => (
+                {requirements.map((requirement) => (
                   <li
                     key={requirement.field}
                     className="border-b border-slate-200 pb-2.5 text-xs last:border-b-0 last:pb-0 sm:text-sm"
@@ -3165,8 +3202,13 @@ function ApplicationFormModal({
   getApplicationLocation,
   getApplicationDate,
   onReviewRequirement,
+  onAssignApplication,
 }) {
   const [previewFile, setPreviewFile] = useState(null);
+  const [assignmentItemId, setAssignmentItemId] = useState(
+    application.assignment?.jobOpeningItemId || ""
+  );
+  const [isSavingAssignment, setIsSavingAssignment] = useState(false);
   const requirements = Array.isArray(application.requirements)
     ? application.requirements
     : [];
@@ -3207,6 +3249,12 @@ function ApplicationFormModal({
 
   const files =
     jobPosition.files || application.files || application.attachments || {};
+  const vacancyItems = Array.isArray(application.jobItems)
+    ? application.jobItems
+    : [];
+  const canAssign = ["qualified", "shortlisted", "selected", "hired"].includes(
+    application.status
+  );
 
   const fullName =
     getApplicantName(application) ||
@@ -3255,6 +3303,19 @@ function ApplicationFormModal({
       // Toast is handled by the parent updater.
     } finally {
       setSavingRequirementId(null);
+    }
+  };
+
+  const saveAssignment = async () => {
+    if (!assignmentItemId || !onAssignApplication) return;
+
+    setIsSavingAssignment(true);
+    try {
+      await onAssignApplication(application, assignmentItemId);
+    } catch {
+      // Parent handler shows the toast.
+    } finally {
+      setIsSavingAssignment(false);
     }
   };
 
@@ -3433,8 +3494,85 @@ function ApplicationFormModal({
                       "N/A",
                   ],
                   ["Location", getApplicationLocation(application)],
+                  ["Salary Grade", application.jobSalaryGrade || "N/A"],
+                  ["Salary Amount", application.jobSalaryAmount || "N/A"],
                 ]}
               />
+
+              {vacancyItems.length > 0 && (
+                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <h5 className="text-sm font-bold text-slate-800">
+                    School / Station Vacancy Items
+                  </h5>
+
+                  <div className="mt-3 overflow-x-auto">
+                    <table className="w-full min-w-[520px] text-left text-xs">
+                      <thead className="uppercase text-slate-500">
+                        <tr>
+                          <th className="px-3 py-2">School/Station</th>
+                          <th className="px-3 py-2">Subject</th>
+                          <th className="px-3 py-2">Vacancy</th>
+                          <th className="px-3 py-2">Assigned</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {vacancyItems.map((item) => (
+                          <tr key={item.id} className="border-t border-slate-200">
+                            <td className="px-3 py-2 font-semibold text-slate-800">
+                              {item.schoolStation}
+                            </td>
+                            <td className="px-3 py-2 text-slate-600">
+                              {item.subjectArea || "General"}
+                            </td>
+                            <td className="px-3 py-2 text-slate-600">
+                              {item.vacancyCount}
+                            </td>
+                            <td className="px-3 py-2 text-slate-600">
+                              {item.assignedCount}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                    <select
+                      value={assignmentItemId}
+                      onChange={(event) => setAssignmentItemId(event.target.value)}
+                      disabled={!canAssign || !onAssignApplication}
+                      className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                    >
+                      <option value="">
+                        {canAssign
+                          ? "Assign selected applicant"
+                          : "Mark applicant qualified/shortlisted/selected first"}
+                      </option>
+                      {vacancyItems.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.schoolStation}
+                          {item.subjectArea ? ` - ${item.subjectArea}` : ""} (
+                          {item.assignedCount}/{item.vacancyCount})
+                        </option>
+                      ))}
+                    </select>
+
+                    <button
+                      type="button"
+                      onClick={saveAssignment}
+                      disabled={
+                        !assignmentItemId ||
+                        !canAssign ||
+                        isSavingAssignment ||
+                        !onAssignApplication
+                      }
+                      className="inline-flex h-10 items-center justify-center rounded-lg bg-[#0056b3] px-4 text-sm font-semibold text-white hover:bg-[#003a78] disabled:cursor-not-allowed disabled:bg-slate-300"
+                    >
+                      {isSavingAssignment ? "Saving..." : "Save Assignment"}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {requirements.length > 0 ? (
                 <div className="mt-4">
@@ -3447,14 +3585,16 @@ function ApplicationFormModal({
                       const draftKey = String(
                         requirement.id || requirement.field
                       );
+                      const normalizedRequirementStatus =
+                        normalizeRequirementReviewStatus(requirement.status);
                       const draft = requirementDrafts[draftKey] || {
-                        status: requirement.status || "pending",
+                        status: normalizedRequirementStatus,
                         remarks: requirement.remarks || "",
                       };
                       const requirementFile = requirement.file;
                       const isSaving = savingRequirementId === draftKey;
                       const hasChanges =
-                        draft.status !== (requirement.status || "pending") ||
+                        draft.status !== normalizedRequirementStatus ||
                         draft.remarks !== (requirement.remarks || "");
 
                       return (
@@ -3473,13 +3613,13 @@ function ApplicationFormModal({
                                 </p>
                                 <span
                                   className={`inline-flex rounded-md border px-2 py-0.5 text-[11px] font-semibold ${getRequirementReviewStatusClass(
-                                    requirement.status
+                                    normalizedRequirementStatus
                                   )}`}
                                 >
                                   {requirementReviewStatusLabels[
-                                    requirement.status
+                                    normalizedRequirementStatus
                                   ] ||
-                                    requirement.status ||
+                                    normalizedRequirementStatus ||
                                     "Pending"}
                                 </span>
                               </div>

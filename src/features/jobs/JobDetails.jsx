@@ -17,19 +17,19 @@ import {
   getSidebarContentPadding,
 } from "../../lib/sidebar";
 import { useToast } from "../../components/ui/toastContext";
-
-const formatDate = (value) =>
-  value
-    ? new Intl.DateTimeFormat("en-PH", {
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-      }).format(new Date(value))
-    : "No deadline";
-
-const formatDeadline = (job) =>
-  `${formatDate(job.deadline)} ${job.deadlineTime || ""}`.trim();
+import {
+  DeadlineDetails,
+  getJobSubmissionRule,
+  getJobUploadRequirements,
+  JobInfoCard,
+  QualificationStandards,
+  RequirementSummary,
+  summarizeVacancyItems,
+  VacancyBreakdown,
+} from "./jobPostingUi";
 const uploadMaxFileSize = 15 * 1024 * 1024;
+const maxRequirementFilesPerField = 5;
+const maxRequirementUploadBatch = 3;
 const acceptedRequirementFileTypes = [
   "image/jpeg",
   "image/png",
@@ -39,22 +39,16 @@ const acceptedRequirementFileTypes = [
   "text/plain",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "application/vnd.ms-powerpoint",
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 ];
 const acceptedRequirementFileTypesText = acceptedRequirementFileTypes.join(",");
 
-function getInitialRequirementSelection(requirements = [], byField = {}) {
-  return Object.fromEntries(
-    requirements
-      .map((requirement) => [
-        requirement.field,
-        byField?.[requirement.field]?.[0]?.id || "",
-      ])
-      .filter(([, fileId]) => fileId)
-  );
+function normalizeSelectedFileIds(value) {
+  if (Array.isArray(value)) return value.map(String).filter(Boolean);
+  return value ? [String(value)] : [];
+}
+
+function getJobRequirements(job = null) {
+  return getJobUploadRequirements(job || {});
 }
 
 export default function JobDetails() {
@@ -80,6 +74,17 @@ export default function JobDetails() {
 
   const isApplicant = user && normalizeRole(user.role) === "applicant";
   const contentPadding = getSidebarContentPadding(collapsed);
+
+  const getApplyPath = () => {
+    const params = new URLSearchParams();
+
+    if (job?.id || jobId) params.set("jobId", String(job?.id || jobId));
+    if (job?.title) params.set("position", job.title);
+    if (job?.positionCategory) params.set("category", job.positionCategory);
+
+    const query = params.toString();
+    return `/apply${query ? `?${query}` : ""}`;
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -122,56 +127,7 @@ export default function JobDetails() {
       return;
     }
 
-    setApplyFlow((current) => ({
-      ...current,
-      isOpen: true,
-      isLoading: true,
-      error: "",
-    }));
-
-    try {
-      const [profileResult, libraryResult] = await Promise.all([
-        apiRequest("/api/applicant/profile").catch((error) => ({
-          error: error.message || "Complete your applicant profile first.",
-          applicationProfileGaps: [
-            "Personal information",
-            "Educational background - bachelor's degree",
-            "Eligibility",
-          ],
-        })),
-        apiRequest("/api/applicant/requirement-files"),
-      ]);
-      const libraryByField = libraryResult.byField || {};
-
-      setApplyFlow((current) => ({
-        ...current,
-        isOpen: true,
-        isLoading: false,
-        profileGaps:
-          profileResult.applicationProfileGaps ||
-          (profileResult.error
-            ? [
-                "Personal information",
-                "Educational background - bachelor's degree",
-                "Eligibility",
-              ]
-            : []),
-        libraryByField,
-        selectedFiles: getInitialRequirementSelection(
-          job?.requirements || [],
-          libraryByField
-        ),
-        uploadingFields: {},
-        error: profileResult.error || "",
-      }));
-    } catch (error) {
-      setApplyFlow((current) => ({
-        ...current,
-        isOpen: true,
-        isLoading: false,
-        error: error.message || "Unable to prepare your application.",
-      }));
-    }
+    navigate(getApplyPath(), { state: { job } });
   };
 
   const closeApplyFlow = () => {
@@ -184,33 +140,62 @@ export default function JobDetails() {
       ...current,
       selectedFiles: {
         ...current.selectedFiles,
-        [field]: fileId,
+        [field]: normalizeSelectedFileIds(current.selectedFiles[field]).includes(
+          String(fileId)
+        )
+          ? normalizeSelectedFileIds(current.selectedFiles[field]).filter(
+              (id) => id !== String(fileId)
+            )
+          : [
+              ...normalizeSelectedFileIds(current.selectedFiles[field]),
+              String(fileId),
+            ].slice(0, maxRequirementFilesPerField),
       },
     }));
   };
 
-  const uploadRequirementToLibrary = async (requirement, file) => {
-    if (!file) return;
+  const uploadRequirementToLibrary = async (requirement, incomingFiles) => {
+    const files = Array.from(incomingFiles || []).filter(Boolean);
+    if (files.length === 0) return;
 
-    if (file.size > uploadMaxFileSize) {
+    if (files.length > maxRequirementUploadBatch) {
       showToast({
         type: "warning",
-        message: "Please upload a file smaller than 15 MB.",
+        message: `Upload up to ${maxRequirementUploadBatch} files at a time for one requirement.`,
       });
       return;
     }
 
-    if (!acceptedRequirementFileTypes.includes(file.type)) {
+    const existingCount = (
+      applyFlow.libraryByField[requirement.field] || []
+    ).length;
+    if (existingCount + files.length > maxRequirementFilesPerField) {
       showToast({
         type: "warning",
-        message: "Upload images, PDFs, or common Office documents only.",
+        message: `Each requirement can keep up to ${maxRequirementFilesPerField} files.`,
       });
       return;
     }
 
-    const payload = new FormData();
-    payload.append("file", file);
-    payload.append("requirementLabel", requirement.label || requirement.field);
+    const invalidSize = files.find((file) => file.size > uploadMaxFileSize);
+    if (invalidSize) {
+      showToast({
+        type: "warning",
+        message: "Please upload files smaller than 15 MB.",
+      });
+      return;
+    }
+
+    const invalidType = files.find(
+      (file) => !acceptedRequirementFileTypes.includes(file.type)
+    );
+    if (invalidType) {
+      showToast({
+        type: "warning",
+        message: "Upload images, PDFs, TXT, DOC, or DOCX files only.",
+      });
+      return;
+    }
 
     setApplyFlow((current) => ({
       ...current,
@@ -221,26 +206,41 @@ export default function JobDetails() {
     }));
 
     try {
-      const result = await apiRequest(
-        `/api/applicant/requirement-files/${encodeURIComponent(
-          requirement.field
-        )}`,
-        { method: "POST", body: payload }
-      );
-      const uploadedFile = result.file;
+      const uploadedFiles = [];
+
+      for (const file of files) {
+        const payload = new FormData();
+        payload.append("file", file);
+        payload.append("requirementLabel", requirement.label || requirement.field);
+        payload.append("positionCategory", job?.positionCategory || "");
+        payload.append("positionTitle", job?.title || "");
+        payload.append("positionType", job?.title || "");
+
+        const result = await apiRequest(
+          `/api/applicant/requirement-files/${encodeURIComponent(
+            requirement.field
+          )}`,
+          { method: "POST", body: payload }
+        );
+
+        uploadedFiles.push(result.file);
+      }
 
       setApplyFlow((current) => ({
         ...current,
         libraryByField: {
           ...current.libraryByField,
           [requirement.field]: [
-            uploadedFile,
+            ...uploadedFiles,
             ...(current.libraryByField[requirement.field] || []),
           ],
         },
         selectedFiles: {
           ...current.selectedFiles,
-          [requirement.field]: uploadedFile.id,
+          [requirement.field]: [
+            ...normalizeSelectedFileIds(current.selectedFiles[requirement.field]),
+            ...uploadedFiles.map((file) => file.id),
+          ].slice(0, maxRequirementFilesPerField),
         },
       }));
       showToast({ type: "success", message: "Document added to your library." });
@@ -263,27 +263,10 @@ export default function JobDetails() {
   const submitApplication = async () => {
     if (isApplying || !job) return;
 
-    const requiredRequirements = (job.requirements || []).filter(
-      (requirement) => requirement.required !== false
-    );
-    const missingDocuments = requiredRequirements.filter(
-      (requirement) => !applyFlow.selectedFiles[requirement.field]
-    );
-
     if (applyFlow.profileGaps.length > 0) {
       setApplyFlow((current) => ({
         ...current,
         error: "Complete the required profile sections before submitting.",
-      }));
-      return;
-    }
-
-    if (missingDocuments.length > 0) {
-      setApplyFlow((current) => ({
-        ...current,
-        error: `Attach required documents: ${missingDocuments
-          .map((requirement) => requirement.label)
-          .join(", ")}.`,
       }));
       return;
     }
@@ -362,54 +345,20 @@ export default function JobDetails() {
               </button>
             </div>
 
-            <div className="mt-4 grid gap-3 sm:mt-5 sm:grid-cols-3 sm:gap-4">
-              <InfoCard label="School / Location" value={job.location} icon={<MapPin className="h-4 w-4" />} />
-              <InfoCard label="Vacancies" value={job.vacancy} icon={<UserRoundPlus className="h-4 w-4" />} />
-              <InfoCard label="Application Deadline" value={formatDeadline(job)} icon={<CalendarDays className="h-4 w-4" />} />
+            <div className="mt-4 grid gap-3 sm:mt-5 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
+              <JobInfoCard label="School / Station" value={summarizeVacancyItems(job.vacancyItems || [])} icon={<MapPin className="h-4 w-4" />} />
+              <JobInfoCard label="Vacancies" value={job.vacancy} icon={<UserRoundPlus className="h-4 w-4" />} />
+              <JobInfoCard label="Salary Grade" value={job.salaryGrade || "N/A"} icon={<UserRoundPlus className="h-4 w-4" />} />
+              <JobInfoCard
+                label="Application Deadline"
+                value={<DeadlineDetails job={job} compact />}
+                icon={<CalendarDays className="h-4 w-4" />}
+              />
             </div>
 
-            <section className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:mt-5 sm:rounded-xl sm:p-4">
-              <h2 className="text-sm font-bold text-slate-900">Description</h2>
-              <p className="mt-2 whitespace-pre-wrap break-words text-xs leading-5 text-slate-600 [overflow-wrap:anywhere] sm:mt-3 sm:text-sm sm:leading-6">
-                {job.description || "No description provided yet."}
-              </p>
-            </section>
-
-            {job.requirements?.length > 0 && (
-              <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:mt-5 sm:rounded-xl sm:p-4">
-                <h2 className="text-sm font-bold text-slate-900">
-                  Upload Requirements
-                </h2>
-                <ul className="mt-3 space-y-2.5 text-xs leading-5 text-slate-600 sm:text-sm">
-                  {job.requirements.map((requirement) => (
-                    <li
-                      key={requirement.field}
-                      className="border-b border-slate-200 pb-2.5 last:border-b-0 last:pb-0"
-                    >
-                      <div className="flex min-w-0 items-start justify-between gap-3">
-                        <span className="min-w-0 break-words font-semibold text-slate-800 [overflow-wrap:anywhere]">
-                          {requirement.label}
-                        </span>
-                        <span
-                          className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] uppercase ${
-                            requirement.required === false
-                              ? "bg-slate-100 text-slate-600"
-                              : "bg-red-50 text-red-700"
-                          }`}
-                        >
-                          {requirement.required === false ? "Optional" : "Required"}
-                        </span>
-                      </div>
-                      {requirement.description && (
-                        <p className="mt-1 break-words text-xs text-slate-500 [overflow-wrap:anywhere]">
-                          {requirement.description}
-                        </p>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            <VacancyBreakdown job={job} />
+            <QualificationStandards job={job} />
+            <RequirementSummary job={job} />
           </section>
         )}
         </div>
@@ -427,19 +376,27 @@ export default function JobDetails() {
             <div className="mt-5 flex flex-col gap-2 sm:flex-row">
               <Link
                 to="/register"
+                state={{ next: getApplyPath() }}
                 className="oas-mobile-full inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-[#0056b3] px-4 font-semibold text-white transition hover:bg-[#003a78]"
                 onClick={() => setShowPrompt(false)}
               >
                 Sign Up
               </Link>
               <Link
-                to={`/login?next=${encodeURIComponent(`/jobs/${jobId}`)}`}
+                to={`/login?next=${encodeURIComponent(getApplyPath())}`}
                 className="oas-mobile-full inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-slate-300 px-4 font-semibold text-slate-700 transition hover:bg-slate-50"
                 onClick={() => setShowPrompt(false)}
               >
                 Login
               </Link>
             </div>
+            <button
+              type="button"
+              onClick={() => setShowPrompt(false)}
+              className="mt-3 h-10 w-full rounded-xl text-sm font-medium text-slate-500"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
@@ -481,16 +438,35 @@ function ApplyRequirementsModal({
   onOpenProfile,
   onOpenDocuments,
 }) {
-  const requiredRequirements = (job.requirements || []).filter(
-    (requirement) => requirement.required !== false
+  const submissionRule = getJobSubmissionRule(job);
+  const jobRequirements = getJobRequirements(job);
+  const [selectedRequirementField, setSelectedRequirementField] = useState(
+    () => jobRequirements[0]?.field || ""
   );
-  const missingRequiredCount = requiredRequirements.filter(
-    (requirement) => !applyFlow.selectedFiles[requirement.field]
-  ).length;
   const canSubmit =
     !applyFlow.isLoading &&
-    applyFlow.profileGaps.length === 0 &&
-    missingRequiredCount === 0;
+    applyFlow.profileGaps.length === 0;
+  const selectedRequirement =
+    jobRequirements.find(
+      (requirement) => requirement.field === selectedRequirementField
+    ) ||
+    jobRequirements[0] ||
+    null;
+  const selectedRequirementOptions = selectedRequirement
+    ? applyFlow.libraryByField[selectedRequirement.field] || []
+    : [];
+  const selectedRequirementFileIds = normalizeSelectedFileIds(
+    selectedRequirement
+      ? applyFlow.selectedFiles[selectedRequirement.field]
+      : []
+  );
+  const selectedRequirementFiles = selectedRequirementOptions.filter((file) =>
+    selectedRequirementFileIds.includes(String(file.id))
+  );
+  const isSelectedRequirementUploading = Boolean(
+    selectedRequirement &&
+      applyFlow.uploadingFields[selectedRequirement.field]
+  );
 
   return (
     <div className="fixed inset-0 z-[90] flex items-end justify-center overflow-y-auto bg-slate-950/55 p-3 sm:items-center sm:p-6">
@@ -504,7 +480,9 @@ function ApplyRequirementsModal({
               {job.title}
             </h2>
             <p className="mt-1 text-sm text-slate-500">
-              Select documents from your reusable library or upload new files.
+              {submissionRule.requiresPersonalSubmission
+                ? "Submit your application online, then submit the documentary requirements personally."
+                : "Select documents from your reusable library or upload new files."}
             </p>
           </div>
 
@@ -555,117 +533,201 @@ function ApplyRequirementsModal({
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                   <div>
                     <h3 className="text-sm font-bold text-slate-950">
-                      Job requirements
+                      {submissionRule.requiresPersonalSubmission
+                        ? "Submission instruction"
+                        : "Job requirements"}
                     </h3>
                     <p className="mt-1 text-sm text-slate-500">
-                      Required documents are copied into this application when submitted.
+                      {submissionRule.requiresPersonalSubmission
+                        ? "Your application will still be submitted to HR/Admin."
+                        : "Attached documents are copied into this application when submitted."}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={onOpenDocuments}
-                    className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                  >
-                    Open library
-                  </button>
+                  {!submissionRule.requiresPersonalSubmission && (
+                    <button
+                      type="button"
+                      onClick={onOpenDocuments}
+                      className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      Open library
+                    </button>
+                  )}
                 </div>
 
                 <div className="mt-3 grid gap-3">
-                  {(job.requirements || []).length === 0 ? (
+                  {submissionRule.requiresPersonalSubmission ? (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+                      <p className="font-bold">{submissionRule.notice?.title}</p>
+                      <p className="mt-1">{submissionRule.notice?.message}</p>
+                    </div>
+                  ) : jobRequirements.length === 0 ? (
                     <p className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
                       No upload requirements configured for this job posting.
                     </p>
-                  ) : (
-                    job.requirements.map((requirement) => {
-                      const options =
-                        applyFlow.libraryByField[requirement.field] || [];
-                      const selectedFile = options.find(
-                        (file) =>
-                          String(file.id) ===
-                          String(applyFlow.selectedFiles[requirement.field] || "")
-                      );
-                      const isUploading = Boolean(
-                        applyFlow.uploadingFields[requirement.field]
-                      );
+                  ) : selectedRequirement ? (
+                    <>
+                      <div className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-3 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+                        <div>
+                          <label
+                            htmlFor="apply-requirement-category"
+                            className="block text-sm font-semibold text-slate-700"
+                          >
+                            Requirement category
+                          </label>
+                          <select
+                            id="apply-requirement-category"
+                            value={selectedRequirement.field}
+                            onChange={(event) =>
+                              setSelectedRequirementField(event.target.value)
+                            }
+                            className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none transition focus:ring-2 focus:ring-blue-500"
+                          >
+                            {jobRequirements.map((requirement) => {
+                              const selectedCount = normalizeSelectedFileIds(
+                                applyFlow.selectedFiles[requirement.field]
+                              ).length;
 
-                      return (
-                        <div
-                          key={requirement.field}
-                          className="rounded-xl border border-slate-200 bg-white p-4"
-                        >
+                              return (
+                                <option
+                                  key={requirement.field}
+                                  value={requirement.field}
+                                >
+                                  {requirement.label}
+                                  {selectedCount > 0
+                                    ? ` - ${selectedCount} selected`
+                                    : ""}
+                                </option>
+                              );
+                            })}
+                          </select>
+
+                          <div className="mt-4 grid gap-2">
+                            {jobRequirements.map((requirement) => {
+                              const selectedCount = normalizeSelectedFileIds(
+                                applyFlow.selectedFiles[requirement.field]
+                              ).length;
+
+                              return (
+                                <button
+                                  key={requirement.field}
+                                  type="button"
+                                  onClick={() =>
+                                    setSelectedRequirementField(
+                                      requirement.field
+                                    )
+                                  }
+                                  className={`flex min-w-0 items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left text-sm transition ${
+                                    selectedRequirement.field ===
+                                    requirement.field
+                                      ? "border-blue-500 bg-blue-50 text-blue-900"
+                                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                                  }`}
+                                >
+                                  <span className="min-w-0 break-words font-medium [overflow-wrap:anywhere]">
+                                    {requirement.label}
+                                  </span>
+                                  <span className="shrink-0 rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                                    {selectedCount}/
+                                    {maxRequirementFilesPerField}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl border border-slate-200 bg-white p-4">
                           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                             <div className="min-w-0">
                               <p className="break-words text-sm font-bold text-slate-950 [overflow-wrap:anywhere]">
-                                {requirement.label}
-                                <span
-                                  className={`ml-2 rounded-md px-1.5 py-0.5 text-[10px] uppercase ${
-                                    requirement.required === false
-                                      ? "bg-slate-100 text-slate-600"
-                                      : "bg-red-50 text-red-700"
-                                  }`}
-                                >
-                                  {requirement.required === false
-                                    ? "Optional"
-                                    : "Required"}
-                                </span>
+                                {selectedRequirement.label}
                               </p>
-                              {requirement.description && (
+                              {selectedRequirement.description && (
                                 <p className="mt-1 break-words text-sm text-slate-500 [overflow-wrap:anywhere]">
-                                  {requirement.description}
+                                  {selectedRequirement.description}
                                 </p>
                               )}
                             </div>
 
                             <div className="grid gap-2 lg:min-w-[320px]">
-                              <select
-                                value={
-                                  applyFlow.selectedFiles[requirement.field] || ""
-                                }
-                                onChange={(event) =>
-                                  onSelectFile(
-                                    requirement.field,
-                                    event.target.value
-                                  )
-                                }
-                                className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                              >
-                                <option value="">Select from library</option>
-                                {options.map((file) => (
-                                  <option key={file.id} value={file.id}>
-                                    {file.name}
-                                  </option>
-                                ))}
-                              </select>
+                              <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                                {selectedRequirementOptions.length === 0 ? (
+                                  <p className="px-1 py-1 text-sm text-slate-500">
+                                    No saved file yet.
+                                  </p>
+                                ) : (
+                                  <div className="max-h-36 space-y-1 overflow-y-auto">
+                                    {selectedRequirementOptions.map((file) => {
+                                      const checked =
+                                        selectedRequirementFileIds.includes(
+                                          String(file.id)
+                                        );
+
+                                      return (
+                                        <label
+                                          key={file.id}
+                                          className="flex min-w-0 items-start gap-2 rounded-md px-2 py-1 text-sm text-slate-700 hover:bg-white"
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={checked}
+                                            onChange={() =>
+                                              onSelectFile(
+                                                selectedRequirement.field,
+                                                file.id
+                                              )
+                                            }
+                                            className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-500"
+                                          />
+                                          <span className="min-w-0 break-words [overflow-wrap:anywhere]">
+                                            {file.name}
+                                          </span>
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
 
                               <input
                                 type="file"
                                 accept={acceptedRequirementFileTypesText}
-                                disabled={isUploading}
+                                disabled={isSelectedRequirementUploading}
+                                multiple
                                 onChange={(event) => {
                                   onUploadFile(
-                                    requirement,
-                                    event.target.files?.[0] || null
+                                    selectedRequirement,
+                                    event.target.files
                                   );
                                   event.target.value = "";
                                 }}
                                 className="block w-full text-sm text-slate-600 file:mr-3 file:h-9 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200 disabled:opacity-70"
                               />
 
-                              {selectedFile && (
-                                <button
-                                  type="button"
-                                  onClick={() => onPreviewFile(selectedFile)}
-                                  className="justify-self-start text-sm font-semibold text-blue-700 hover:underline"
-                                >
-                                  View selected file
-                                </button>
+                              <p className="text-xs leading-5 text-slate-500">
+                                Images, PDF, TXT, DOC, or DOCX only. Max {maxRequirementUploadBatch} files per upload and {maxRequirementFilesPerField} files per category.
+                              </p>
+
+                              {selectedRequirementFiles.length > 0 && (
+                                <div className="flex flex-wrap gap-2">
+                                  {selectedRequirementFiles.map((file) => (
+                                    <button
+                                      key={file.id}
+                                      type="button"
+                                      onClick={() => onPreviewFile(file)}
+                                      className="text-sm font-semibold text-blue-700 hover:underline"
+                                    >
+                                      View {file.name}
+                                    </button>
+                                  ))}
+                                </div>
                               )}
                             </div>
                           </div>
                         </div>
-                      );
-                    })
-                  )}
+                      </div>
+                    </>
+                  ) : null}
                 </div>
               </div>
 
@@ -697,20 +759,6 @@ function ApplyRequirementsModal({
           </button>
         </div>
       </section>
-    </div>
-  );
-}
-
-function InfoCard({ label, value, icon }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-      <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
-        {label}
-      </p>
-      <p className="mt-2 flex items-center gap-2 text-sm font-medium text-slate-800">
-        <span className="text-slate-400">{icon}</span>
-        {value}
-      </p>
     </div>
   );
 }

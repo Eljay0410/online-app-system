@@ -20,6 +20,7 @@ import ApplicantDashboard from "./features/applicant/ApplicantDashboard";
 import ApplicantInformation from "./features/applicant/ApplicantInformation";
 import ApplicantDocuments from "./features/applicant/ApplicantDocuments";
 import Profile from "./features/Profile/Profile";
+import ApplicationForm from "./features/registration/ApplicationForm";
 
 import AdminDashboard from "./features/admin/AdminDashboard";
 import SuperAdminDashboard from "./features/admin/SuperAdminDashboard";
@@ -92,7 +93,11 @@ function App() {
         />
         <Route
           path="/apply"
-          element={<Navigate to="/applicant-information" replace />}
+          element={
+            <ProtectedRoute allowedRoles={["applicant"]}>
+              <ApplicationForm />
+            </ProtectedRoute>
+          }
         />
 
         <Route path="/jobopenings" element={<RedirectToHome />} />

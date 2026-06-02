@@ -1,12 +1,16 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import BackButton from "../../components/ui/BackButton";
 import { apiRequest } from "../../lib/api";
 import FilePreviewModal from "../../components/ui/FilePreviewModal";
 import { useToast } from "../../components/ui/toastContext";
 import { getStoredUser, storeUser, useAuth } from "../auth/auth";
+import {
+  getApplicationSubmissionRule,
+  getFixedApplicationRequirements,
+} from "../../lib/applicationRequirements";
 
 const defaultFiles = {};
 
@@ -77,9 +81,6 @@ const defaultProfile = {
     positionCategory: "",
     positionType: "",
     jobOpeningId: "",
-    requirements: [],
-    requirementSignature: "",
-    requirementsUpdatedAt: "",
     files: defaultFiles,
   },
   accountDetails: {
@@ -124,44 +125,38 @@ function normalizeRequirementList(requirements = []) {
     .filter(Boolean);
 }
 
-function getRequirementSignature(requirements = []) {
-  return JSON.stringify(
-    normalizeRequirementList(requirements).map((requirement) => ({
-      field: requirement.field,
-      label: requirement.label,
-      description: requirement.description,
-      required: requirement.required !== false,
-    }))
+function getPositionApplicationRequirements(positionCategory = "", positionType = "") {
+  return normalizeRequirementList(
+    getFixedApplicationRequirements(positionCategory, positionType)
   );
 }
 
-function hasAnyRequirementFile(files = {}) {
-  return Object.values(files || {}).some(Boolean);
+function normalizeFileList(value) {
+  if (Array.isArray(value)) return value.filter(Boolean);
+  return value ? [value] : [];
 }
 
-function getActiveRequirementFields(job = {}) {
-  if (!Array.isArray(job.activeRequirementFields)) return null;
-  return new Set(job.activeRequirementFields.map((field) => String(field)));
+function mergeFileLists(...lists) {
+  const seen = new Set();
+  const merged = [];
+
+  lists.flatMap(normalizeFileList).forEach((file) => {
+    const key = String(file?.id || file?.name || file?.fileName || "");
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    merged.push(file);
+  });
+
+  return merged;
 }
 
-function buildRequirementFiles(requirements = [], existingFiles = {}, activeFields = null) {
+function buildRequirementFiles(requirements = [], existingFiles = {}) {
   return Object.fromEntries(
     normalizeRequirementList(requirements).map((requirement) => [
       requirement.field,
-      activeFields && !activeFields.has(requirement.field)
-        ? null
-        : existingFiles?.[requirement.field] || null,
+      normalizeFileList(existingFiles?.[requirement.field]),
     ])
   );
-}
-
-function getMissingRequiredLabels(requirements = [], files = {}) {
-  return normalizeRequirementList(requirements)
-    .filter(
-      (requirement) =>
-        requirement.required !== false && !files?.[requirement.field]
-    )
-    .map((requirement) => requirement.label);
 }
 
 function getRequirementFileName(file) {
@@ -265,10 +260,13 @@ function normalizeProfileForSave(profile = {}) {
     ...(merged.applicationDetails || {}),
   };
   delete applicationDetails.completedAt;
-  const jobRequirements = normalizeRequirementList(
-    merged.jobPosition?.requirements || []
+  const submissionRule = getApplicationSubmissionRule(
+    merged.jobPosition?.positionType
   );
-  const hasJobOpening = Boolean(merged.jobPosition?.jobOpeningId);
+  const jobRequirements = getPositionApplicationRequirements(
+    merged.jobPosition?.positionCategory,
+    merged.jobPosition?.positionType
+  );
 
   return {
     ...merged,
@@ -277,58 +275,14 @@ function normalizeProfileForSave(profile = {}) {
     jobPosition: {
       ...merged.jobPosition,
       requirements: jobRequirements,
-      requirementSignature: getRequirementSignature(jobRequirements),
-      files: hasJobOpening
-        ? buildRequirementFiles(jobRequirements, merged.jobPosition?.files || {})
-        : {
-            ...defaultFiles,
-            ...(merged.jobPosition?.files || {}),
-          },
+      files: submissionRule.requiresPersonalSubmission
+        ? {}
+        : buildRequirementFiles(jobRequirements, merged.jobPosition?.files || {}),
+      personalSubmissionRequired: submissionRule.requiresPersonalSubmission,
+      requirementSubmissionMode: submissionRule.requiresPersonalSubmission
+        ? "personal"
+        : "online",
     },
-  };
-}
-
-function prepareJobPositionFromOpening(job = {}, existingJobPosition = {}) {
-  const requirements = normalizeRequirementList(job.requirements || []);
-  const activeFields = getActiveRequirementFields(job);
-  const existingFiles = existingJobPosition?.files || {};
-  const nextSignature = getRequirementSignature(requirements);
-  const previousSignature = existingJobPosition?.requirementSignature || "";
-  const isSamePosting =
-    String(existingJobPosition?.jobOpeningId || "") === String(job.id || "");
-  const signatureChanged =
-    isSamePosting && previousSignature && previousSignature !== nextSignature;
-  const archivedLabels =
-    activeFields && isSamePosting
-      ? requirements
-          .filter(
-            (requirement) =>
-              existingFiles?.[requirement.field] &&
-              !activeFields.has(requirement.field)
-          )
-          .map((requirement) => requirement.label)
-      : [];
-  const shouldClearExistingFiles = signatureChanged || archivedLabels.length > 0;
-  const files = buildRequirementFiles(
-    requirements,
-    shouldClearExistingFiles ? {} : existingFiles,
-    activeFields
-  );
-
-  return {
-    jobPosition: {
-      positionCategory: job.positionCategory || "",
-      positionType: job.title || "",
-      positionId: job.positionId || "",
-      jobOpeningId: job.id || "",
-      requirements,
-      requirementSignature: nextSignature,
-      requirementsUpdatedAt: job.updatedAt || job.createdAt || "",
-      files,
-    },
-    requirementsChanged: shouldClearExistingFiles,
-    archivedLabels,
-    missingRequiredLabels: getMissingRequiredLabels(requirements, files),
   };
 }
 
@@ -346,6 +300,8 @@ const secondaryButtonClass =
   "inline-flex h-9 items-center justify-center rounded-lg bg-slate-100 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-200";
 
 const uploadMaxFileSize = 15 * 1024 * 1024;
+const maxRequirementFilesPerField = 5;
+const maxRequirementUploadBatch = 3;
 const acceptedRequirementFileTypes = [
   "image/jpeg",
   "image/png",
@@ -355,12 +311,45 @@ const acceptedRequirementFileTypes = [
   "text/plain",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "application/vnd.ms-powerpoint",
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 ];
 const acceptedRequirementFileTypesText = acceptedRequirementFileTypes.join(",");
+
+const teachingPositionOptions = [
+  "Teacher I",
+  "Teacher II",
+  "Teacher III",
+  "Teacher IV",
+  "Teacher V",
+  "Teacher VI",
+  "Teacher VII",
+  "Master Teacher I",
+  "Master Teacher II",
+  "Master Teacher III",
+  "Master Teacher IV",
+  "Master Teacher V",
+];
+
+const nonTeachingPositionOptions = [
+  "Administrative Officer",
+  "Administrative Assistant",
+  "Administrative Aide",
+  "Accounting Clerk",
+  "Bookkeeper",
+  "Disbursing Officer",
+  "Guidance Counselor",
+  "Librarian",
+  "Nurse",
+  "Registrar",
+  "School Clerk",
+  "Security Guard",
+  "Utility Worker",
+];
+
+function getHardcodedPositionOptions(category) {
+  if (category === "Teaching") return teachingPositionOptions;
+  if (category === "Non-Teaching") return nonTeachingPositionOptions;
+  return [];
+}
 
 export default function ApplicantProfile({
   embedded = false,
@@ -370,14 +359,12 @@ export default function ApplicantProfile({
   const { updateUser, user } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
-  const location = useLocation();
   const [profile, setProfile] = useState(defaultProfile);
   const [formData, setFormData] = useState(defaultProfile);
   const [currentStep, setCurrentStep] = useState(mode === "documents" ? 5 : 1);
   const [isEditing, setIsEditing] = useState(autoEdit);
   const [isSaving, setIsSaving] = useState(false);
   const [personalErrors, setPersonalErrors] = useState({});
-  const [requirementNotice, setRequirementNotice] = useState(null);
   const flatInformationLayout = embedded && mode === "information";
   const visibleSteps =
     mode === "information"
@@ -489,50 +476,6 @@ export default function ApplicantProfile({
     };
   }, []);
 
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const routeJobId = params.get("jobId");
-
-    if (!routeJobId) return;
-
-    let isMounted = true;
-
-    apiRequest(`/api/job-openings/${routeJobId}`)
-      .then((result) => {
-        if (!isMounted || !result.job) return;
-
-        setFormData((current) => {
-          const previousJobPosition = current.jobPosition || {};
-          const prepared = prepareJobPositionFromOpening(
-            result.job,
-            previousJobPosition
-          );
-
-          if (
-            prepared.requirementsChanged &&
-            hasAnyRequirementFile(previousJobPosition.files)
-          ) {
-            setRequirementNotice({
-              jobTitle: result.job.title,
-              archivedLabels: prepared.archivedLabels,
-              missingRequiredLabels: prepared.missingRequiredLabels,
-            });
-          }
-
-          return {
-            ...current,
-            jobPosition: prepared.jobPosition,
-          };
-        });
-      })
-      .catch((error) => {
-        console.error("Failed to load selected job opening:", error);
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [location.search]);
 
   const fullName = useMemo(() => {
     return [
@@ -859,58 +802,6 @@ export default function ApplicantProfile({
         </div>
       </div>
 
-      {requirementNotice && (
-        <div className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/50 p-4 sm:items-center">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl">
-            <h3 className="break-words text-lg font-bold text-slate-950 [overflow-wrap:anywhere]">
-              Upload requirements updated
-            </h3>
-            <p className="mt-2 break-words text-sm leading-6 text-slate-600 [overflow-wrap:anywhere]">
-              HR/Admin updated the upload requirements for{" "}
-              <span className="font-semibold text-slate-900">
-                {requirementNotice.jobTitle}
-              </span>
-              . Previously uploaded files for this posting were archived. Please upload the current requirements before applying.
-            </p>
-
-            {requirementNotice.missingRequiredLabels?.length > 0 && (
-              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3">
-                <p className="text-xs font-bold uppercase text-amber-700">
-                  Required now
-                </p>
-                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-800">
-                  {requirementNotice.missingRequiredLabels.map((label) => (
-                    <li key={label}>{label}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {requirementNotice.archivedLabels?.length > 0 && (
-              <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <p className="text-xs font-bold uppercase text-slate-500">
-                  Archived uploads
-                </p>
-                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
-                  {requirementNotice.archivedLabels.map((label) => (
-                    <li key={label}>{label}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            <div className="mt-5 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setRequirementNotice(null)}
-                className={primaryButtonClass}
-              >
-                Got it
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -1207,13 +1098,9 @@ function VerticalStepper({ steps, currentStep, setCurrentStep }) {
 
 function mergeProfile(baseProfile, parsedProfile) {
   const parsedJobPosition = parsedProfile.jobPosition || {};
-  const parsedRequirements = normalizeRequirementList(
-    parsedJobPosition.requirements || []
+  const parsedRequirements = getPositionApplicationRequirements(
+    parsedJobPosition.positionCategory
   );
-  const hasJobOpening = Boolean(parsedJobPosition.jobOpeningId);
-  const requirementSignature =
-    parsedJobPosition.requirementSignature ||
-    getRequirementSignature(parsedRequirements);
 
   return {
     ...baseProfile,
@@ -1238,13 +1125,7 @@ function mergeProfile(baseProfile, parsedProfile) {
       ...baseProfile.jobPosition,
       ...parsedJobPosition,
       requirements: parsedRequirements,
-      requirementSignature,
-      files: hasJobOpening
-        ? buildRequirementFiles(parsedRequirements, parsedJobPosition.files || {})
-        : {
-            ...defaultFiles,
-            ...(parsedJobPosition.files || {}),
-          },
+      files: buildRequirementFiles(parsedRequirements, parsedJobPosition.files || {}),
     },
     accountDetails: {
       ...baseProfile.accountDetails,
@@ -2471,53 +2352,53 @@ function LearningDevelopment({
 
 function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false }) {
   const { showToast } = useToast();
-  const [adminPositions, setAdminPositions] = useState([]);
   const [libraryFiles, setLibraryFiles] = useState([]);
-  const [isLoadingRequirementConfig, setIsLoadingRequirementConfig] =
-    useState(true);
+  const [isLoadingLibrary, setIsLoadingLibrary] = useState(true);
+  const positionCategory = data?.positionCategory || "";
+  const positionType = data?.positionType || "";
+  const submissionRule = getApplicationSubmissionRule(positionType);
+  const requiresPersonalSubmission =
+    positionCategory === "Teaching" && submissionRule.requiresPersonalSubmission;
 
-  const job = useMemo(() => {
-    const requirements = normalizeRequirementList(data?.requirements || []);
-    const hasJobOpening = Boolean(data?.jobOpeningId);
+  const requirements = useMemo(
+    () => getPositionApplicationRequirements(positionCategory, positionType),
+    [positionCategory, positionType]
+  );
+  const positionOptions = useMemo(
+    () => getHardcodedPositionOptions(positionCategory),
+    [positionCategory]
+  );
 
-    return {
-      positionCategory: data?.positionCategory || "",
-      positionType: data?.positionType || "",
-      positionId: data?.positionId || "",
-      jobOpeningId: data?.jobOpeningId || "",
-      requirements,
-      requirementSignature:
-        data?.requirementSignature || getRequirementSignature(requirements),
-      requirementsUpdatedAt: data?.requirementsUpdatedAt || "",
-      files: hasJobOpening
-        ? buildRequirementFiles(requirements, data?.files || {})
-        : {
-            ...defaultFiles,
-            ...(data?.files || {}),
-          },
-    };
-  }, [data]);
+  const [selectedRequirementField, setSelectedRequirementField] = useState(
+    () => requirements[0]?.field || ""
+  );
+
+  const selectedRequirement = useMemo(
+    () =>
+      requirements.find((req) => req.field === selectedRequirementField) ||
+      requirements[0] ||
+      null,
+    [requirements, selectedRequirementField]
+  );
+
+  const filesByField = useMemo(
+    () => buildRequirementFiles(requirements, data?.files || {}),
+    [data, requirements]
+  );
   const [uploadingFields, setUploadingFields] = useState({});
   const [previewFile, setPreviewFile] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
 
-    Promise.all([
-      apiRequest("/api/job-positions").catch(() => ({ positions: [] })),
-      apiRequest("/api/applicant/requirement-files").catch(() => ({
-        files: [],
-      })),
-    ])
-      .then(([positionResult, fileResult]) => {
+    apiRequest("/api/applicant/requirement-files")
+      .then((fileResult) => {
         if (!isMounted) return;
-
-        setAdminPositions(positionResult.positions || []);
         setLibraryFiles(fileResult.files || []);
       })
       .finally(() => {
         if (isMounted) {
-          setIsLoadingRequirementConfig(false);
+          setIsLoadingLibrary(false);
         }
       });
 
@@ -2526,94 +2407,48 @@ function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false
     };
   }, []);
 
-  const sync = (updated) => {
-    onChange?.(updated);
+  const syncAttachmentData = (updates = {}) => {
+    onChange?.({
+      ...(data || {}),
+      positionCategory,
+      positionType,
+      files: filesByField,
+      ...updates,
+    });
   };
 
-  const positionCategories = useMemo(
-    () =>
-      Array.from(
-        new Set(adminPositions.map((position) => position.category).filter(Boolean))
-      ),
-    [adminPositions]
-  );
-  const positionsForCategory = useMemo(
-    () =>
-      adminPositions.filter(
-        (position) => position.category === job.positionCategory
-      ),
-    [adminPositions, job.positionCategory]
-  );
-  const selectedAdminPosition = useMemo(
-    () =>
-      adminPositions.find(
-        (position) =>
-          String(position.id) === String(job.positionId) ||
-          (position.category === job.positionCategory &&
-            position.title === job.positionType)
-      ) || null,
-    [adminPositions, job.positionCategory, job.positionId, job.positionType]
-  );
+  const syncFiles = (nextFiles) => {
+    syncAttachmentData({ files: nextFiles });
+  };
   const libraryFileByField = useMemo(
     () =>
-      Object.fromEntries(
-        libraryFiles.map((file) => [file.requirementField, file])
-      ),
+      libraryFiles.reduce((groups, file) => {
+        const key = file.requirementField || "other";
+        return {
+          ...groups,
+          [key]: [...(groups[key] || []), file],
+        };
+      }, {}),
     [libraryFiles]
   );
+  const requirementFields = useMemo(
+    () => new Set(requirements.map((requirement) => requirement.field)),
+    [requirements]
+  );
+  const otherLibraryFiles = useMemo(
+    () =>
+      libraryFiles.filter((file) => {
+        const field = file.requirementField || "";
+        return field && !requirementFields.has(field);
+      }),
+    [libraryFiles, requirementFields]
+  );
 
-  const handleCategoryChange = (value) => {
-    sync({
-      ...job,
-      positionCategory: value,
-      positionType: "",
-      positionId: "",
-      jobOpeningId: "",
-      requirements: [],
-      requirementSignature: "",
-      requirementsUpdatedAt: "",
-      files: { ...defaultFiles },
-    });
-  };
+  const handleFileChange = async (field, incomingFiles) => {
+    const files = Array.from(incomingFiles || []).filter(Boolean);
+    if (files.length === 0) return;
 
-  const handlePositionChange = (positionId) => {
-    const position = adminPositions.find(
-      (item) => String(item.id) === String(positionId)
-    );
-    const requirements = normalizeRequirementList(position?.requirements || []);
-
-    sync({
-      ...job,
-      positionId: position?.id || "",
-      positionType: position?.title || "",
-      positionCategory: position?.category || job.positionCategory,
-      jobOpeningId: "",
-      requirements,
-      requirementSignature: getRequirementSignature(requirements),
-      requirementsUpdatedAt: "",
-      files: buildRequirementFiles(requirements, job.files || {}),
-    });
-  };
-
-  const handleFileChange = async (field, file) => {
-    if (!file) return;
-    if (file.size > uploadMaxFileSize) {
-      showToast({
-        type: "warning",
-        message: "Please upload a file smaller than 15 MB.",
-      });
-      return;
-    }
-
-    if (!acceptedRequirementFileTypes.includes(file.type)) {
-      showToast({
-        type: "warning",
-        message: "Upload images, PDFs, or common Office documents only.",
-      });
-      return;
-    }
-
-    const requirement = currentUploadRequirements.find(
+    const requirement = requirements.find(
       (item) => item.field === field
     );
 
@@ -2625,37 +2460,87 @@ function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false
       return;
     }
 
-    const payload = new FormData();
-    payload.append("file", file);
-    payload.append("requirementLabel", requirement?.label || field);
+    if (files.length > maxRequirementUploadBatch) {
+      showToast({
+        type: "warning",
+        message: `Upload up to ${maxRequirementUploadBatch} files at a time for one requirement.`,
+      });
+      return;
+    }
+
+    const existingFiles = mergeFileLists(
+      filesByField[field],
+      libraryFileByField[field]
+    );
+
+    if (existingFiles.length + files.length > maxRequirementFilesPerField) {
+      showToast({
+        type: "warning",
+        message: `Each requirement can keep up to ${maxRequirementFilesPerField} files.`,
+      });
+      return;
+    }
+
+    const invalidSize = files.find((file) => file.size > uploadMaxFileSize);
+    if (invalidSize) {
+      showToast({
+        type: "warning",
+        message: "Please upload files smaller than 15 MB.",
+      });
+      return;
+    }
+
+    const invalidType = files.find(
+      (file) => !acceptedRequirementFileTypes.includes(file.type)
+    );
+    if (invalidType) {
+      showToast({
+        type: "warning",
+        message: "Upload images, PDFs, TXT, DOC, or DOCX files only.",
+      });
+      return;
+    }
 
     setUploadingFields((current) => ({ ...current, [field]: true }));
 
     try {
-      const result = await apiRequest(
-        `/api/applicant/requirement-files/${encodeURIComponent(field)}`,
-        {
-          method: "POST",
-          body: payload,
-        }
-      );
+      const uploadedFiles = [];
 
-      const uploadedFile = result.file;
+      for (const file of files) {
+        const payload = new FormData();
+        payload.append("file", file);
+        payload.append("requirementLabel", requirement?.label || field);
+        payload.append("positionCategory", positionCategory);
+        payload.append("positionTitle", positionType);
+        payload.append("positionType", positionType);
+
+        const result = await apiRequest(
+          `/api/applicant/requirement-files/${encodeURIComponent(field)}`,
+          {
+            method: "POST",
+            body: payload,
+          }
+        );
+
+        uploadedFiles.push(result.file);
+      }
+
       setLibraryFiles((current) => [
-        uploadedFile,
-        ...current.filter(
-          (item) => String(item.requirementField) !== String(field)
-        ),
+        ...uploadedFiles,
+        ...current,
       ]);
-      sync({
-        ...job,
-        files: {
-          ...job.files,
-          [field]: uploadedFile,
-        },
+      syncFiles({
+        ...filesByField,
+        [field]: mergeFileLists(filesByField?.[field], uploadedFiles),
       });
 
-      showToast({ type: "success", message: "Requirement uploaded." });
+      showToast({
+        type: "success",
+        message:
+          uploadedFiles.length === 1
+            ? "Requirement uploaded."
+            : "Requirement files uploaded.",
+      });
     } catch (error) {
       showToast({
         type: "error",
@@ -2667,7 +2552,7 @@ function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false
   };
 
   const handleRemoveFile = async (field, fileOverride = null) => {
-    const currentFile = fileOverride || job.files?.[field];
+    const currentFile = fileOverride || filesByField?.[field];
 
     if (currentFile?.id) {
       try {
@@ -2692,139 +2577,232 @@ function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false
     setLibraryFiles((current) =>
       current.filter((file) => String(file.id) !== String(currentFile?.id))
     );
-    sync({
-      ...job,
-      files: {
-        ...job.files,
-        [field]: null,
-      },
+    const remainingFiles = normalizeFileList(filesByField?.[field]).filter(
+      (file) => String(file.id) !== String(currentFile?.id)
+    );
+    syncFiles({
+      ...filesByField,
+      [field]: remainingFiles,
     });
     showToast({ type: "success", message: "Requirement removed." });
   };
 
-  const showPositionList = Boolean(job.positionCategory);
-
-  const hasSelectedUploadContext = Boolean(job.jobOpeningId || selectedAdminPosition);
-  const customUploadRequirements = hasSelectedUploadContext
-    ? job.jobOpeningId
-      ? normalizeRequirementList(job.requirements)
-      : normalizeRequirementList(selectedAdminPosition.requirements)
-    : [];
-
+  const showPositionList =
+    positionCategory === "Teaching" || positionCategory === "Non-Teaching";
   const showAttachments =
-    hasSelectedUploadContext && customUploadRequirements.length > 0;
-  const currentUploadRequirements = customUploadRequirements;
-  const visibleRequirementFields = new Set(
-    currentUploadRequirements.map((requirement) => requirement.field)
-  );
-  const otherLibraryFiles = hasSelectedUploadContext
-    ? libraryFiles.filter(
-        (file) => !visibleRequirementFields.has(file.requirementField)
-      )
-    : [];
+    showPositionList &&
+    Boolean(positionType) &&
+    requirements.length > 0 &&
+    !requiresPersonalSubmission;
+
+  const handleCategoryChange = (value) => {
+    const nextRequirements = getPositionApplicationRequirements(value);
+    setSelectedRequirementField(nextRequirements[0]?.field || "");
+    syncAttachmentData({
+      positionCategory: value,
+      positionType: "",
+      files: filesByField,
+    });
+  };
+
+  const handlePositionChange = (value) => {
+    const nextSubmissionRule = getApplicationSubmissionRule(value);
+    const nextRequiresPersonalSubmission =
+      positionCategory === "Teaching" &&
+      nextSubmissionRule.requiresPersonalSubmission;
+    const nextRequirements = getPositionApplicationRequirements(
+      positionCategory,
+      value
+    );
+
+    setSelectedRequirementField(nextRequirements[0]?.field || "");
+
+    syncAttachmentData({
+      positionCategory,
+      positionType: value,
+      files: nextRequiresPersonalSubmission ? {} : filesByField,
+      personalSubmissionRequired: nextRequiresPersonalSubmission,
+      requirementSubmissionMode: nextRequiresPersonalSubmission
+        ? "personal"
+        : "online",
+    });
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onNext?.(job);
-    onSave?.(job);
+    const nextData = {
+      ...(data || {}),
+      positionCategory,
+      positionType,
+      files: requiresPersonalSubmission ? {} : filesByField,
+      personalSubmissionRequired: requiresPersonalSubmission,
+      requirementSubmissionMode: requiresPersonalSubmission
+        ? "personal"
+        : "online",
+    };
+    onNext?.(nextData);
+    onSave?.(nextData);
   };
 
   return (
     <>
     <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-600">
-            Position Applied For
-          </label>
+      <div className="space-y-4">
+        <h2 className="oas-panel-title">
+          Attachments / Requirements
+        </h2>
+        <p className="text-sm text-slate-500">
+          Select a position to show its fixed upload requirements.
+        </p>
 
-          <select
-            value={job.positionCategory}
-            disabled={disabled}
-            onChange={(e) => handleCategoryChange(e.target.value)}
-            className="h-11 w-full rounded-xl border border-slate-300 bg-white px-4 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
-          >
-            <option value="">Select position type</option>
-            {positionCategories.map((category) => (
-              <option key={category} value={category}>
-                {category}
-              </option>
-            ))}
-          </select>
-          {!isLoadingRequirementConfig && positionCategories.length === 0 && (
-            <p className="mt-1 text-xs text-slate-500">
-              No positions are configured by HR/Admin yet.
-            </p>
+        <div className="grid grid-cols-1 gap-4 rounded-xl border border-slate-200 bg-white p-4 md:grid-cols-2">
+          <div>
+            <label
+              htmlFor="applicant-position-category"
+              className="mb-1 block text-sm font-medium text-slate-600"
+            >
+              Position Applied For
+            </label>
+            <select
+              id="applicant-position-category"
+              value={positionCategory}
+              disabled={disabled}
+              onChange={(event) => handleCategoryChange(event.target.value)}
+              className="h-11 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-slate-100"
+            >
+              <option value="">Select position type</option>
+              <option value="Teaching">Teaching</option>
+              <option value="Non-Teaching">Non-Teaching</option>
+            </select>
+          </div>
+
+          {showPositionList && (
+            <div>
+              <label
+                htmlFor="applicant-position-type"
+                className="mb-1 block text-sm font-medium text-slate-600"
+              >
+                {positionCategory === "Teaching"
+                  ? "Teaching Position"
+                  : "Non-Teaching Position"}
+              </label>
+              <select
+                id="applicant-position-type"
+                value={positionType}
+                disabled={disabled}
+                onChange={(event) => handlePositionChange(event.target.value)}
+                className="h-11 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-slate-100"
+              >
+                <option value="">
+                  {positionCategory === "Teaching"
+                    ? "Select teaching position"
+                    : "Select non-teaching position"}
+                </option>
+                {positionOptions.map((position) => (
+                  <option key={position} value={position}>
+                    {position}
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
         </div>
 
-        {showPositionList && (
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-600">
-              Position
-            </label>
-
-          <select
-              value={job.positionId || selectedAdminPosition?.id || ""}
-              disabled={disabled}
-              onChange={(e) => handlePositionChange(e.target.value)}
-              className="h-11 w-full rounded-xl border border-slate-300 bg-white px-4 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
-            >
-              <option value="">Select position</option>
-
-              {positionsForCategory.map((position) => (
-                <option key={position.id} value={position.id}>
-                  {position.title}
-                </option>
-              ))}
-            </select>
-            {!isLoadingRequirementConfig && positionsForCategory.length === 0 && (
-              <p className="mt-1 text-xs text-slate-500">
-                No positions found under this category.
-              </p>
-            )}
+        {requiresPersonalSubmission && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+            <p className="font-bold">{submissionRule.notice?.title}</p>
+            <p className="mt-1">{submissionRule.notice?.message}</p>
           </div>
         )}
-      </div>
 
       {showAttachments && (
-        <div className="space-y-4">
-          <h2 className="oas-panel-title">
-            Attachments / Requirements
-          </h2>
-          <p className="text-sm text-slate-500">
-            {job.jobOpeningId
-              ? "These are the current upload requirements configured by HR/Admin for this posting."
-              : selectedAdminPosition
-                ? "These reusable documents match the requirements HR/Admin configured for the selected position."
-                : "These reusable documents come from the requirement fields HR/Admin configured for positions."}
-          </p>
-
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {currentUploadRequirements.map((requirement) => {
-              return (
-                <FileUpload
-                  key={requirement.field}
-                  label={requirement.label}
-                  description={requirement.description}
-                  field={requirement.field}
-                  file={
-                    job.files?.[requirement.field] ||
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <label
+                htmlFor="requirement-category-select"
+                className="block text-sm font-semibold text-slate-700"
+              >
+                Requirement category
+              </label>
+              <select
+                id="requirement-category-select"
+                value={selectedRequirement?.field || ""}
+                onChange={(event) =>
+                  setSelectedRequirementField(event.target.value)
+                }
+                disabled={disabled}
+                className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none transition focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-slate-100"
+              >
+                {requirements.map((requirement) => {
+                  const count = mergeFileLists(
+                    filesByField?.[requirement.field],
                     libraryFileByField[requirement.field]
-                  }
-                  disabled={disabled}
-                  uploading={Boolean(uploadingFields[requirement.field])}
-                  onFileChange={handleFileChange}
-                  onRemoveFile={handleRemoveFile}
-                  onPreviewFile={setPreviewFile}
-                />
-              );
-            })}
-          </div>
-        </div>
-      )}
+                  ).length;
 
-      {!isLoadingRequirementConfig && otherLibraryFiles.length > 0 && (
+                  return (
+                    <option key={requirement.field} value={requirement.field}>
+                      {requirement.label}
+                      {requirement.required === false ? " (Optional)" : ""}
+                      {count > 0 ? ` - ${count} file(s)` : ""}
+                    </option>
+                  );
+                })}
+              </select>
+
+              <div className="mt-4 grid gap-2">
+                {requirements.map((requirement) => {
+                  const count = mergeFileLists(
+                    filesByField?.[requirement.field],
+                    libraryFileByField[requirement.field]
+                  ).length;
+
+                  return (
+                    <button
+                      key={requirement.field}
+                      type="button"
+                      onClick={() => setSelectedRequirementField(requirement.field)}
+                      className={`flex min-w-0 items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left text-sm transition ${
+                        selectedRequirement?.field === requirement.field
+                          ? "border-blue-500 bg-blue-50 text-blue-900"
+                          : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-white"
+                      }`}
+                    >
+                      <span className="min-w-0 break-words font-medium [overflow-wrap:anywhere]">
+                        {requirement.label}
+                      </span>
+                      <span className="shrink-0 rounded-md bg-white px-2 py-0.5 text-xs font-semibold text-slate-600">
+                        {`${count}/${maxRequirementFilesPerField}`}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {selectedRequirement && (
+              <FileUpload
+                key={selectedRequirement.field}
+                label={selectedRequirement.label}
+                description={selectedRequirement.description}
+                field={selectedRequirement.field}
+                files={mergeFileLists(
+                  filesByField?.[selectedRequirement.field],
+                  libraryFileByField[selectedRequirement.field]
+                )}
+                disabled={disabled}
+                uploading={Boolean(uploadingFields[selectedRequirement.field])}
+                onFileChange={handleFileChange}
+                onRemoveFile={handleRemoveFile}
+                onPreviewFile={setPreviewFile}
+              />
+            )}
+          </div>
+      )}
+      </div>
+
+      {!requiresPersonalSubmission &&
+        !isLoadingLibrary &&
+        otherLibraryFiles.length > 0 && (
         <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
           <div>
             <h2 className="text-sm font-bold text-slate-900">
@@ -2832,7 +2810,7 @@ function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false
             </h2>
             <p className="mt-1 text-sm text-slate-500">
               These files are still saved in your library, but their requirement
-              field is not part of the currently selected HR/Admin requirement set.
+              field is not part of the fixed application requirement set.
             </p>
           </div>
 
@@ -2876,17 +2854,15 @@ function Attachment({ data, onChange, onNext, onSave, isSaving, disabled = false
         </div>
       )}
 
-      {isLoadingRequirementConfig && (
+      {isLoadingLibrary && (
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-600">
-          Loading HR/Admin upload requirements...
+          Loading application requirements...
         </div>
       )}
 
-      {!isLoadingRequirementConfig && hasSelectedUploadContext && !showAttachments && (
+      {!isLoadingLibrary && !showAttachments && !requiresPersonalSubmission && (
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-600">
-          {job.jobOpeningId
-            ? "No upload requirements are configured by HR/Admin for this job posting."
-            : "No upload requirements are configured by HR/Admin yet."}
+          Select a position above to show upload requirements.
         </div>
       )}
 
@@ -2916,13 +2892,16 @@ function FileUpload({
   label,
   description,
   field,
-  file,
+  files = [],
   disabled,
   uploading,
   onFileChange,
   onRemoveFile,
   onPreviewFile,
 }) {
+  const fileList = normalizeFileList(files);
+  const hasFiles = fileList.length > 0;
+
   return (
     <div className="space-y-2">
       <div>
@@ -2936,17 +2915,27 @@ function FileUpload({
 
       {disabled ? (
         <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-          <p className="break-words [overflow-wrap:anywhere]">
-            {file?.name || "Not uploaded"}
-          </p>
-          {(file?.previewUrl || file?.dataUrl) && (
-            <button
-              type="button"
-              onClick={() => onPreviewFile(file)}
-              className="mt-2 font-semibold text-blue-700 hover:underline"
-            >
-              View document
-            </button>
+          {hasFiles ? (
+            <ul className="space-y-2">
+              {fileList.map((file) => (
+                <li key={file.id || file.name}>
+                  <p className="break-words font-medium [overflow-wrap:anywhere]">
+                    {file.name || "Uploaded document"}
+                  </p>
+                  {(file.previewUrl || file.dataUrl) && (
+                    <button
+                      type="button"
+                      onClick={() => onPreviewFile(file)}
+                      className="mt-1 font-semibold text-blue-700 hover:underline"
+                    >
+                      View document
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="break-words [overflow-wrap:anywhere]">Not uploaded</p>
           )}
         </div>
       ) : (
@@ -2957,7 +2946,11 @@ function FileUpload({
             accept={acceptedRequirementFileTypesText}
             className="hidden"
             disabled={uploading}
-            onChange={(e) => onFileChange(field, e.target.files?.[0] || null)}
+            multiple
+            onChange={(e) => {
+              onFileChange(field, e.target.files);
+              e.target.value = "";
+            }}
           />
 
           <label
@@ -2970,38 +2963,54 @@ function FileUpload({
               <span className="text-sm font-semibold text-blue-700">
                 Uploading...
               </span>
-            ) : !file ? (
+            ) : !hasFiles ? (
               <span className="text-sm text-slate-500">
-                Upload document
+                Upload document(s)
               </span>
             ) : (
               <span className="px-2 text-center text-sm font-medium text-green-600">
-                {file.name}
+                {fileList.length} file(s) uploaded
               </span>
             )}
           </label>
 
-          {file && (
-            <div className="flex flex-wrap gap-3 text-sm">
-              {(file.previewUrl || file.dataUrl) && (
-                <button
-                  type="button"
-                  onClick={() => onPreviewFile(file)}
-                  className="font-semibold text-blue-700 hover:underline"
-                >
-                  View document
-                </button>
-              )}
+          <p className="text-xs leading-5 text-slate-500">
+            Images, PDF, TXT, DOC, or DOCX only. Max {maxRequirementUploadBatch} files per upload and {maxRequirementFilesPerField} files per category.
+          </p>
 
-              <button
-                type="button"
-                onClick={() => onRemoveFile(field, file)}
-                disabled={uploading}
-                className="font-semibold text-red-600 hover:underline"
-              >
-                Remove
-              </button>
-            </div>
+          {hasFiles && (
+            <ul className="space-y-2 text-sm">
+              {fileList.map((file) => (
+                <li
+                  key={file.id || file.name}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2"
+                >
+                  <p className="break-words font-medium text-slate-700 [overflow-wrap:anywhere]">
+                    {file.name || "Uploaded document"}
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-3">
+                    {(file.previewUrl || file.dataUrl) && (
+                      <button
+                        type="button"
+                        onClick={() => onPreviewFile(file)}
+                        className="font-semibold text-blue-700 hover:underline"
+                      >
+                        View document
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => onRemoveFile(field, file)}
+                      disabled={uploading}
+                      className="font-semibold text-red-600 hover:underline"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
           )}
         </>
       )}

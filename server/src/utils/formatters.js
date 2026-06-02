@@ -1,3 +1,8 @@
+import {
+  getApplicationSubmissionRule,
+  getFixedApplicationRequirements,
+} from "../config/applicationRequirements.js";
+
 export function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
 }
@@ -35,6 +40,11 @@ export function mapJobOpening(row) {
     storedStatus === "open" && deadlineAt && deadlineAt < new Date()
       ? "expired"
       : storedStatus;
+  const vacancyItems = Array.isArray(row.vacancy_items)
+    ? row.vacancy_items
+    : Array.isArray(row.items)
+      ? row.items
+      : [];
 
   return {
     id: row.id,
@@ -49,9 +59,25 @@ export function mapJobOpening(row) {
     expirationDate: row.deadline,
     positionId: row.position_id || null,
     positionCategory: row.position_category || "",
+    salaryGrade: row.salary_grade || "",
+    salaryAmount: row.salary_amount || "",
+    education: row.education || "",
+    training: row.training || "",
+    experience: row.experience || "",
+    eligibility: row.eligibility || "",
     status,
     description: row.description || "",
-    requirements: Array.isArray(row.requirements) ? row.requirements : [],
+    requirements: getFixedApplicationRequirements(row.position_category, row.title),
+    vacancyItems: vacancyItems.map((item) => ({
+      id: item.id,
+      jobOpeningId: item.job_opening_id || item.jobOpeningId || row.id,
+      schoolStation: item.school_station || item.schoolStation || "",
+      subjectArea: item.subject_area || item.subjectArea || "",
+      vacancyCount: Number(item.vacancy_count ?? item.vacancyCount ?? 0),
+      assignedCount: Number(item.assigned_count ?? item.assignedCount ?? 0),
+      createdAt: item.created_at || item.createdAt || null,
+      updatedAt: item.updated_at || item.updatedAt || null,
+    })),
     postedAt: row.created_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -63,7 +89,7 @@ export function mapJobPosition(row) {
     id: row.id,
     category: row.category || "",
     title: row.title || "",
-    requirements: Array.isArray(row.requirements) ? row.requirements : [],
+    requirements: getFixedApplicationRequirements(row.category, row.title),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -121,6 +147,7 @@ export function mapApplication(row) {
     jobPosition.positionCategory ||
     data.position ||
     "Not specified";
+  const submissionRule = getApplicationSubmissionRule(position);
 
   return {
     id: row.id,
@@ -147,11 +174,51 @@ export function mapApplication(row) {
     jobDeadlineTime: getTimePart(row.job_deadline_time || job.deadlineTime),
     jobPositionCategory:
       row.job_position_category || job.positionCategory || job.position_category || "",
-    jobRequirements:
-      (Array.isArray(row.job_requirements) && row.job_requirements) ||
-      (Array.isArray(job.requirements) && job.requirements) ||
-      [],
+    jobSalaryGrade: row.job_salary_grade || job.salaryGrade || job.salary_grade || "",
+    jobSalaryAmount:
+      row.job_salary_amount || job.salaryAmount || job.salary_amount || "",
+    jobEducation: row.job_education || job.education || "",
+    jobTraining: row.job_training || job.training || "",
+    jobExperience: row.job_experience || job.experience || "",
+    jobEligibility: row.job_eligibility || job.eligibility || "",
+    jobRequirements: getFixedApplicationRequirements(
+      row.job_position_category ||
+        job.positionCategory ||
+        job.position_category ||
+        jobPosition.positionCategory ||
+        "",
+      position
+    ),
+    personalSubmissionRequired:
+      data.personalSubmissionRequired || submissionRule.requiresPersonalSubmission,
+    requirementSubmissionMode:
+      data.requirementSubmissionMode ||
+      (submissionRule.requiresPersonalSubmission ? "personal" : "online"),
+    reviewedBy: row.reviewed_by || null,
+    reviewedAt: row.reviewed_at || null,
+    adminRemarks: row.admin_remarks || row.review_notes || data.adminRemarks || "",
     reviewNotes: row.review_notes || data.reviewNotes || "",
+    assignment: row.assigned_item_id
+      ? {
+          jobOpeningItemId: row.assigned_item_id,
+          schoolStation: row.assigned_school_station || "",
+          subjectArea: row.assigned_subject_area || "",
+          vacancyCount: Number(row.assigned_vacancy_count || 0),
+          assignedCount: Number(row.assigned_count || 0),
+          assignedBy: row.assigned_by || null,
+          assignedAt: row.assigned_at || null,
+        }
+      : null,
+    jobItems: Array.isArray(row.job_items)
+      ? row.job_items.map((item) => ({
+          id: item.id,
+          jobOpeningId: item.job_opening_id || item.jobOpeningId || row.job_opening_id,
+          schoolStation: item.school_station || item.schoolStation || "",
+          subjectArea: item.subject_area || item.subjectArea || "",
+          vacancyCount: Number(item.vacancy_count ?? item.vacancyCount ?? 0),
+          assignedCount: Number(item.assigned_count ?? item.assignedCount ?? 0),
+        }))
+      : [],
     raw: data,
   };
 }

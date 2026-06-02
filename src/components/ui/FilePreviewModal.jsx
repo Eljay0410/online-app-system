@@ -159,8 +159,8 @@ export default function FilePreviewModal({ file, onClose }) {
                 Preview is not available for this document type.
               </p>
               <p className="mt-2 max-w-md text-sm text-slate-500">
-                Word, Excel, and PowerPoint files need PDF conversion for inline
-                preview. For now, use the secure download fallback.
+                Word documents need PDF conversion for inline preview. For now,
+                use the secure download fallback.
               </p>
             </div>
           )}

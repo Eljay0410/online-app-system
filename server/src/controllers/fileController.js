@@ -1,6 +1,9 @@
 import path from "path";
 import pool from "../config/db.js";
-import { uploadCleanupRetentionDays } from "../config/env.js";
+import {
+  uploadCleanupRetentionDays,
+  uploadMaxFilesPerRequirement,
+} from "../config/env.js";
 import { assignUan } from "../services/uanService.js";
 import {
   getUploadStorageStats,
@@ -9,6 +12,11 @@ import {
   storeRequirementFile,
   toClientFile,
 } from "../services/fileStorageService.js";
+import {
+  getApplicationSubmissionRule,
+  getFixedApplicationRequirement,
+  getFixedApplicationRequirements,
+} from "../config/applicationRequirements.js";
 
 function parsePositiveInt(value) {
   const number = Number.parseInt(value || "", 10);
@@ -20,6 +28,33 @@ function normalizeRequirementField(value) {
     .trim()
     .replace(/[^a-zA-Z0-9_-]/g, "")
     .slice(0, 120);
+}
+
+function getRequestedPositionTitle(body = {}) {
+  return (
+    body.positionTitle ||
+    body.positionType ||
+    body.jobTitle ||
+    body.title ||
+    body.job?.title ||
+    body.jobPosition?.positionType ||
+    body.jobPosition?.title ||
+    ""
+  );
+}
+
+function assertOnlineUploadAllowedForPosition(positionTitle = "") {
+  const submissionRule = getApplicationSubmissionRule(positionTitle);
+
+  if (!submissionRule.canUploadRequirements) {
+    const error = new Error(
+      submissionRule.notice?.message ||
+        "This position requires personal submission of documentary requirements."
+    );
+    error.statusCode = 403;
+    error.code = "TEACHER_I_PERSONAL_SUBMISSION_ONLY";
+    throw error;
+  }
 }
 
 function getRequirementSignature(requirements = []) {
@@ -43,17 +78,42 @@ function canAccessFile(user, file) {
   return String(file.owner_user_id) === String(user?.id);
 }
 
-async function getJobRequirement(jobOpeningId, field) {
+function normalizeFileList(value) {
+  if (Array.isArray(value)) return value.filter(Boolean);
+  return value ? [value] : [];
+}
+
+async function getJobRequirement(
+  jobOpeningId,
+  field,
+  positionCategory = "",
+  positionTitle = ""
+) {
   if (!jobOpeningId) {
-    const error = new Error(
-      "Open a job posting first so the current upload requirements can load."
+    const requirement = getFixedApplicationRequirement(
+      field,
+      positionCategory,
+      positionTitle
     );
-    error.statusCode = 400;
-    throw error;
+
+    if (!requirement) {
+      const error = new Error("This is not a valid application requirement.");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    return {
+      job: null,
+      requirement,
+      requirements: getFixedApplicationRequirements(
+        positionCategory,
+        positionTitle
+      ),
+    };
   }
 
   const result = await pool.query(
-    `SELECT id, title, position_category, requirements, created_at, updated_at
+    `SELECT id, title, position_category, created_at, updated_at
      FROM job_openings
      WHERE id = $1
        AND status = 'open'
@@ -69,15 +129,20 @@ async function getJobRequirement(jobOpeningId, field) {
     throw error;
   }
 
-  const requirements = Array.isArray(job.requirements) ? job.requirements : [];
-  const requirement = requirements.find(
-    (item) => String(item?.field || "") === String(field)
+  assertOnlineUploadAllowedForPosition(job.title);
+
+  const requirements = getFixedApplicationRequirements(
+    job.position_category,
+    job.title
+  );
+  const requirement = getFixedApplicationRequirement(
+    field,
+    job.position_category,
+    job.title
   );
 
   if (!requirement) {
-    const error = new Error(
-      "This requirement is no longer configured for the selected job posting."
-    );
+    const error = new Error("This is not a valid application requirement.");
     error.statusCode = 400;
     throw error;
   }
@@ -150,11 +215,25 @@ function mergeFileIntoProfileData(
   { field, file, job, jobOpeningId, requirements }
 ) {
   const currentJobPosition = profileData.jobPosition || {};
-  const normalizedRequirements = Array.isArray(requirements) ? requirements : [];
+  const currentFiles = currentJobPosition.files || {};
+  const currentFieldFiles = normalizeFileList(currentFiles[field]);
+  const nextFieldFiles = Array.isArray(file)
+    ? file.filter(Boolean)
+    : file
+      ? [
+          ...currentFieldFiles.filter(
+            (item) => String(item?.id || "") !== String(file.id || "")
+          ),
+          file,
+        ]
+      : [];
+  const normalizedRequirements = Array.isArray(requirements)
+    ? requirements
+    : getFixedApplicationRequirements();
   const hasJobContext = Boolean(jobOpeningId && job);
-  const nextRequirements = hasJobContext
+  const nextRequirements = normalizedRequirements.length
     ? normalizedRequirements
-    : currentJobPosition.requirements || [];
+    : getFixedApplicationRequirements();
 
   return {
     ...profileData,
@@ -173,13 +252,12 @@ function mergeFileIntoProfileData(
           : currentJobPosition.positionType || "",
       requirements: nextRequirements,
       requirementSignature: getRequirementSignature(nextRequirements),
-      requirementsUpdatedAt:
-        hasJobContext
-          ? job?.updated_at || job?.created_at || ""
-          : currentJobPosition.requirementsUpdatedAt || "",
+      requirementsUpdatedAt: hasJobContext
+        ? job?.updated_at || job?.created_at || ""
+        : currentJobPosition.requirementsUpdatedAt || "",
       files: {
-        ...(currentJobPosition.files || {}),
-        [field]: file,
+        ...currentFiles,
+        [field]: nextFieldFiles,
       },
     },
   };
@@ -188,6 +266,8 @@ function mergeFileIntoProfileData(
 export async function uploadRequirementFile(req, res, next) {
   const field = normalizeRequirementField(req.params.field);
   const jobOpeningId = parsePositiveInt(req.body?.jobOpeningId);
+  const positionCategory = String(req.body?.positionCategory || "").trim();
+  const incomingPositionTitle = getRequestedPositionTitle(req.body || {});
   const incomingLabel = String(req.body?.requirementLabel || field).trim();
 
   if (!field) {
@@ -204,16 +284,28 @@ export async function uploadRequirementFile(req, res, next) {
     });
   }
 
+  try {
+    assertOnlineUploadAllowedForPosition(incomingPositionTitle);
+  } catch (error) {
+    return res.status(error.statusCode || 403).json({
+      success: false,
+      message: error.message,
+      code: error.code || "TEACHER_I_PERSONAL_SUBMISSION_ONLY",
+    });
+  }
+
   let storedFile;
 
   try {
     const { job, requirement, requirements } = jobOpeningId
       ? await getJobRequirement(jobOpeningId, field)
-      : {
-          job: null,
-          requirement: { field, label: incomingLabel || field, required: true },
-          requirements: [],
-        };
+      : await getJobRequirement(
+          null,
+          field,
+          positionCategory,
+          incomingPositionTitle
+        );
+
     const requirementLabel = String(
       requirement.label || incomingLabel || field
     ).trim();
@@ -233,17 +325,25 @@ export async function uploadRequirementFile(req, res, next) {
 
       const profile = await getOrCreateApplicantProfile(client, req.user.id);
 
-      await client.query(
-        `UPDATE uploaded_files
-         SET status = 'replaced',
-             deleted_at = NOW(),
-             updated_at = NOW()
+      const activeCountResult = await client.query(
+        `SELECT COUNT(*)::int AS count
+         FROM uploaded_files
          WHERE owner_user_id = $1
            AND requirement_field = $2
            AND COALESCE(job_opening_id, 0) = COALESCE($3, 0)
            AND status = 'active'`,
         [req.user.id, field, jobOpeningId]
       );
+      const activeCount = Number(activeCountResult.rows[0]?.count || 0);
+
+      if (activeCount >= uploadMaxFilesPerRequirement) {
+        await client.query("ROLLBACK");
+        await removeStoredFile(storedFile.relativePath).catch(() => {});
+        return res.status(409).json({
+          success: false,
+          message: `Each requirement can keep up to ${uploadMaxFilesPerRequirement} active files.`,
+        });
+      }
 
       const insertResult = await client.query(
         `INSERT INTO uploaded_files (
@@ -325,6 +425,14 @@ export async function uploadRequirementFile(req, res, next) {
       await removeStoredFile(storedFile.relativePath).catch(() => {});
     }
 
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        success: false,
+        message: error.message,
+        code: error.code,
+      });
+    }
+
     return next(error);
   }
 }
@@ -385,9 +493,19 @@ export async function removeRequirementFile(req, res, next) {
 
     if (profileResult.rowCount > 0) {
       const profile = profileResult.rows[0];
+      const remainingResult = await client.query(
+        `SELECT *
+         FROM uploaded_files
+         WHERE owner_user_id = $1
+           AND requirement_field = $2
+           AND COALESCE(job_opening_id, 0) = COALESCE($3, 0)
+           AND status = 'active'
+         ORDER BY created_at DESC`,
+        [req.user.id, field, jobOpeningId]
+      );
       const nextData = mergeFileIntoProfileData(profile.data || {}, {
         field,
-        file: null,
+        file: remainingResult.rows.map(toClientFile),
         jobOpeningId: null,
       });
 

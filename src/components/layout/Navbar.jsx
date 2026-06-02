@@ -43,26 +43,30 @@ const Navbar = () => {
               <>
                 <Link
                   to="/about"
-                  className={`text-[15px] font-semibold transition-colors duration-200 ${
+                  className={`rounded-full px-4 py-2 text-[15px] font-semibold transition-all duration-200 ${
                     location.pathname === "/about"
-                      ? "text-white"
-                      : "text-white hover:text-black"
+                      ? "bg-white/20 text-white"
+                      : "text-white hover:bg-white/15 hover:text-white"
                   }`}
                 >
-                  Job Listing
+                  Vacancies
                 </Link>
 
                 <div className="ml-4 flex items-center gap-4">
                   <Link
                     to="/register"
-                    className="px-3 py-2 text-sm font-semibold text-white transition hover:text-black"
+                    className={`rounded-full px-4 py-2 text-[15px] font-semibold transition-all duration-200 ${
+                      location.pathname === "/register"
+                        ? "bg-white/20 text-white"
+                        : "text-white hover:bg-white/15 hover:text-white"
+                    }`}
                   >
-                    Register
+                    SignUp
                   </Link>
 
                   <Link
                     to="/login"
-                    className="rounded-lg bg-white px-5 py-2.5 text-sm font-bold text-[#0056b3] shadow-lg transition hover:bg-blue-50"
+                    className="rounded-lg bg-white px-5 py-2.5 text-[15px] font-bold text-[#0056b3] shadow-lg transition hover:bg-blue-50"
                   >
                     Log in
                   </Link>
@@ -86,7 +90,7 @@ const Navbar = () => {
               to="/register"
               className="rounded-lg bg-white px-3 py-2 text-xs font-semibold text-[#0056b3]"
             >
-              Register
+              SignUp
             </Link>
           </div>
         )}

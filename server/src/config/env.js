@@ -74,6 +74,10 @@ export const uploadMaxFileSizeBytes = envInt(
   "UPLOAD_MAX_FILE_SIZE_BYTES",
   15 * 1024 * 1024
 );
+export const uploadMaxFilesPerRequirement = envInt(
+  "UPLOAD_MAX_FILES_PER_REQUIREMENT",
+  5
+);
 
 export const uploadImageMaxWidth = envInt("UPLOAD_IMAGE_MAX_WIDTH", 1600);
 export const uploadImageMaxHeight = envInt("UPLOAD_IMAGE_MAX_HEIGHT", 1600);

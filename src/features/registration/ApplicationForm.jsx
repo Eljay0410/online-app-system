@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
@@ -12,6 +12,73 @@ import {
 } from "lucide-react";
 import { apiRequest } from "../../lib/api";
 import BackButton from "../../components/ui/BackButton";
+import {
+  getApplicationSubmissionRule,
+  getFixedApplicationRequirements,
+} from "../../lib/applicationRequirements";
+
+const acceptedRequirementFileTypesText =
+  ".jpg,.jpeg,.png,.webp,.gif,.pdf,.txt,.doc,.docx";
+const uploadMaxFileSize = 15 * 1024 * 1024;
+const maxRequirementFilesPerField = 5;
+const maxRequirementUploadBatch = 3;
+const acceptedRequirementFileTypes = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "application/pdf",
+  "text/plain",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
+
+function buildRequirementFileMap(positionCategory = "", positionType = "") {
+  return Object.fromEntries(
+    getFixedApplicationRequirements(positionCategory, positionType).map(
+      (requirement) => [requirement.field, []]
+    )
+  );
+}
+
+function normalizeRequirementFiles(value) {
+  if (Array.isArray(value)) return value.filter(Boolean);
+  return value ? [value] : [];
+}
+
+function mergeRequirementFiles(current = [], incoming = []) {
+  const files = [...normalizeRequirementFiles(current)];
+
+  for (const file of normalizeRequirementFiles(incoming)) {
+    if (!files.some((item) => String(item?.id || "") === String(file?.id || ""))) {
+      files.push(file);
+    }
+  }
+
+  return files.slice(0, maxRequirementFilesPerField);
+}
+
+function getRequirementFileIds(files = {}) {
+  return Object.fromEntries(
+    Object.entries(files)
+      .map(([field, value]) => [
+        field,
+        normalizeRequirementFiles(value)
+          .map((file) => file?.id)
+          .filter(Boolean),
+      ])
+      .filter(([, fileIds]) => fileIds.length > 0)
+  );
+}
+
+function inferPositionCategory(positionTitle = "") {
+  const normalizedTitle = String(positionTitle || "").toLowerCase();
+
+  if (!normalizedTitle) return "";
+  if (normalizedTitle.includes("teacher")) return "Teaching";
+
+  return "Non-Teaching";
+}
 const PersonalInfo = ({ data = {}, onChange, onNext }) => {
   const [errors, setErrors] = useState({});
 
@@ -1778,421 +1845,165 @@ const LearningDevelopment = ({ data, onChange, onNext }) => {
 };
 
 const Attachment = ({ data, onChange, onNext }) => {
-  const teachingRequirements = {
-    letterOfIntent: null,
-    pds: null,
-    residency: null,
-    prcLicense: null,
-    boardRating: null,
-    academicRecord: null,
-    serviceRecord: null,
-    latestAppointment: null,
-    trainingCertificates: null,
-    tesdaCertificate: null,
-    performanceRating: null,
-    cavDataPrivacy: null,
-    otherDocuments: null,
-  };
-
-  const nonTeachingRequirements = {
-    letterOfIntent: null,
-    pds: null,
-    residency: null,
-    prcLicense: null,
-    eligibilityRating: null,
-    academicRecord: null,
-    trainingCertificates: null,
-    employmentCertificate: null,
-    latestAppointment: null,
-    performanceRating: null,
-    cavDataPrivacy: null,
-    otherDocuments: null,
-  };
-
-  const [positionCategory, setPositionCategory] = useState(
-    data?.positionCategory || ""
+  const selectedJob = data?.selectedJob || {};
+  const positionType = data?.positionType || selectedJob.title || "";
+  const positionCategory =
+    data?.positionCategory ||
+    selectedJob.positionCategory ||
+    inferPositionCategory(positionType);
+  const jobOpeningId = data?.jobOpeningId || selectedJob.id || "";
+  const submissionRule = getApplicationSubmissionRule(positionType);
+  const requiresPersonalSubmission = submissionRule.requiresPersonalSubmission;
+  const currentUploadRequirements = getFixedApplicationRequirements(
+    positionCategory,
+    positionType
   );
+  const [files, setFiles] = useState(() => {
+    const fileMap = buildRequirementFileMap(positionCategory, positionType);
 
-  const [positionType, setPositionType] = useState(data?.positionType || "");
-
-  const [files, setFiles] = useState(
-    data?.files ||
-      (data?.positionCategory === "Non-Teaching"
-        ? nonTeachingRequirements
-        : teachingRequirements)
-  );
-
-  const [error, setError] = useState("");
-  const [positionError, setPositionError] = useState("");
-  const [fileErrors, setFileErrors] = useState({});
-
-  const teachingPositions = [
-    "Teacher I",
-    "Teacher II",
-    "Teacher III",
-    "Teacher IV",
-    "Teacher V",
-    "Teacher VI",
-    "Teacher VII",
-    "Master Teacher I",
-    "Master Teacher II",
-    "Master Teacher III",
-    "Master Teacher IV",
-    "Master Teacher V",
-  ];
-
-  const nonTeachingPositions = [
-    "Administrative Officer",
-    "Administrative Assistant",
-    "Administrative Aide",
-    "Accounting Clerk",
-    "Bookkeeper",
-    "Disbursing Officer",
-    "Guidance Counselor",
-    "Librarian",
-    "Nurse",
-    "Registrar",
-    "School Clerk",
-    "Security Guard",
-    "Utility Worker",
-  ];
-
-  const teacherPromotionPositions = [
-    "Teacher II",
-    "Teacher III",
-    "Teacher IV",
-    "Teacher V",
-    "Teacher VI",
-    "Teacher VII",
-    "Master Teacher I",
-    "Master Teacher II",
-    "Master Teacher III",
-    "Master Teacher IV",
-    "Master Teacher V",
-  ];
-
-  const teacherUploadRequirements = [
-    {
-      field: "letterOfIntent",
-      label: "Letter of Intent",
-      description:
-        "Addressed to the SDS with purpose and learning area/subject group, if applicable.",
-    },
-    {
-      field: "pds",
-      label: "Personal Data Sheet",
-      description:
-        "PDS with Work Experience Sheet and recent picture, digitally/electronically signed.",
-    },
-    {
-      field: "residency",
-      label: "Proof of Residency",
-      description: "Voter's ID or any proof of residency.",
-    },
-    {
-      field: "prcLicense",
-      label: "PRC License / ID",
-      description: "Valid and updated PRC License or ID.",
-    },
-    {
-      field: "boardRating",
-      label: "Certificate of Board Rating",
-      description: "Upload your Certificate of Board Rating.",
-    },
-    {
-      field: "academicRecord",
-      label: "Academic Records",
-      description:
-        "TOR, diploma, graduate or post-graduate units/degrees, if available.",
-    },
-    {
-      field: "serviceRecord",
-      label: "Service Record / COE",
-      description: "Duly signed Service Record or Certificate of Employment.",
-    },
-    {
-      field: "latestAppointment",
-      label: "Latest Appointment",
-      description: "For applicants applying for promotion.",
-    },
-    {
-      field: "trainingCertificates",
-      label: "Training Certificates",
-      description:
-        "Relevant specialized trainings or professional development programs, if any.",
-    },
-    {
-      field: "tesdaCertificate",
-      label: "TESDA NC II / TMC",
-      description: "TESDA National Certificate II or Trainers Methodology Certificate, if applicable.",
-    },
-    {
-      field: "performanceRating",
-      label: "Performance Ratings",
-      description:
-        "Required ratings with at least Very Satisfactory rating.",
-    },
-    {
-      field: "cavDataPrivacy",
-      label: "CAV / Omnibus / Data Privacy Form",
-      description:
-        "Checklist, Omnibus Sworn Statement, CAV, and Data Privacy Consent Form.",
-    },
-    {
-      field: "otherDocuments",
-      label: "Other Supporting Documents",
-      description:
-        "Other HRMPSB requirements, including PPST portfolio, if applicable.",
-    },
-  ];
-
-  const nonTeachingUploadRequirements = [
-    {
-      field: "letterOfIntent",
-      label: "Letter of Intent",
-      description: "Addressed to the SDS with purpose and position applied for.",
-    },
-    {
-      field: "pds",
-      label: "Personal Data Sheet",
-      description: "PDS with Work Experience Sheet and recent picture.",
-    },
-    {
-      field: "residency",
-      label: "Proof of Residency",
-      description: "Voter's ID or any proof of residency.",
-    },
-    {
-      field: "prcLicense",
-      label: "PRC License / ID",
-      description: "Valid and updated PRC License or ID, if applicable.",
-    },
-    {
-      field: "eligibilityRating",
-      label: "Certificate of Eligibility / Rating",
-      description: "Eligibility or rating certificate, if applicable.",
-    },
-    {
-      field: "academicRecord",
-      label: "Academic Records",
-      description:
-        "TOR, diploma, graduate or post-graduate units/degrees, if available.",
-    },
-    {
-      field: "trainingCertificates",
-      label: "Training Certificates",
-      description: "Relevant certificates of training, if applicable.",
-    },
-    {
-      field: "employmentCertificate",
-      label: "Employment / Service Record",
-      description: "COE, contract of service, or signed service record.",
-    },
-    {
-      field: "latestAppointment",
-      label: "Latest Appointment",
-      description: "Photocopy of latest appointment, if applicable.",
-    },
-    {
-      field: "performanceRating",
-      label: "Performance Rating",
-      description: "Rating for the required/latest rating period, if applicable.",
-    },
-    {
-      field: "cavDataPrivacy",
-      label: "CAV / Omnibus / Data Privacy Form",
-      description: "Notarized certification and Data Privacy Consent Form.",
-    },
-    {
-      field: "otherDocuments",
-      label: "Other Supporting Documents",
-      description: "MOVs and other documents required for assessment.",
-    },
-  ];
-
-  const showPositionList =
-    positionCategory === "Teaching" || positionCategory === "Non-Teaching";
-
-  const showAttachments =
-    positionCategory === "Non-Teaching"
-      ? positionType !== ""
-      : teacherPromotionPositions.includes(positionType);
-
-  const currentUploadRequirements =
-    positionCategory === "Non-Teaching"
-      ? nonTeachingUploadRequirements
-      : teacherUploadRequirements;
-
-  const syncData = (updated) => {
-    onChange &&
-      onChange({
-        positionCategory,
-        positionType,
-        files,
-        ...updated,
-      });
-  };
-
-  const resetFiles = (category) => {
-    const updatedFiles =
-      category === "Non-Teaching"
-        ? { ...nonTeachingRequirements }
-        : { ...teachingRequirements };
-
-    setFiles(updatedFiles);
-    return updatedFiles;
-  };
-
-  const handleCategoryChange = (value) => {
-    setPositionCategory(value);
-    setPositionType("");
-    setError("");
-    setPositionError("");
-    setFileErrors({});
-
-    const updatedFiles = resetFiles(value);
-
-    syncData({
-      positionCategory: value,
-      positionType: "",
-      files: updatedFiles,
-    });
-  };
-
-  const handlePositionChange = (value) => {
-    setPositionType(value);
-    setError("");
-    setPositionError("");
-    setFileErrors({});
-
-    const updatedFiles = resetFiles(positionCategory);
-
-    syncData({
-      positionType: value,
-      files: updatedFiles,
-    });
-  };
-
-  const handleFileChange = (field, file) => {
-    const updatedFiles = {
-      ...files,
-      [field]: file,
-    };
-
-    setFiles(updatedFiles);
-
-    setFileErrors((prev) => ({
-      ...prev,
-      [field]: "",
-    }));
-
-    syncData({
-      files: updatedFiles,
-    });
-  };
-
-  const handleRemoveFile = (field) => {
-    const updatedFiles = {
-      ...files,
-      [field]: null,
-    };
-
-    setFiles(updatedFiles);
-
-    syncData({
-      files: updatedFiles,
-    });
-  };
-
-  const validateFiles = () => {
-    const errors = {};
-
-    if (showAttachments) {
-      currentUploadRequirements.forEach((requirement) => {
-        if (!files[requirement.field]) {
-          errors[requirement.field] = `${requirement.label} is required`;
-        }
-      });
+    for (const [field, value] of Object.entries(data?.files || {})) {
+      fileMap[field] = normalizeRequirementFiles(value);
     }
 
-    setFileErrors(errors);
-    return Object.keys(errors).length === 0;
+    return fileMap;
+  });
+  const [uploadingFields, setUploadingFields] = useState({});
+  const [error, setError] = useState("");
+  const [fileErrors, setFileErrors] = useState({});
+
+  const syncData = (updated) => {
+    onChange?.({
+      ...(data || {}),
+      selectedJob,
+      jobOpeningId,
+      positionCategory,
+      positionType,
+      files,
+      personalSubmissionRequired: requiresPersonalSubmission,
+      requirementSubmissionMode: requiresPersonalSubmission
+        ? "personal"
+        : "online",
+      ...updated,
+    });
+  };
+
+  const updateFiles = (updatedFiles) => {
+    setFiles(updatedFiles);
+    syncData({ files: updatedFiles });
+  };
+
+  const validateIncomingFiles = (field, incomingFiles) => {
+    const nextErrors = {};
+
+    if (incomingFiles.length > maxRequirementUploadBatch) {
+      nextErrors[field] = `Upload up to ${maxRequirementUploadBatch} files at a time.`;
+    } else if (
+      normalizeRequirementFiles(files[field]).length + incomingFiles.length >
+      maxRequirementFilesPerField
+    ) {
+      nextErrors[field] = `Each requirement can keep up to ${maxRequirementFilesPerField} files.`;
+    } else if (incomingFiles.some((file) => file.size > uploadMaxFileSize)) {
+      nextErrors[field] = "Please upload files smaller than 15 MB.";
+    } else if (
+      incomingFiles.some(
+        (file) => !acceptedRequirementFileTypes.includes(file.type)
+      )
+    ) {
+      nextErrors[field] = "Upload images, PDFs, TXT, DOC, or DOCX files only.";
+    }
+
+    setFileErrors((current) => ({ ...current, ...nextErrors }));
+    return !nextErrors[field];
+  };
+
+  const handleFileChange = async (requirement, incomingFileList) => {
+    const incomingFiles = Array.from(incomingFileList || []).filter(Boolean);
+
+    if (incomingFiles.length === 0) return;
+    if (!validateIncomingFiles(requirement.field, incomingFiles)) return;
+
+    setFileErrors((current) => ({ ...current, [requirement.field]: "" }));
+    setUploadingFields((current) => ({
+      ...current,
+      [requirement.field]: true,
+    }));
+
+    try {
+      const uploadedFiles = [];
+
+      for (const file of incomingFiles) {
+        const payload = new FormData();
+        payload.append("file", file);
+        payload.append("requirementLabel", requirement.label);
+        payload.append("positionCategory", positionCategory);
+        payload.append("positionTitle", positionType);
+        payload.append("positionType", positionType);
+
+        const result = await apiRequest(
+          `/api/applicant/requirement-files/${encodeURIComponent(
+            requirement.field
+          )}`,
+          { method: "POST", body: payload }
+        );
+
+        uploadedFiles.push(result.file);
+      }
+
+      updateFiles({
+        ...files,
+        [requirement.field]: mergeRequirementFiles(
+          files[requirement.field],
+          uploadedFiles
+        ),
+      });
+    } catch (uploadError) {
+      setFileErrors((current) => ({
+        ...current,
+        [requirement.field]:
+          uploadError.message || "Failed to upload requirement.",
+      }));
+    } finally {
+      setUploadingFields((current) => ({
+        ...current,
+        [requirement.field]: false,
+      }));
+    }
+  };
+
+  const handleRemoveFile = (field, fileId) => {
+    updateFiles({
+      ...files,
+      [field]: normalizeRequirementFiles(files[field]).filter(
+        (file) => String(file.id || file.name) !== String(fileId)
+      ),
+    });
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    if (!positionCategory) {
-      setError("Position applied for is required");
+    if (!jobOpeningId || !positionType) {
+      setError("Select a vacancy from the Vacancies page before continuing.");
       return;
     }
 
-    if (showPositionList && !positionType) {
-      setPositionError("Position is required");
-      return;
-    }
-
-    if (!validateFiles()) return;
-
-    onNext &&
-      onNext({
-        positionCategory,
-        positionType,
-        files,
-      });
+    setError("");
+    onNext?.({
+      ...(data || {}),
+      selectedJob,
+      jobOpeningId,
+      positionCategory,
+      positionType,
+      files: requiresPersonalSubmission ? {} : files,
+      requirementFiles: requiresPersonalSubmission
+        ? {}
+        : getRequirementFileIds(files),
+      personalSubmissionRequired: requiresPersonalSubmission,
+      requirementSubmissionMode: requiresPersonalSubmission
+        ? "personal"
+        : "online",
+    });
   };
-
-  const FileUpload = ({ label, description, field }) => (
-    <div className="space-y-2">
-      <div>
-        <label className="block text-sm font-medium text-slate-700">
-          {label} <span className="text-red-500">*</span>
-        </label>
-
-        {description && (
-          <p className="text-xs text-slate-500 mt-1">{description}</p>
-        )}
-      </div>
-
-      <input
-        type="file"
-        id={field}
-        className="hidden"
-        onChange={(e) => handleFileChange(field, e.target.files[0] || null)}
-      />
-
-      <label
-        htmlFor={field}
-        className={`flex flex-col items-center justify-center h-24 w-full border-2 border-dashed rounded-xl cursor-pointer transition ${
-          fileErrors[field]
-            ? "border-red-400 bg-red-50"
-            : "border-slate-300 bg-slate-50 hover:border-blue-500 hover:bg-blue-50"
-        }`}
-      >
-        {!files[field] ? (
-          <span className="text-sm text-slate-500">Click to upload file</span>
-        ) : (
-          <span className="text-sm font-medium text-green-600 text-center px-2">
-            Uploaded: {files[field].name}
-          </span>
-        )}
-      </label>
-
-      {files[field] && (
-        <button
-          type="button"
-          onClick={() => handleRemoveFile(field)}
-          className="text-sm font-semibold text-red-600 hover:underline"
-        >
-          Remove Attachment
-        </button>
-      )}
-
-      {fileErrors[field] && (
-        <p className="text-xs text-red-500">{fileErrors[field]}</p>
-      )}
-    </div>
-  );
 
   return (
     <form
@@ -2200,144 +2011,137 @@ const Attachment = ({ data, onChange, onNext }) => {
       autoComplete="off"
       className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500"
     >
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-slate-600 mb-1">
-            Position Applied For <span className="text-red-500">*</span>
-          </label>
-
-          <select
-            value={positionCategory}
-            onChange={(e) => handleCategoryChange(e.target.value)}
-            className={`w-full h-11 px-4 rounded-xl border bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-slate-400 ${
-              error ? "border-red-500" : "border-slate-300"
-            }`}
-          >
-            <option value="">Select position type</option>
-            <option value="Teaching">Teaching</option>
-            <option value="Non-Teaching">Non-Teaching</option>
-          </select>
-
-          {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
-        </div>
-
-        {showPositionList && (
-          <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">
-              {positionCategory === "Teaching"
-                ? "Teaching Position"
-                : "Non-Teaching Position"}{" "}
-              <span className="text-red-500">*</span>
-            </label>
-
-            <select
-              value={positionType}
-              onChange={(e) => handlePositionChange(e.target.value)}
-              className={`w-full h-11 px-4 rounded-xl border bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-slate-400 ${
-                positionError ? "border-red-500" : "border-slate-300"
-              }`}
-            >
-              <option value="">
-                {positionCategory === "Teaching"
-                  ? "Select teaching position"
-                  : "Select non-teaching position"}
-              </option>
-
-              {(positionCategory === "Teaching"
-                ? teachingPositions
-                : nonTeachingPositions
-              ).map((position) => (
-                <option key={position} value={position}>
-                  {position}
-                </option>
-              ))}
-            </select>
-
-            {positionError && (
-              <p className="text-red-500 text-xs mt-1">{positionError}</p>
-            )}
-          </div>
-        )}
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+          Selected Vacancy
+        </p>
+        <h3 className="mt-2 break-words text-xl font-bold text-slate-950 [overflow-wrap:anywhere]">
+          {positionType || "No vacancy selected"}
+        </h3>
+        <p className="mt-1 text-sm text-slate-600">
+          {positionCategory || "Position category unavailable"}
+        </p>
       </div>
 
-      {positionType === "Teacher I" && (
-        <div className="space-y-4 rounded-xl border border-blue-200 bg-blue-50 p-5 text-sm text-slate-700">
-          <p className="font-semibold text-blue-800">
-            If you are applying for Teacher I, you are required to personally
-            submit the hard copies of your attachments to the Human Resource
-            Office.
-          </p>
-
-          <div>
-            <p className="font-semibold mb-2">Required documents:</p>
-            <ol className="list-decimal pl-5 space-y-2">
-              <li>
-                Unique Application Number generated on the review step after
-                submitting this application.
-              </li>
-              <li>
-                Letter of intent addressed to the SDS with statement of purpose
-                and learning area/subject group, if applicable.
-              </li>
-              <li>
-                Fully accomplished Personal Data Sheet with Work Experience
-                Sheet and recent picture.
-              </li>
-              <li>Photocopy of Voter's ID and/or proof of residency.</li>
-              <li>Photocopy of valid and updated PRC License/ID.</li>
-              <li>Photocopy of Certificate of Board Rating.</li>
-              <li>Photocopy of TOR and Diploma.</li>
-              <li>
-                Photocopy of Service Record or Certificate of Employment.
-              </li>
-              <li>Photocopy of latest appointment, if applicable.</li>
-              <li>
-                Photocopy of relevant specialized trainings or professional
-                development programs, if any.
-              </li>
-              <li>
-                Photocopy of TESDA NC II or Trainers Methodology Certificate, if
-                applicable.
-              </li>
-              <li>
-                Photocopy of required Performance Ratings with at least Very
-                Satisfactory rating.
-              </li>
-              <li>
-                Checklist of Requirements, Omnibus Sworn Statement, CAV, and
-                Data Privacy Consent Form.
-              </li>
-              <li>
-                Other HRMPSB requirements, including PPST portfolio, if
-                applicable.
-              </li>
-            </ol>
-          </div>
-        </div>
+      {error && (
+        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+          {error}
+        </p>
       )}
 
-      {showAttachments && (
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-slate-700">
-            Attachments / Requirements
-          </h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {currentUploadRequirements.map((requirement) => (
-              <FileUpload
-                key={requirement.field}
-                label={requirement.label}
-                description={requirement.description}
-                field={requirement.field}
-              />
-            ))}
-          </div>
-
-          <p className="text-slate-500 text-sm">
-            Please upload the required supporting documents for your selected
-            position.
+      {requiresPersonalSubmission ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900">
+          <p className="font-semibold">{submissionRule.notice?.title}</p>
+          <p className="mt-1">
+            Documentary requirements for this vacancy must be submitted
+            personally to HR/Admin. You may continue your online application
+            without uploading files here.
           </p>
         </div>
+      ) : currentUploadRequirements.length > 0 ? (
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-700">
+              Attachments / Requirements
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Upload available documents for this vacancy. Missing documents
+              will not stop submission.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {currentUploadRequirements.map((requirement) => {
+              const uploadedFiles = normalizeRequirementFiles(
+                files[requirement.field]
+              );
+              const isUploading = Boolean(uploadingFields[requirement.field]);
+
+              return (
+                <div
+                  key={requirement.field}
+                  className="space-y-3 rounded-xl border border-slate-200 bg-white p-4"
+                >
+                  <div>
+                    <label
+                      htmlFor={`requirement-${requirement.field}`}
+                      className="block text-sm font-semibold text-slate-800"
+                    >
+                      {requirement.label}
+                    </label>
+                    {requirement.description && (
+                      <p className="mt-1 text-xs leading-5 text-slate-500">
+                        {requirement.description}
+                      </p>
+                    )}
+                  </div>
+
+                  <input
+                    type="file"
+                    id={`requirement-${requirement.field}`}
+                    accept={acceptedRequirementFileTypesText}
+                    multiple
+                    disabled={isUploading}
+                    className="block w-full text-sm text-slate-600 file:mr-3 file:h-9 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200 disabled:opacity-70"
+                    onChange={(event) => {
+                      handleFileChange(requirement, event.target.files);
+                      event.target.value = "";
+                    }}
+                  />
+
+                  <p className="text-xs leading-5 text-slate-500">
+                    Images, PDF, TXT, DOC, or DOCX only. Max{" "}
+                    {maxRequirementUploadBatch} files per upload and{" "}
+                    {maxRequirementFilesPerField} files per requirement.
+                  </p>
+
+                  {isUploading && (
+                    <p className="text-xs font-semibold text-blue-700">
+                      Uploading...
+                    </p>
+                  )}
+
+                  {fileErrors[requirement.field] && (
+                    <p className="text-xs font-semibold text-red-600">
+                      {fileErrors[requirement.field]}
+                    </p>
+                  )}
+
+                  {uploadedFiles.length > 0 && (
+                    <ul className="space-y-2">
+                      {uploadedFiles.map((file) => (
+                        <li
+                          key={file.id || file.name}
+                          className="flex min-w-0 items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 text-sm"
+                        >
+                          <span className="min-w-0 break-words text-slate-700 [overflow-wrap:anywhere]">
+                            {file.name || file.originalName || "Uploaded file"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleRemoveFile(
+                                requirement.field,
+                                file.id || file.name
+                              )
+                            }
+                            className="shrink-0 text-xs font-semibold text-red-600 hover:underline"
+                          >
+                            Remove
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <p className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+          No online upload requirements are configured for this vacancy.
+        </p>
       )}
 
       <div className="flex justify-end items-center pt-6">
@@ -2368,6 +2172,8 @@ const Review = ({ data, onSubmit }) => {
   const eligibility = data?.eligibility || {};
   const learningDevelopment = data?.learningDevelopment || {};
   const jobPosition = data?.jobPosition || {};
+  const submissionRule = getApplicationSubmissionRule(jobPosition.positionType);
+  const requiresPersonalSubmission = submissionRule.requiresPersonalSubmission;
 
   const applicantName =
     [
@@ -2395,6 +2201,9 @@ const Review = ({ data, onSubmit }) => {
         eligibility,
         learningDevelopment,
         jobPosition,
+        requirementFiles:
+          jobPosition.requirementFiles ||
+          getRequirementFileIds(jobPosition.files || {}),
       };
 
       const result = await apiRequest("/api/submit-application", {
@@ -2665,26 +2474,47 @@ const Review = ({ data, onSubmit }) => {
             {jobPosition.positionType || jobPosition.positionCategory || emptyText}
           </p>
 
-          {jobPosition.positionType === "Teacher I" && (
-            <div className="border-l-4 border-blue-600 pl-4 text-sm text-slate-700">
-              <p className="font-semibold text-blue-900">
-                Teacher I applicants must personally submit hard copies of
-                required attachments to the Human Resource Office. Include the
-                generated UAN shown after submission.
+          {requiresPersonalSubmission && (
+            <div className="border-l-4 border-amber-500 pl-4 text-sm text-slate-700">
+              <p className="font-semibold text-amber-900">
+                {submissionRule.notice?.title}
               </p>
+              <p className="mt-1">{submissionRule.notice?.message}</p>
             </div>
           )}
 
+          {!requiresPersonalSubmission && (
           <div>
             <p className="font-semibold text-slate-800">Attached Files:</p>
-            <ul className="mt-2 grid gap-1 text-sm text-slate-700 sm:grid-cols-2">
-              {Object.entries(jobPosition.files || {}).map(([key, file]) => (
-                <li key={key}>
-                  <strong>{key}:</strong> {file?.name || "Not uploaded"}
-                </li>
-              ))}
-            </ul>
+            {Object.entries(jobPosition.files || {}).some(
+              ([, value]) => normalizeRequirementFiles(value).length > 0
+            ) ? (
+              <ul className="mt-2 grid gap-1 text-sm text-slate-700 sm:grid-cols-2">
+                {Object.entries(jobPosition.files || {}).map(([key, value]) => {
+                  const uploadedFiles = normalizeRequirementFiles(value);
+
+                  if (uploadedFiles.length === 0) return null;
+
+                  return (
+                    <li key={key}>
+                      <strong>{key}:</strong>{" "}
+                      {uploadedFiles
+                        .map(
+                          (file) =>
+                            file?.name || file?.originalName || "Uploaded file"
+                        )
+                        .join(", ")}
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="mt-2 text-sm text-slate-500">
+                No files uploaded.
+              </p>
+            )}
           </div>
+          )}
         </section>
 
         <div className="border-t border-slate-200 pt-5 text-sm text-amber-800">
@@ -2833,13 +2663,44 @@ const Review = ({ data, onSubmit }) => {
   );
 };
 
-import { getStoredUser, storeUser } from "../auth/auth";
+import { getStoredUser } from "../auth/auth";
 
 const ApplicationForm = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const storedUser = getStoredUser();
+  const selectedJob = location?.state?.job;
+  const params = new URLSearchParams(location.search);
+  const routeJobId = selectedJob?.id || params.get("jobId") || "";
+  const routePosition = selectedJob?.title || params.get("position") || "";
+  const routeCategory =
+    selectedJob?.positionCategory ||
+    params.get("category") ||
+    inferPositionCategory(routePosition);
+  let savedProfile = {};
+
+  try {
+    const saved = localStorage.getItem("applicantProfile");
+    savedProfile = saved ? JSON.parse(saved || "{}") : {};
+  } catch {
+    savedProfile = {};
+  }
+
   const [currentStep, setCurrentStep] = useState(1);
 
-  const [formData, setFormData] = useState({
-    personalInfo: {},
+  const [formData, setFormData] = useState(() => ({
+    personalInfo: {
+      firstName: storedUser?.firstName || "",
+      lastName: storedUser?.lastName || "",
+      emailAddress: storedUser?.email || "",
+      contactNumber: savedProfile.phone || "",
+      address: savedProfile.address || "",
+      dob: savedProfile.birthDate || "",
+      sex: savedProfile.sex || "",
+      civilStatus: savedProfile.civilStatus || "",
+      nationality: savedProfile.nationality || "",
+      religion: savedProfile.religion || "",
+    },
     educationalBackground: {
       bachelors: [{ school: "", course: "", year: "", award: "" }],
       postGraduate: [{ school: "", course: "", year: "", award: "" }],
@@ -2870,80 +2731,13 @@ const ApplicationForm = () => {
       ],
     },
     jobPosition: {
-      positionCategory: "",
-      positionType: "",
-      jobOpeningId: "",
-      files: {},
+      selectedJob: selectedJob || null,
+      positionCategory: routeCategory || "",
+      positionType: routePosition || "",
+      jobOpeningId: routeJobId || "",
+      files: buildRequirementFileMap(routeCategory, routePosition),
     },
-  });
-
-  const storedUser = getStoredUser();
-  const location = useLocation();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    const selectedJob = location?.state?.job;
-    const params = new URLSearchParams(location.search);
-    const routeJobId = selectedJob?.id || params.get("jobId") || "";
-    const routePosition =
-      selectedJob?.title || params.get("position") || "";
-
-    if (storedUser?.role === "applicant" && storedUser.profileComplete) {
-      navigate(
-        routeJobId ? `/jobs/${routeJobId}` : "/applications",
-        { replace: true }
-      );
-      return;
-    }
-
-    if (routeJobId || routePosition) {
-      setFormData((prev) => ({
-        ...prev,
-        jobPosition: {
-          ...prev.jobPosition,
-          jobOpeningId: routeJobId || prev.jobPosition.jobOpeningId || "",
-          positionType:
-            routePosition || prev.jobPosition.positionType || "",
-        },
-      }));
-    }
-
-    if (!storedUser) return;
-
-    // Prefill basic account details
-    setFormData((prev) => ({
-      ...prev,
-      personalInfo: {
-        ...prev.personalInfo,
-        firstName: storedUser.firstName || prev.personalInfo.firstName || "",
-        lastName: storedUser.lastName || prev.personalInfo.lastName || "",
-        emailAddress: storedUser.email || prev.personalInfo.emailAddress || "",
-      },
-    }));
-
-    // If applicant profile exists in localStorage (full contact info), merge it
-    try {
-      const saved = localStorage.getItem("applicantProfile");
-      if (saved) {
-        const profile = JSON.parse(saved || "{}");
-        setFormData((prev) => ({
-          ...prev,
-          personalInfo: {
-            ...prev.personalInfo,
-            contactNumber: profile.phone || prev.personalInfo.contactNumber || "",
-            address: profile.address || prev.personalInfo.address || "",
-            dob: profile.birthDate || prev.personalInfo.dob || "",
-            sex: profile.sex || prev.personalInfo.sex || "",
-            civilStatus: profile.civilStatus || prev.personalInfo.civilStatus || "",
-            nationality: profile.nationality || prev.personalInfo.nationality || "",
-            religion: profile.religion || prev.personalInfo.religion || "",
-          },
-        }));
-      }
-    } catch (e) {
-      // ignore parsing errors
-    }
-  }, []);
+  }));
 
   const updateFormData = (section, data) => {
     setFormData((prev) => ({
@@ -2957,7 +2751,7 @@ const ApplicationForm = () => {
     { id: 2, title: "EDUCATIONAL BACKGROUND" },
     { id: 3, title: "ELIGIBILITY" },
     { id: 4, title: "LEARNING DEVELOPMENT" },
-    { id: 5, title: "JOB POSITION" },
+    { id: 5, title: "REQUIREMENTS" },
     { id: 6, title: "REVIEW" },
   ];
 

@@ -1,5 +1,10 @@
 import { assignUan } from "./uanService.js";
 import { copyUploadedFileSnapshot } from "./fileStorageService.js";
+import {
+  getApplicationSubmissionRule,
+  getFixedApplicationRequirements,
+} from "../config/applicationRequirements.js";
+import { uploadMaxFilesPerRequirement } from "../config/env.js";
 import { normalizeEmail } from "../utils/formatters.js";
 
 const profileSections = [
@@ -19,6 +24,13 @@ function getPersonalInfo(data = {}) {
 
 function trim(value) {
   return String(value || "").trim();
+}
+
+function normalizeSelectedFileIds(value) {
+  const values = Array.isArray(value) ? value : value ? [value] : [];
+  return Array.from(
+    new Set(values.map((item) => String(item || "").trim()).filter(Boolean))
+  ).slice(0, uploadMaxFilesPerRequirement + 1);
 }
 
 export function getApplicationProfileGaps(data = {}) {
@@ -272,7 +284,8 @@ export async function createJobApplicationFromProfile(
 
   const jobResult = await client.query(
     `SELECT id, title, location, district, barangay, vacancy, deadline,
-       deadline_time, position_id, position_category, requirements, status, description,
+       deadline_time, position_id, position_category, salary_grade, salary_amount,
+       education, training, experience, eligibility, status, description,
        deadline + COALESCE(deadline_time, TIME '23:59') AS deadline_at
      FROM job_openings
      WHERE id = $1
@@ -296,15 +309,30 @@ export async function createJobApplicationFromProfile(
     throw error;
   }
 
-  const jobRequirements = Array.isArray(job.requirements) ? job.requirements : [];
+  const submissionRule = getApplicationSubmissionRule(job.title);
+  const jobRequirements = getFixedApplicationRequirements(
+    job.position_category,
+    job.title
+  );
+  const itemResult = await client.query(
+    `SELECT id, school_station, subject_area, vacancy_count, assigned_count
+     FROM job_opening_items
+     WHERE job_opening_id = $1
+     ORDER BY school_station ASC, subject_area ASC, id ASC`,
+    [job.id]
+  );
+  const vacancyItems = itemResult.rows.map((item) => ({
+    id: item.id,
+    schoolStation: item.school_station || "",
+    subjectArea: item.subject_area || "",
+    vacancyCount: Number(item.vacancy_count || 0),
+    assignedCount: Number(item.assigned_count || 0),
+  }));
   const profileGaps = getApplicationProfileGaps(profile.data || {});
   const selectedRequirementFiles =
     requirementFiles && typeof requirementFiles === "object"
       ? requirementFiles
       : {};
-  const requiredRequirements = jobRequirements.filter(
-    (requirement) => requirement.required !== false
-  );
 
   if (profileGaps.length > 0) {
     const error = new Error(
@@ -312,23 +340,6 @@ export async function createJobApplicationFromProfile(
     );
     error.statusCode = 409;
     error.details = { missingProfileSections: profileGaps };
-    throw error;
-  }
-
-  const missingRequirements = requiredRequirements.filter(
-    (requirement) => !selectedRequirementFiles[requirement.field]
-  );
-
-  if (missingRequirements.length > 0) {
-    const missingLabels = missingRequirements
-      .map((requirement) => requirement.label)
-      .filter(Boolean);
-    const error = new Error(
-      missingLabels.length > 0
-        ? `Please upload the current requirements for this job opening before applying: ${missingLabels.join(", ")}.`
-        : "Please upload the current requirements for this job opening before applying."
-    );
-    error.statusCode = 409;
     throw error;
   }
 
@@ -371,17 +382,29 @@ export async function createJobApplicationFromProfile(
         ...snapshot,
         uan: profile.uan,
         jobOpeningId: job.id,
+        personalSubmissionRequired: submissionRule.requiresPersonalSubmission,
+        requirementSubmissionMode: submissionRule.requiresPersonalSubmission
+          ? "personal"
+          : "online",
         job: {
           id: job.id,
           title: job.title,
           location: job.location,
           district: job.district,
           barangay: job.barangay,
+          salaryGrade: job.salary_grade,
+          salaryAmount: job.salary_amount,
+          education: job.education,
+          training: job.training,
+          experience: job.experience,
+          eligibility: job.eligibility,
+          vacancyItems,
           deadline: job.deadline,
           deadlineTime: job.deadline_time,
           positionId: job.position_id,
           positionCategory: job.position_category,
-          requirements: job.requirements || [],
+          requirements: jobRequirements,
+          submissionRule,
         },
         submittedAt: new Date().toISOString(),
       },
@@ -390,13 +413,48 @@ export async function createJobApplicationFromProfile(
   const application = result.rows[0];
   const storedSnapshotPaths = [];
 
-  for (const requirement of jobRequirements) {
-    const selectedFileId = selectedRequirementFiles[requirement.field];
-    let snapshotFileId = null;
-    let sourceFileId = null;
-    let requirementStatus = "missing";
+  if (submissionRule.createRequirementSnapshot) {
+    for (const requirement of jobRequirements) {
+      const selectedFileIds = normalizeSelectedFileIds(
+        selectedRequirementFiles[requirement.field]
+      );
 
-    if (selectedFileId) {
+    if (selectedFileIds.length > uploadMaxFilesPerRequirement) {
+      const error = new Error(
+        `Select up to ${uploadMaxFilesPerRequirement} files for ${requirement.label || requirement.field}.`
+      );
+      error.statusCode = 409;
+      throw error;
+    }
+
+    if (selectedFileIds.length === 0) {
+      await client.query(
+        `INSERT INTO application_requirements (
+           job_application_id,
+           requirement_field,
+           requirement_label,
+           requirement_description,
+           required,
+           file_id,
+           source_file_id,
+           status,
+           submitted_at,
+           created_at,
+           updated_at
+         )
+         VALUES ($1, $2, $3, $4, $5, NULL, NULL, 'incomplete', NOW(), NOW(), NOW())`,
+        [
+          application.id,
+          requirement.field,
+          requirement.label || requirement.field,
+          requirement.description || "",
+          false,
+        ]
+      );
+      continue;
+    }
+
+    for (const selectedFileId of selectedFileIds) {
       const sourceResult = await client.query(
         `SELECT *
          FROM uploaded_files
@@ -474,37 +532,33 @@ export async function createJobApplicationFromProfile(
         ]
       );
 
-      snapshotFileId = insertedFile.rows[0].id;
-      sourceFileId = sourceFile.id;
-      requirementStatus = "pending";
+      await client.query(
+        `INSERT INTO application_requirements (
+           job_application_id,
+           requirement_field,
+           requirement_label,
+           requirement_description,
+           required,
+           file_id,
+           source_file_id,
+           status,
+           submitted_at,
+           created_at,
+           updated_at
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', NOW(), NOW(), NOW())`,
+        [
+          application.id,
+          requirement.field,
+          requirement.label || requirement.field,
+          requirement.description || "",
+          false,
+          insertedFile.rows[0].id,
+          sourceFile.id,
+        ]
+      );
     }
-
-    await client.query(
-      `INSERT INTO application_requirements (
-         job_application_id,
-         requirement_field,
-         requirement_label,
-         requirement_description,
-         required,
-         file_id,
-         source_file_id,
-         status,
-         submitted_at,
-         created_at,
-         updated_at
-       )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW(), NOW())`,
-      [
-        application.id,
-        requirement.field,
-        requirement.label || requirement.field,
-        requirement.description || "",
-        requirement.required !== false,
-        snapshotFileId,
-        sourceFileId,
-        requirementStatus,
-      ]
-    );
+    }
   }
 
   return {

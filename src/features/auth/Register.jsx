@@ -15,6 +15,8 @@ export default function Register() {
   const { showToast } = useToast();
   const prefilledEmail =
     typeof location.state?.email === "string" ? location.state.email : "";
+  const nextPath =
+    typeof location.state?.next === "string" ? location.state.next : "";
 
   const [form, setForm] = useState({
     firstName: "",
@@ -141,7 +143,11 @@ export default function Register() {
                     Register to receive a setup link by email. Already have an
                     account?{" "}
                     <Link
-                      to="/login"
+                      to={
+                        nextPath
+                          ? `/login?next=${encodeURIComponent(nextPath)}`
+                          : "/login"
+                      }
                       className="font-bold text-[#0056b3] hover:underline"
                     >
                       Sign in
@@ -250,7 +256,14 @@ export default function Register() {
                 <div className="mt-7 space-y-3">
                   <button
                     type="button"
-                    onClick={() => navigate("/login", { replace: true })}
+                    onClick={() =>
+                      navigate(
+                        nextPath
+                          ? `/login?next=${encodeURIComponent(nextPath)}`
+                          : "/login",
+                        { replace: true }
+                      )
+                    }
                     className="oas-mobile-full inline-flex h-[44px] w-auto min-w-[132px] items-center justify-center rounded-lg bg-[#244a96] px-6 text-[14px] font-semibold text-white shadow-sm transition hover:bg-[#183978] sm:w-full sm:px-4"
                   >
                     Go to Login

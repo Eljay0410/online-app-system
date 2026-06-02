@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   applyToJob,
+  assignApplicationToVacancyItem,
   getApplicantProfile,
   listAdminApplications,
   listApplicantApplications,
@@ -28,6 +29,14 @@ router.patch(
   authenticatedWriteLimiter,
   requireRoles("admin"),
   updateApplicationStatus
+);
+
+router.patch(
+  "/admin/applications/:id/assignment",
+  requireAuth,
+  authenticatedWriteLimiter,
+  requireRoles("admin"),
+  assignApplicationToVacancyItem
 );
 
 router.patch(

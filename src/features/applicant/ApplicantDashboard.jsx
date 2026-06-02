@@ -24,13 +24,17 @@ import {
 
 const statusLabels = {
   draft: "Draft",
-  submitted: "Submitted",
-  pending_review: "Pending Review",
-  for_compliance: "For Compliance",
-  under_review: "Under Review",
+  submitted: "Pending Review",
+  reviewed: "Reviewed",
   qualified: "Qualified",
+  disqualified: "Disqualified",
+  shortlisted: "Shortlisted",
+  selected: "Selected",
   rejected: "Rejected",
   hired: "Hired",
+  pending_review: "Pending Review",
+  for_compliance: "Pending Review",
+  under_review: "Under Review",
 };
 
 const statusStyles = {
@@ -40,6 +44,11 @@ const statusStyles = {
     dot: "bg-slate-500",
   },
   pending_review: {
+    badge: "border-blue-300 bg-blue-50 text-blue-800",
+    accent: "border-l-blue-500",
+    dot: "bg-blue-600",
+  },
+  reviewed: {
     badge: "border-blue-300 bg-blue-50 text-blue-800",
     accent: "border-l-blue-500",
     dot: "bg-blue-600",
@@ -59,6 +68,21 @@ const statusStyles = {
     accent: "border-l-emerald-500",
     dot: "bg-emerald-600",
   },
+  shortlisted: {
+    badge: "border-amber-300 bg-amber-50 text-amber-800",
+    accent: "border-l-amber-500",
+    dot: "bg-amber-600",
+  },
+  selected: {
+    badge: "border-emerald-300 bg-emerald-50 text-emerald-800",
+    accent: "border-l-emerald-500",
+    dot: "bg-emerald-600",
+  },
+  disqualified: {
+    badge: "border-red-300 bg-red-50 text-red-700",
+    accent: "border-l-red-500",
+    dot: "bg-red-600",
+  },
   rejected: {
     badge: "border-red-300 bg-red-50 text-red-700",
     accent: "border-l-red-500",
@@ -73,29 +97,49 @@ const statusStyles = {
 
 const statusGuidance = {
   submitted: {
-    title: "Application received",
-    next: "HR has your submission. No action is needed unless your profile or requirements change.",
+    title: "Pending review",
+    next: "HR will review your submitted requirements.",
     action: "Keep your contact details active and wait for the first review update.",
   },
   pending_review: {
-    title: "Pending HR review",
-    next: "Your application is queued for HR requirement checking.",
-    action: "Wait for HR remarks or compliance instructions.",
+    title: "Pending review",
+    next: "HR will review your submitted requirements.",
+    action: "Keep your contact details active and wait for the next review update.",
   },
   for_compliance: {
-    title: "Compliance needed",
-    next: "One or more submitted requirements need replacement or clarification.",
-    action: "Open the details and replace only the documents marked for compliance.",
+    title: "Pending review",
+    next: "HR will review your submitted requirements.",
+    action: "Keep your contact details active and wait for the next review update.",
   },
   under_review: {
-    title: "Screening in progress",
-    next: "HR is checking your profile, eligibility, and uploaded requirements.",
-    action: "Watch this page and your email for interview or document instructions.",
+    title: "Under review",
+    next: "HR is reviewing your submitted requirements.",
+    action: "Watch this page and your email for updates.",
+  },
+  reviewed: {
+    title: "Reviewed",
+    next: "HR has reviewed your submitted requirements.",
+    action: "Watch this page and your email for instructions.",
   },
   qualified: {
     title: "Qualified",
     next: "You passed the current evaluation stage. HR will provide the next instruction.",
     action: "Keep copies of your documents ready for verification.",
+  },
+  shortlisted: {
+    title: "Shortlisted",
+    next: "You are shortlisted for further evaluation.",
+    action: "Watch this page and your email for instructions.",
+  },
+  selected: {
+    title: "Selected",
+    next: "You have been selected for placement review.",
+    action: "Wait for HR assignment or onboarding instructions.",
+  },
+  disqualified: {
+    title: "Disqualified",
+    next: "This application is closed.",
+    action: "Review future postings and keep your profile updated.",
   },
   rejected: {
     title: "Not selected",
@@ -112,10 +156,11 @@ const statusGuidance = {
 const filterOptions = [
   { value: "all", label: "All" },
   { value: "submitted", label: "Submitted" },
-  { value: "pending_review", label: "Pending Review" },
-  { value: "for_compliance", label: "Compliance" },
-  { value: "under_review", label: "Under Review" },
+  { value: "reviewed", label: "Reviewed" },
   { value: "qualified", label: "Qualified" },
+  { value: "shortlisted", label: "Shortlisted" },
+  { value: "selected", label: "Selected" },
+  { value: "disqualified", label: "Disqualified" },
   { value: "rejected", label: "Rejected" },
   { value: "hired", label: "Hired" },
 ];
@@ -123,27 +168,6 @@ const filterOptions = [
 const compactButtonClass =
   "inline-flex h-9 items-center justify-center rounded-lg px-4 text-sm font-semibold transition";
 const applicationPageSizeOptions = [5, 10, 20];
-const complianceRequirementStatuses = new Set([
-  "missing",
-  "needs_resubmission",
-  "rejected",
-]);
-const uploadMaxFileSize = 15 * 1024 * 1024;
-const acceptedRequirementFileTypes = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-  "application/pdf",
-  "text/plain",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "application/vnd.ms-powerpoint",
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-];
-const acceptedRequirementFileTypesText = acceptedRequirementFileTypes.join(",");
 
 const formatDate = (value) => {
   if (!value) return "N/A";
@@ -158,7 +182,8 @@ const formatDate = (value) => {
   }).format(date);
 };
 
-const getStatusLabel = (status) => statusLabels[status] || status || "Submitted";
+const getStatusLabel = (status) =>
+  statusLabels[status] || status || "Pending Review";
 
 const getStatusGuidance = (status) =>
   statusGuidance[status] || statusGuidance.submitted;
@@ -176,7 +201,7 @@ const getDeadlineText = (application) => {
 };
 
 const getRequirementCount = (application) => {
-  if (Array.isArray(application.requirements)) {
+  if (Array.isArray(application.requirements) && application.requirements.length) {
     return application.requirements.length;
   }
 
@@ -188,19 +213,23 @@ const getRequirementCount = (application) => {
 };
 
 const requirementStatusLabels = {
-  pending: "Pending Review",
-  approved: "Approved",
-  rejected: "Rejected",
-  needs_resubmission: "Needs Resubmission",
-  missing: "Missing",
+  pending: "Pending",
+  checked: "Checked",
+  incomplete: "Incomplete",
+  invalid: "Invalid",
+  approved: "Checked",
+  missing: "Incomplete",
+  rejected: "Invalid",
 };
 
 const requirementStatusClasses = {
   pending: "border-blue-200 bg-blue-50 text-blue-700",
+  checked: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  incomplete: "border-orange-200 bg-orange-50 text-orange-800",
+  invalid: "border-red-200 bg-red-50 text-red-700",
   approved: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  rejected: "border-rose-200 bg-rose-50 text-rose-700",
-  needs_resubmission: "border-orange-200 bg-orange-50 text-orange-700",
-  missing: "border-slate-300 bg-slate-100 text-slate-700",
+  missing: "border-orange-200 bg-orange-50 text-orange-800",
+  rejected: "border-red-200 bg-red-50 text-red-700",
 };
 
 const getRequirementStatusLabel = (status) =>
@@ -287,10 +316,11 @@ export default function ApplicantDashboard() {
     () => ({
       all: 0,
       submitted: 0,
-      pending_review: 0,
-      for_compliance: 0,
-      under_review: 0,
+      reviewed: 0,
       qualified: 0,
+      shortlisted: 0,
+      selected: 0,
+      disqualified: 0,
       rejected: 0,
       hired: 0,
       ...statusCounts,
@@ -315,63 +345,6 @@ export default function ApplicantDashboard() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selectedApplication]);
-
-  const replaceRequirementFile = async (application, requirement, file) => {
-    if (!file) return;
-
-    if (file.size > uploadMaxFileSize) {
-      showToast({
-        type: "warning",
-        message: "Please upload a file smaller than 15 MB.",
-      });
-      return;
-    }
-
-    if (!acceptedRequirementFileTypes.includes(file.type)) {
-      showToast({
-        type: "warning",
-        message: "Upload images, PDFs, or common Office documents only.",
-      });
-      return;
-    }
-
-    try {
-      const payload = new FormData();
-      payload.append("file", file);
-      payload.append("requirementLabel", requirement.label || requirement.field);
-
-      const uploadResult = await apiRequest(
-        `/api/applicant/requirement-files/${encodeURIComponent(
-          requirement.field
-        )}`,
-        { method: "POST", body: payload }
-      );
-      const updateResult = await apiRequest(
-        `/api/applicant/applications/${application.id}/requirements/${requirement.id}`,
-        {
-          method: "PATCH",
-          body: JSON.stringify({ fileId: uploadResult.file.id }),
-        }
-      );
-      const updatedApplication = updateResult.application;
-
-      setApplications((current) =>
-        current.map((item) =>
-          item.id === updatedApplication.id ? updatedApplication : item
-        )
-      );
-      setSelectedApplication(updatedApplication);
-      showToast({
-        type: "success",
-        message: "Requirement replacement submitted.",
-      });
-    } catch (error) {
-      showToast({
-        type: "error",
-        message: error.message || "Failed to replace requirement.",
-      });
-    }
-  };
 
   return (
     <main className={`min-h-screen bg-slate-100 pt-24 ${contentPadding}`}>
@@ -437,20 +410,20 @@ export default function ApplicantDashboard() {
                       label="Active"
                       value={
                         (counts.submitted || 0) +
-                        (counts.pending_review || 0) +
-                        (counts.under_review || 0)
+                        (counts.reviewed || 0) +
+                        (counts.qualified || 0) +
+                        (counts.shortlisted || 0)
                       }
                     />
                     <TrackerStat
-                      label="Compliance"
-                      value={counts.for_compliance || 0}
+                      label="Selected"
+                      value={(counts.selected || 0) + (counts.hired || 0)}
                     />
                     <TrackerStat
                       label="Completed"
                       value={
-                        (counts.qualified || 0) +
                         (counts.rejected || 0) +
-                        (counts.hired || 0)
+                        (counts.disqualified || 0)
                       }
                     />
                   </div>
@@ -539,7 +512,6 @@ export default function ApplicantDashboard() {
         <ApplicationDetailsModal
           application={selectedApplication}
           onClose={() => setSelectedApplication(null)}
-          onReplaceRequirement={replaceRequirementFile}
         />
       )}
     </main>
@@ -633,9 +605,8 @@ function ApplicationRow({ application, onSelect }) {
   );
 }
 
-function ApplicationDetailsModal({ application, onClose, onReplaceRequirement }) {
+function ApplicationDetailsModal({ application, onClose }) {
   const [previewFile, setPreviewFile] = useState(null);
-  const [replacingRequirementId, setReplacingRequirementId] = useState(null);
   const status = application.status || "submitted";
   const statusTone = statusStyles[status] || statusStyles.submitted;
   const guidance = getStatusGuidance(status);
@@ -646,21 +617,12 @@ function ApplicationDetailsModal({ application, onClose, onReplaceRequirement })
   const remarks = String(application.reviewNotes || "").trim();
   const jobUrl = application.jobOpeningId ? `/jobs/${application.jobOpeningId}` : "";
   const requirementCount = getRequirementCount(application);
-  const requirements = Array.isArray(application.requirements)
-    ? application.requirements
-    : [];
-
-  const handleReplaceRequirement = async (requirement, file) => {
-    if (!file || !onReplaceRequirement) return;
-
-    setReplacingRequirementId(requirement.id);
-
-    try {
-      await onReplaceRequirement(application, requirement, file);
-    } finally {
-      setReplacingRequirementId(null);
-    }
-  };
+  const requirements =
+    Array.isArray(application.requirements) && application.requirements.length
+      ? application.requirements
+      : Array.isArray(application.jobRequirements)
+        ? application.jobRequirements
+        : [];
 
   return (
     <div
@@ -774,11 +736,6 @@ function ApplicationDetailsModal({ application, onClose, onReplaceRequirement })
                   {requirements.map((requirement) => {
                     const requirementStatus = requirement.status || "pending";
                     const requirementFile = requirement.file;
-                    const canReplace =
-                      status === "for_compliance" &&
-                      complianceRequirementStatuses.has(requirementStatus);
-                    const isReplacing =
-                      String(replacingRequirementId) === String(requirement.id);
 
                     return (
                       <div
@@ -828,35 +785,6 @@ function ApplicationDetailsModal({ application, onClose, onReplaceRequirement })
                               >
                                 View
                               </button>
-                            )}
-
-                            {canReplace && (
-                              <label
-                                className={`inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#0056b3] px-3 text-xs font-semibold text-white transition hover:bg-[#003a78] ${
-                                  isReplacing ? "cursor-wait opacity-80" : ""
-                                }`}
-                              >
-                                {isReplacing && (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                )}
-                                {isReplacing ? "Uploading" : "Replace"}
-                                <input
-                                  type="file"
-                                  accept={acceptedRequirementFileTypesText}
-                                  disabled={isReplacing}
-                                  className="sr-only"
-                                  onClick={(event) => {
-                                    event.currentTarget.value = "";
-                                  }}
-                                  onChange={(event) => {
-                                    const nextFile = event.target.files?.[0];
-                                    handleReplaceRequirement(
-                                      requirement,
-                                      nextFile
-                                    );
-                                  }}
-                                />
-                              </label>
                             )}
                           </div>
                         </div>
