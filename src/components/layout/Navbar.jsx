@@ -7,11 +7,12 @@ const Navbar = () => {
 
   const isLoggedIn = Boolean(user);
   const homePath = isLoggedIn ? getAuthenticatedHomePath(user) : "/";
+  const isAuthEntryPage =
+    location.pathname === "/login" || location.pathname === "/register";
   const hidesMobileGuestMenu =
-    location.pathname === "/login" ||
-    location.pathname === "/register" ||
-    location.pathname === "/activate";
+    isAuthEntryPage || location.pathname === "/activate";
   const showMobileGuestActions = !isLoggedIn && !hidesMobileGuestMenu;
+  const showMobileVacanciesShortcut = !isLoggedIn && isAuthEntryPage;
 
   return (
     <nav className="fixed left-0 top-0 z-[60] h-[96px] w-full bg-[#0056b3] shadow-md">
@@ -77,21 +78,34 @@ const Navbar = () => {
         </div>
 
         {/* Mobile guest actions */}
-        {showMobileGuestActions && (
+        {(showMobileGuestActions || showMobileVacanciesShortcut) && (
           <div className="ml-auto flex items-center gap-2 px-3 md:hidden">
-            <Link
-              to="/login"
-              className="rounded-lg border border-white/40 px-3 py-2 text-xs font-semibold text-white"
-            >
-              Log in
-            </Link>
+            {showMobileVacanciesShortcut && (
+              <Link
+                to="/"
+                className="rounded-lg border border-white/40 px-3 py-2 text-xs font-semibold text-white"
+              >
+                Vacancies
+              </Link>
+            )}
 
-            <Link
-              to="/register"
-              className="rounded-lg bg-white px-3 py-2 text-xs font-semibold text-[#0056b3]"
-            >
-              SignUp
-            </Link>
+            {showMobileGuestActions && (
+              <>
+                <Link
+                  to="/login"
+                  className="rounded-lg border border-white/40 px-3 py-2 text-xs font-semibold text-white"
+                >
+                  Log in
+                </Link>
+
+                <Link
+                  to="/register"
+                  className="rounded-lg bg-white px-3 py-2 text-xs font-semibold text-[#0056b3]"
+                >
+                  SignUp
+                </Link>
+              </>
+            )}
           </div>
         )}
       </div>

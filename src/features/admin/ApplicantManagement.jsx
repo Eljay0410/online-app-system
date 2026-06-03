@@ -129,6 +129,10 @@ function formatUanDisplay(value) {
   return rawValue.replace(/^UAN[-:\s]*/i, "") || rawValue;
 }
 
+function formatApplicantListName(value) {
+  return String(value || "Unnamed Applicant").toLocaleUpperCase("en-PH");
+}
+
 function getPrimaryStatus(applicant) {
   const counts = applicant?.applicationStatusCounts || {};
   const [status] =
@@ -587,7 +591,7 @@ function ApplicantRow({ applicant, onView, onEdit }) {
       </td>
       <td className="px-4 py-4">
         <p className="break-words font-bold text-slate-950 [overflow-wrap:anywhere]">
-          {applicant.fullName}
+          {formatApplicantListName(applicant.fullName)}
         </p>
         <p className="mt-1 break-all text-xs text-slate-500">
           {applicant.email || "No email"}
@@ -638,7 +642,7 @@ function ApplicantCard({ applicant, onView, onEdit }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="break-words text-sm font-bold text-slate-950 [overflow-wrap:anywhere]">
-            {applicant.fullName}
+            {formatApplicantListName(applicant.fullName)}
           </h3>
           <p className="mt-1 break-all text-xs text-slate-500">
             {applicant.email || "No email"}
