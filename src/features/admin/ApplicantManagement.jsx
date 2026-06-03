@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+  ChevronDown,
   Eye,
   FileText,
   Loader2,
@@ -16,6 +17,7 @@ import { useToast } from "../../components/ui/toastContext";
 import { apiRequest } from "../../lib/api";
 
 const pageSizeOptions = [10, 25, 50];
+const letterFilterOptions = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 const emptyDateFilter = {
   date: "",
   dateFrom: "",
@@ -25,12 +27,12 @@ const emptyDateFilter = {
 const statusLabels = {
   submitted: "Pending Review",
   reviewed: "Reviewed",
-  qualified: "Qualified",
+  qualified: "Qualified (Screened)",
   disqualified: "Disqualified",
   shortlisted: "Shortlisted",
   selected: "Selected",
   rejected: "Rejected",
-  hired: "Hired",
+  hired: "Hired (Final)",
   pending_review: "Pending Review",
   for_compliance: "Pending Review",
   under_review: "Under Review",
@@ -83,8 +85,16 @@ function getStatusLabel(status) {
 function getStatusBadgeClass(status) {
   const value = String(status || "").toLowerCase();
 
-  if (["qualified", "selected", "hired"].includes(value)) {
+  if (value === "qualified") {
+    return "border-sky-200 bg-sky-50 text-sky-700";
+  }
+
+  if (value === "selected") {
     return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+
+  if (value === "hired") {
+    return "border-teal-300 bg-teal-50 text-teal-800";
   }
 
   if (["rejected", "disqualified"].includes(value)) {
@@ -112,6 +122,13 @@ function getRequirementFileName(file) {
   return file?.name || file?.fileName || file?.filename || "Uploaded file";
 }
 
+function formatUanDisplay(value) {
+  const rawValue = String(value || "").trim();
+  if (!rawValue) return "No UAN";
+
+  return rawValue.replace(/^UAN[-:\s]*/i, "") || rawValue;
+}
+
 function getPrimaryStatus(applicant) {
   const counts = applicant?.applicationStatusCounts || {};
   const [status] =
@@ -136,6 +153,7 @@ function buildEditForm(applicant = {}) {
 
 export default function ApplicantManagement() {
   const { showToast } = useToast();
+  const requestIdRef = useRef(0);
   const [applicants, setApplicants] = useState([]);
   const [pagination, setPagination] = useState({
     limit: 10,
@@ -146,6 +164,8 @@ export default function ApplicantManagement() {
   const [pageSize, setPageSize] = useState(10);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+  const [letterFilter, setLetterFilter] = useState("all");
+  const [isLetterMenuOpen, setIsLetterMenuOpen] = useState(false);
   const [dateFilter, setDateFilter] = useState(emptyDateFilter);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedApplicant, setSelectedApplicant] = useState(null);
@@ -157,6 +177,7 @@ export default function ApplicantManagement() {
 
   const hasFilters =
     Boolean(searchTerm.trim()) ||
+    letterFilter !== "all" ||
     Boolean(dateFilter.date) ||
     Boolean(dateFilter.dateFrom) ||
     Boolean(dateFilter.dateTo);
@@ -172,12 +193,16 @@ export default function ApplicantManagement() {
 
   useEffect(() => {
     let isMounted = true;
+    const controller = new AbortController();
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
     const params = new URLSearchParams({
       limit: String(pageSize),
-      offset: String((page - 1) * pageSize),
+      page: String(page),
     });
 
     if (debouncedSearchTerm) params.set("q", debouncedSearchTerm);
+    if (letterFilter !== "all") params.set("letter", letterFilter);
     if (dateFilter.date) {
       params.set("date", dateFilter.date);
     } else {
@@ -186,26 +211,35 @@ export default function ApplicantManagement() {
     }
 
     queueMicrotask(() => {
-      if (isMounted) setIsLoading(true);
+      if (isMounted && requestId === requestIdRef.current) {
+        setIsLoading(true);
+      }
     });
     apiRequest(`/api/admin/applicant-management?${params.toString()}`, {
       dedupe: false,
+      signal: controller.signal,
     })
       .then((result) => {
-        if (!isMounted) return;
+        if (!isMounted || requestId !== requestIdRef.current) return;
 
-        const nextApplicants = result.applicants || [];
+        const nextApplicants = result.applicants || result.data || [];
         setApplicants(nextApplicants);
         setPagination(
           result.pagination || {
             limit: pageSize,
             offset: (page - 1) * pageSize,
             total: nextApplicants.length,
+            totalRecords: nextApplicants.length,
+            totalPages: 1,
           }
         );
+        if (result.pagination?.page && result.pagination.page !== page) {
+          setPage(result.pagination.page);
+        }
       })
       .catch((error) => {
-        if (isMounted) {
+        if (error?.name === "AbortError") return;
+        if (isMounted && requestId === requestIdRef.current) {
           showToast({
             type: "error",
             message: error.message || "Failed to load applicant accounts.",
@@ -213,17 +247,19 @@ export default function ApplicantManagement() {
         }
       })
       .finally(() => {
-        if (isMounted) setIsLoading(false);
+        if (isMounted && requestId === requestIdRef.current) setIsLoading(false);
       });
 
     return () => {
       isMounted = false;
+      controller.abort();
     };
   }, [
     dateFilter.date,
     dateFilter.dateFrom,
     dateFilter.dateTo,
     debouncedSearchTerm,
+    letterFilter,
     page,
     pageSize,
     showToast,
@@ -322,15 +358,26 @@ export default function ApplicantManagement() {
 
   const clearFilters = () => {
     setSearchTerm("");
+    setLetterFilter("all");
+    setIsLetterMenuOpen(false);
     setDateFilter(emptyDateFilter);
     setPage(1);
   };
+
+  const updateLetterFilter = (value) => {
+    setLetterFilter(value);
+    setIsLetterMenuOpen(false);
+    setPage(1);
+  };
+
+  const letterFilterLabel =
+    letterFilter === "all" ? "All letters" : letterFilter.toUpperCase();
 
   return (
     <>
       <section className="oas-panel">
         <div className="border-b border-slate-200 bg-slate-50 px-3 py-3 sm:px-5 sm:py-4">
-          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_220px_auto] sm:gap-3">
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_220px_180px_auto] sm:gap-3">
             <div className="relative min-w-0">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
@@ -350,6 +397,61 @@ export default function ApplicantManagement() {
                 setPage(1);
               }}
             />
+
+            <div className="relative min-w-0">
+              <button
+                type="button"
+                onClick={() => setIsLetterMenuOpen((current) => !current)}
+                aria-expanded={isLetterMenuOpen}
+                className="inline-flex h-10 w-full items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-semibold text-slate-700 outline-none hover:bg-slate-50 focus:ring-2 focus:ring-blue-500 sm:h-11 sm:rounded-xl sm:text-sm"
+              >
+                <span className="min-w-0 truncate">
+                  Name starts: {letterFilterLabel}
+                </span>
+                <ChevronDown
+                  className={`h-4 w-4 shrink-0 transition ${
+                    isLetterMenuOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+
+              {isLetterMenuOpen && (
+                <div className="absolute left-0 right-0 z-30 mt-2 rounded-lg border border-slate-200 bg-white p-2 shadow-xl sm:left-auto sm:w-64">
+                  <button
+                    type="button"
+                    onClick={() => updateLetterFilter("all")}
+                    className={`mb-2 h-9 w-full rounded-lg px-3 text-left text-sm font-bold transition ${
+                      letterFilter === "all"
+                        ? "bg-[#0056b3] text-white"
+                        : "text-slate-700 hover:bg-slate-100"
+                    }`}
+                  >
+                    All letters
+                  </button>
+
+                  <div className="grid grid-cols-6 gap-1.5">
+                    {letterFilterOptions.map((letter) => {
+                      const value = letter.toLowerCase();
+
+                      return (
+                        <button
+                          key={letter}
+                          type="button"
+                          onClick={() => updateLetterFilter(value)}
+                          className={`grid h-8 place-items-center rounded-lg text-xs font-bold transition ${
+                            letterFilter === value
+                              ? "bg-[#0056b3] text-white"
+                              : "text-slate-700 hover:bg-slate-100"
+                          }`}
+                        >
+                          {letter}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {hasFilters && (
               <button
@@ -427,7 +529,7 @@ export default function ApplicantManagement() {
           <PaginationControls
             page={page}
             pageSize={pageSize}
-            totalItems={pagination.total || visibleCount}
+            totalItems={pagination.totalRecords || pagination.total || visibleCount}
             currentCount={visibleCount}
             onPageChange={setPage}
             onPageSizeChange={(nextSize) => {
@@ -476,12 +578,12 @@ export default function ApplicantManagement() {
 }
 
 function ApplicantRow({ applicant, onView, onEdit }) {
-  const primaryStatus = getPrimaryStatus(applicant);
-
   return (
     <tr className="align-top transition hover:bg-slate-50">
       <td className="px-4 py-4">
-        <p className="font-bold text-blue-700">{applicant.uan || "No UAN"}</p>
+        <p className="font-bold text-blue-700">
+          {formatUanDisplay(applicant.uan)}
+        </p>
       </td>
       <td className="px-4 py-4">
         <p className="break-words font-bold text-slate-950 [overflow-wrap:anywhere]">
@@ -507,16 +609,9 @@ function ApplicantRow({ applicant, onView, onEdit }) {
         {formatDate(applicant.dateRegistered || applicant.createdAt)}
       </td>
       <td className="px-4 py-4">
-        <div
-          className={`inline-flex max-w-full items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 py-1 text-xs font-semibold ${
-            primaryStatus
-              ? getStatusBadgeClass(primaryStatus)
-              : "border-slate-200 bg-slate-50 text-slate-700"
-          }`}
-        >
-          <span className="font-bold">{applicant.applicationCount || 0}</span>
-          {primaryStatus && <span>{getStatusLabel(primaryStatus)}</span>}
-        </div>
+        <p className="font-semibold text-slate-700">
+          {applicant.applicationCount || 0}
+        </p>
       </td>
       <td className="px-4 py-4 text-slate-600">
         {applicant.uploadedFileCount || 0}
@@ -542,10 +637,7 @@ function ApplicantCard({ applicant, onView, onEdit }) {
     <article className="rounded-lg border border-slate-200 bg-white px-3 py-3 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-blue-700">
-            {applicant.uan || "No UAN"}
-          </p>
-          <h3 className="mt-1 break-words text-sm font-bold text-slate-950 [overflow-wrap:anywhere]">
+          <h3 className="break-words text-sm font-bold text-slate-950 [overflow-wrap:anywhere]">
             {applicant.fullName}
           </h3>
           <p className="mt-1 break-all text-xs text-slate-500">
@@ -563,6 +655,7 @@ function ApplicantCard({ applicant, onView, onEdit }) {
       </div>
 
       <dl className="mt-3 grid gap-2 text-xs">
+        <InfoPair label="UAN" value={formatUanDisplay(applicant.uan)} />
         <InfoPair label="Contact" value={applicant.contactNumber || "N/A"} />
         <InfoPair
           label="Registered"
@@ -627,7 +720,7 @@ function ApplicantDetailsModal({ applicant, onClose, onEdit, onPreviewFile }) {
               {applicant.fullName}
             </h3>
             <p className="mt-1 break-words text-sm text-slate-500 [overflow-wrap:anywhere]">
-              {applicant.uan || "Not assigned"}
+              {formatUanDisplay(applicant.uan)}
             </p>
           </div>
 
@@ -705,7 +798,7 @@ function ApplicantDetailsModal({ applicant, onClose, onEdit, onPreviewFile }) {
               <h4 className="text-sm font-bold text-slate-900">
                 Applications Submitted
               </h4>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600">
+              <span className="text-xs font-semibold text-slate-600">
                 {applicant.applicationCount || applications.length} total
               </span>
             </div>

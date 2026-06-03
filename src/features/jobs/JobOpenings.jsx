@@ -19,11 +19,8 @@ import {
 import { useToast } from "../../components/ui/toastContext";
 import {
   DeadlineDetails,
-  QualificationStandards,
-  RequirementSummary,
   summarizeVacancyItems,
-  VacancyBreakdown,
-  VacancySummaryTable,
+  VacancyDetailsContent,
 } from "./jobPostingUi";
 
 const jobPageSizeOptions = [6, 9, 12];
@@ -401,11 +398,7 @@ function JobDetailsModal({ job, onClose, onApply }) {
         </div>
 
         <div className="min-h-0 overflow-y-auto px-4 py-4 sm:px-5">
-          <VacancySummaryTable job={job} showHeading={false} />
-
-          <VacancyBreakdown job={job} showHeading={false} />
-          <QualificationStandards job={job} />
-          <RequirementSummary job={job} />
+          <VacancyDetailsContent job={job} showTitle={false} />
         </div>
 
         <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-200 px-4 py-3 sm:flex-row sm:justify-end sm:px-5 sm:py-4">

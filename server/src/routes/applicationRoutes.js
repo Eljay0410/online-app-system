@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   applyToJob,
   assignApplicationToVacancyItem,
+  getAdminApplicationDetail,
   getApplicantProfile,
   listAdminApplications,
   listApplicantApplications,
@@ -21,6 +22,13 @@ router.get(
   requireAuth,
   requireRoles("admin"),
   listAdminApplications
+);
+
+router.get(
+  "/admin/applications/:id",
+  requireAuth,
+  requireRoles("admin"),
+  getAdminApplicationDetail
 );
 
 router.patch(

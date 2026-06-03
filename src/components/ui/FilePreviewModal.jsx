@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Download, Loader2, X } from "lucide-react";
+import { ArrowLeft, Download, ExternalLink, Loader2, X } from "lucide-react";
 import { API_BASE_URL, getAuthToken } from "../../lib/api";
 
 function getFileName(file = {}) {
@@ -25,6 +25,18 @@ function canPreviewType(type) {
   );
 }
 
+function isWordDocument(fileName = "", fileType = "") {
+  const normalizedName = String(fileName || "").toLowerCase();
+
+  return (
+    fileType === "application/msword" ||
+    fileType ===
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    normalizedName.endsWith(".doc") ||
+    normalizedName.endsWith(".docx")
+  );
+}
+
 async function fetchProtectedBlob(path) {
   const token = getAuthToken();
   const response = await fetch(buildApiUrl(path), {
@@ -43,18 +55,21 @@ export default function FilePreviewModal({
   onClose,
   backLabel = "Back to details",
 }) {
-  const [objectUrl, setObjectUrl] = useState(file?.dataUrl || "");
-  const [isLoading, setIsLoading] = useState(
-    Boolean(file?.previewUrl && !file?.dataUrl)
-  );
-  const [errorMessage, setErrorMessage] = useState("");
   const fileName = getFileName(file);
   const fileType = getFileType(file);
-  const canPreview = file?.dataUrl || file?.canPreview || canPreviewType(fileType);
+  const canInlinePreview =
+    Boolean(file?.dataUrl) || Boolean(file?.canPreview) || canPreviewType(fileType);
+  const [objectUrl, setObjectUrl] = useState(file?.dataUrl || "");
+  const [isLoading, setIsLoading] = useState(
+    Boolean(file?.previewUrl && !file?.dataUrl && canInlinePreview)
+  );
+  const [isOpening, setIsOpening] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const isImage = fileType.startsWith("image/") || file?.dataUrl?.startsWith("data:image/");
   const isPdf =
     fileType === "application/pdf" || file?.dataUrl?.startsWith("data:application/pdf");
   const isText = fileType === "text/plain";
+  const isWordFile = isWordDocument(fileName, fileType);
 
   const downloadPath = useMemo(
     () => file?.downloadUrl || file?.previewUrl || "",
@@ -64,8 +79,18 @@ export default function FilePreviewModal({
   useEffect(() => {
     let isMounted = true;
     let nextObjectUrl = "";
+    const shouldLoadPreview = Boolean(
+      file?.previewUrl && !file?.dataUrl && canInlinePreview
+    );
 
-    if (!file?.previewUrl || file?.dataUrl) return () => {};
+    queueMicrotask(() => {
+      if (!isMounted) return;
+      setObjectUrl(file?.dataUrl || "");
+      setErrorMessage("");
+      setIsLoading(shouldLoadPreview);
+    });
+
+    if (!shouldLoadPreview) return () => {};
 
     fetchProtectedBlob(file.previewUrl)
       .then((blob) => {
@@ -86,7 +111,7 @@ export default function FilePreviewModal({
       isMounted = false;
       if (nextObjectUrl) URL.revokeObjectURL(nextObjectUrl);
     };
-  }, [file]);
+  }, [canInlinePreview, file]);
 
   const downloadFile = async () => {
     try {
@@ -105,6 +130,37 @@ export default function FilePreviewModal({
       setErrorMessage(error.message || "Could not download this file.");
     }
   };
+
+  const openInNewTab = async () => {
+    if (!file?.dataUrl && !downloadPath) return;
+
+    setIsOpening(true);
+    setErrorMessage("");
+
+    try {
+      const url = file?.dataUrl
+        ? file.dataUrl
+        : URL.createObjectURL(await fetchProtectedBlob(downloadPath));
+      const openedWindow = window.open(url, "_blank", "noopener,noreferrer");
+
+      if (!openedWindow) {
+        if (!file?.dataUrl) URL.revokeObjectURL(url);
+        throw new Error("Your browser blocked the new tab.");
+      }
+
+      if (!file?.dataUrl) {
+        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      }
+    } catch (error) {
+      setErrorMessage(error.message || "Could not open this file.");
+    } finally {
+      setIsOpening(false);
+    }
+  };
+
+  const fallbackMessage = isWordFile
+    ? "DOC and DOCX files cannot be previewed directly by most browsers."
+    : "Preview is not available for this file type.";
 
   return (
     <div
@@ -154,33 +210,68 @@ export default function FilePreviewModal({
             <div className="flex h-[50vh] items-center justify-center text-center text-sm font-semibold text-red-600">
               {errorMessage}
             </div>
-          ) : canPreview && objectUrl && isImage ? (
+          ) : canInlinePreview && objectUrl && isImage ? (
             <img
               src={objectUrl}
               alt={fileName}
               className="mx-auto max-h-[68vh] max-w-full rounded-lg bg-white object-contain shadow-sm"
             />
-          ) : canPreview && objectUrl && isPdf ? (
+          ) : canInlinePreview && objectUrl && isPdf ? (
             <iframe
               title={fileName}
               src={objectUrl}
               className="h-[68vh] w-full rounded-lg border border-slate-200 bg-white"
             />
-          ) : canPreview && objectUrl && isText ? (
+          ) : canInlinePreview && objectUrl && isText ? (
             <iframe
               title={fileName}
               src={objectUrl}
               className="h-[68vh] w-full rounded-lg border border-slate-200 bg-white"
             />
           ) : (
-            <div className="flex h-[50vh] flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-6 text-center">
+            <div className="flex min-h-[50vh] flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-4 py-8 text-center sm:px-6">
               <p className="text-sm font-semibold text-slate-800">
-                Preview is not available for this document type.
+                {fallbackMessage}
               </p>
-              <p className="mt-2 max-w-md text-sm text-slate-500">
-                Word documents need PDF conversion for inline preview. For now,
-                use the secure download fallback.
-              </p>
+              <dl className="mt-4 grid w-full max-w-md gap-2 rounded-lg bg-slate-50 p-3 text-left text-sm">
+                <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-3">
+                  <dt className="font-semibold text-slate-500">File</dt>
+                  <dd className="break-words font-semibold text-slate-900 [overflow-wrap:anywhere]">
+                    {fileName}
+                  </dd>
+                </div>
+                <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-3">
+                  <dt className="font-semibold text-slate-500">Type</dt>
+                  <dd className="break-words font-semibold text-slate-900 [overflow-wrap:anywhere]">
+                    {fileType || "Unknown"}
+                  </dd>
+                </div>
+              </dl>
+              <div className="mt-4 flex w-full max-w-md flex-col-reverse gap-2 sm:flex-row sm:justify-center">
+                <button
+                  type="button"
+                  onClick={downloadFile}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#0056b3] px-4 text-sm font-semibold text-white hover:bg-[#003a78]"
+                >
+                  <Download className="h-4 w-4" />
+                  Download
+                </button>
+                {(downloadPath || file?.dataUrl) && (
+                  <button
+                    type="button"
+                    onClick={openInNewTab}
+                    disabled={isOpening}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+                  >
+                    {isOpening ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <ExternalLink className="h-4 w-4" />
+                    )}
+                    Open in new tab
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -193,6 +284,22 @@ export default function FilePreviewModal({
           >
             {backLabel}
           </button>
+
+          {(downloadPath || file?.dataUrl) && (
+            <button
+              type="button"
+              onClick={openInNewTab}
+              disabled={isOpening}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+            >
+              {isOpening ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <ExternalLink className="h-4 w-4" />
+              )}
+              Open in new tab
+            </button>
+          )}
 
           <button
             type="button"

@@ -21,11 +21,7 @@ import {
   getSidebarContentPadding,
 } from "../../lib/sidebar";
 import {
-  QualificationStandards,
-  RequirementSummary,
-  VacancyBreakdown,
-  VacancyDescription,
-  VacancySummaryTable,
+  VacancyDetailsContent,
   formatTime,
 } from "../jobs/jobPostingUi";
 import { getApplicationSubmissionRule } from "../../lib/applicationRequirements";
@@ -741,12 +737,7 @@ function ApplicationDetailsModal({ application, onClose }) {
                 </span>
               </div>
 
-              <VacancySummaryTable job={vacancy} showHeading={false} />
-
-              <VacancyBreakdown job={vacancy} showHeading={false} />
-              <VacancyDescription job={vacancy} />
-              <QualificationStandards job={vacancy} />
-              <RequirementSummary job={vacancy} />
+              <VacancyDetailsContent job={vacancy} showTitle={false} />
             </div>
 
             {remarks && (

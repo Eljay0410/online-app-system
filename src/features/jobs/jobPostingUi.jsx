@@ -266,3 +266,46 @@ export function RequirementSummary({ job }) {
     </section>
   );
 }
+
+export function VacancyStatusBadge({ status }) {
+  const label = String(status || "open").replaceAll("_", " ");
+
+  return (
+    <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold capitalize tracking-normal text-slate-700">
+      {label}
+    </span>
+  );
+}
+
+export function VacancyDetailsContent({ job, actions = null, showTitle = true }) {
+  return (
+    <div className="min-w-0">
+      {showTitle && (
+        <div className="flex flex-col gap-4 border-b border-slate-200 pb-4 sm:flex-row sm:items-start sm:justify-between sm:pb-5">
+          <div className="min-w-0">
+            <h1 className="oas-page-title">{job?.title || "Vacancy"}</h1>
+            <p className="mt-1 break-words text-sm text-slate-500 [overflow-wrap:anywhere]">
+              {job?.location || job?.barangay || "Place of assignment not set"}
+            </p>
+          </div>
+
+          {actions}
+        </div>
+      )}
+
+      <div className={showTitle ? "mt-4 sm:mt-5" : ""}>
+        <VacancySummaryTable job={job} showHeading={showTitle} />
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+        <span>Status</span>
+        <VacancyStatusBadge status={job?.status} />
+      </div>
+
+      <VacancyBreakdown job={job || {}} showHeading={false} />
+      <VacancyDescription job={job || {}} />
+      <QualificationStandards job={job || {}} />
+      <RequirementSummary job={job || {}} />
+    </div>
+  );
+}
