@@ -225,6 +225,24 @@ function getIncomingPositionId(body = {}) {
   );
 }
 
+function getPositionSnapshotFromBody(body = {}) {
+  const title = normalizeSearch(body.title || body.positionTitle);
+  const category = normalizeSearch(
+    body.positionCategory || body.category || body.position_category
+  );
+
+  if (!title || !allowedPositionCategories.includes(category)) {
+    return null;
+  }
+
+  return {
+    id: null,
+    category,
+    title,
+    requirements: body.requirements || body.listOfRequirements || [],
+  };
+}
+
 async function getVacancyItemsByJobIds(queryable, jobIds = []) {
   const ids = Array.from(
     new Set(
@@ -1020,7 +1038,11 @@ function validateJobOpeningPayload(payload, currentJob = null) {
   const nextDeadline = payload.deadline ?? getDateInputValue(currentJob?.deadline);
   const nextDeadlineTime = payload.deadlineTime ?? currentJob?.deadline_time ?? "23:59";
 
-  if (payload.positionId !== undefined && !payload.positionId) {
+  if (
+    payload.positionId !== undefined &&
+    !payload.positionId &&
+    (!payload.title || !payload.positionCategory)
+  ) {
     throw createHttpError("Position is required.");
   }
 
@@ -1077,17 +1099,39 @@ function validateJobOpeningPayload(payload, currentJob = null) {
 export async function createJobOpening(req, res) {
   try {
     const incomingPositionId = getIncomingPositionId(req.body || {});
-    const selectedPosition = await getPosition(incomingPositionId);
+    const selectedPosition =
+      incomingPositionId === undefined || incomingPositionId === null
+        ? null
+        : await getPosition(incomingPositionId);
+    const fallbackPosition = getPositionSnapshotFromBody(req.body || {});
+    const positionForPayload = selectedPosition || fallbackPosition;
+
     if (!selectedPosition) {
+      if (!positionForPayload) {
+        return res.status(400).json({
+          success: false,
+          message: incomingPositionId
+            ? "Selected position was not found."
+            : "Position is required.",
+        });
+      }
+
+      if (incomingPositionId) {
+        console.warn(
+          "Creating vacancy from position snapshot because selected position was not found:",
+          incomingPositionId
+        );
+      }
+    }
+
+    if (!positionForPayload) {
       return res.status(400).json({
         success: false,
-        message: incomingPositionId
-          ? "Selected position was not found."
-          : "Position is required.",
+        message: "Position is required.",
       });
     }
 
-    const payload = normalizeJobOpeningPayload(req, selectedPosition);
+    const payload = normalizeJobOpeningPayload(req, positionForPayload);
     validateJobOpeningPayload(payload);
 
     const client = await pool.connect();

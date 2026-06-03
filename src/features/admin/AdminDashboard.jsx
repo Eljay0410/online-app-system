@@ -415,6 +415,19 @@ function getVacancyTotal(items = []) {
   );
 }
 
+function summarizeVacancyLocation(items = []) {
+  const stations = Array.from(
+    new Set(
+      (items || [])
+        .map((item) => String(item.schoolStation || "").trim())
+        .filter(Boolean)
+    )
+  );
+
+  if (stations.length <= 3) return stations.join(", ");
+  return `${stations.slice(0, 3).join(", ")} +${stations.length - 3} more`;
+}
+
 function getPositionRequirements(position, category = "", title = "") {
   if (Array.isArray(position?.requirements) && position.requirements.length > 0) {
     return position.requirements;
@@ -624,11 +637,30 @@ export default function AdminDashboard() {
     setFormErrors({});
 
     try {
+      const selectedPositionRecord = positions.find(
+        (position) => String(position.id) === String(form.positionId)
+      );
+      const vacancyItems = Array.isArray(form.vacancyItems)
+        ? form.vacancyItems
+        : [];
+      const vacancyTotal = getVacancyTotal(vacancyItems);
+      const vacancyLocation = summarizeVacancyLocation(vacancyItems);
+
       const result = await apiRequest("/api/admin/job-openings", {
         method: "POST",
         body: JSON.stringify({
           positionId: form.positionId ? Number(form.positionId) : null,
-          vacancyItems: form.vacancyItems,
+          positionCategory:
+            selectedPositionRecord?.category || form.positionCategory,
+          title: selectedPositionRecord?.title || form.title,
+          location: vacancyLocation,
+          vacancy: vacancyTotal,
+          vacancyItems,
+          requirements: getPositionRequirements(
+            selectedPositionRecord,
+            form.positionCategory,
+            form.title
+          ),
           deadline: form.deadline,
           deadlineTime: form.deadlineTime,
           salaryGrade: form.salaryGrade,
@@ -649,10 +681,18 @@ export default function AdminDashboard() {
       showToast({ type: "success", message: "Vacancy posted." });
       changeActiveSection("job-posting");
     } catch (err) {
+      const message = err.message || "Failed to post vacancy.";
+      setFormErrors((current) => ({ ...current, form: message }));
       showToast({
         type: "error",
-        message: err.message || "Failed to post vacancy.",
+        message,
       });
+
+      apiRequest("/api/admin/job-positions", { dedupe: false })
+        .then((positionResult) => {
+          setPositions(positionResult.positions || []);
+        })
+        .catch(() => {});
     } finally {
       setIsSaving(false);
     }
@@ -1087,6 +1127,12 @@ function CreateJobOpeningModal({
 
         <form onSubmit={createJob} className="flex min-h-0 flex-col" noValidate>
           <div className="grid min-h-0 gap-4 overflow-y-auto p-5">
+            {errors.form && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold leading-6 text-red-700">
+                {errors.form}
+              </div>
+            )}
+
             <div className="grid gap-4 sm:grid-cols-2">
               <JobFormField label="Position Category" required>
                 <select

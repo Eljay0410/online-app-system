@@ -150,33 +150,6 @@ const getDeadlineText = (application) => {
   return `${date} ${time}`.trim();
 };
 
-const requirementStatusLabels = {
-  pending: "Pending",
-  checked: "Checked",
-  incomplete: "Incomplete",
-  invalid: "Invalid",
-  approved: "Checked",
-  missing: "Incomplete",
-  rejected: "Invalid",
-};
-
-const requirementStatusClasses = {
-  pending: "border-blue-200 bg-blue-50 text-blue-700",
-  checked: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  incomplete: "border-orange-200 bg-orange-50 text-orange-800",
-  invalid: "border-red-200 bg-red-50 text-red-700",
-  approved: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  missing: "border-orange-200 bg-orange-50 text-orange-800",
-  rejected: "border-red-200 bg-red-50 text-red-700",
-};
-
-const getRequirementStatusLabel = (status) =>
-  requirementStatusLabels[status] || status || "Pending";
-
-const getRequirementStatusClass = (status) =>
-  requirementStatusClasses[status] ||
-  "border-slate-200 bg-slate-50 text-slate-700";
-
 const getRequirementFileName = (file) =>
   file?.name || file?.fileName || file?.filename || "No file attached";
 
@@ -860,12 +833,6 @@ function SubmittedRequirementsSection({
           {requirements.map((requirement, index) => {
             const requirementFile = requirement.file;
             const hasFile = Boolean(requirementFile);
-            const requirementStatus = hasFile
-              ? requirement.status || "pending"
-              : "incomplete";
-            const statusLabel = hasFile
-              ? getRequirementStatusLabel(requirementStatus)
-              : "Missing / Not submitted";
             const canPreview = Boolean(
               requirementFile?.previewUrl || requirementFile?.dataUrl
             );
@@ -882,21 +849,12 @@ function SubmittedRequirementsSection({
               >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="break-words text-sm font-bold text-slate-950 [overflow-wrap:anywhere]">
-                        {requirement.label || requirement.field || "Requirement"}
-                        {requirement.required ? (
-                          <span className="ml-1 text-red-600">*</span>
-                        ) : null}
-                      </h3>
-                      <span
-                        className={`inline-flex rounded-md border px-2 py-0.5 text-[11px] font-semibold ${getRequirementStatusClass(
-                          requirementStatus
-                        )}`}
-                      >
-                        {statusLabel}
-                      </span>
-                    </div>
+                    <h3 className="break-words text-sm font-bold text-slate-950 [overflow-wrap:anywhere]">
+                      {requirement.label || requirement.field || "Requirement"}
+                      {requirement.required ? (
+                        <span className="ml-1 text-red-600">*</span>
+                      ) : null}
+                    </h3>
 
                     {requirement.description && (
                       <p className="mt-1 break-words text-xs leading-5 text-slate-500 [overflow-wrap:anywhere]">
@@ -915,12 +873,6 @@ function SubmittedRequirementsSection({
                         ? getRequirementFileName(requirementFile)
                         : "No file uploaded for this requirement."}
                     </p>
-
-                    {requirement.remarks && (
-                      <p className="mt-2 rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-sm leading-6 text-orange-900">
-                        {requirement.remarks}
-                      </p>
-                    )}
                   </div>
 
                   {hasFile && (
