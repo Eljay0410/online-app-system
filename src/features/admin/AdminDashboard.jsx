@@ -3286,9 +3286,6 @@ function ApplicationFormModal({
 
   const files =
     jobPosition.files || application.files || application.attachments || {};
-  const vacancyItems = Array.isArray(application.jobItems)
-    ? application.jobItems
-    : [];
   const fullName =
     getApplicantName(application) ||
     [
@@ -3487,45 +3484,6 @@ function ApplicationFormModal({
                   ["Salary Amount", application.jobSalaryAmount || "N/A"],
                 ]}
               />
-
-              {vacancyItems.length > 0 && (
-                <div className="mt-4 min-w-0 max-w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-3 sm:rounded-xl">
-                  <h5 className="text-sm font-bold text-slate-800">
-                    School / Station Vacancy Items
-                  </h5>
-
-                  <div className="mt-3 w-full max-w-full overflow-x-auto overscroll-x-contain">
-                    <table className="w-full min-w-[520px] text-left text-xs">
-                      <thead className="uppercase text-slate-500">
-                        <tr>
-                          <th className="px-3 py-2">School/Station</th>
-                          <th className="px-3 py-2">Subject</th>
-                          <th className="px-3 py-2">Vacancy</th>
-                          <th className="px-3 py-2">Assigned</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {vacancyItems.map((item) => (
-                          <tr key={item.id} className="border-t border-slate-200">
-                            <td className="px-3 py-2 font-semibold text-slate-800">
-                              {item.schoolStation}
-                            </td>
-                            <td className="px-3 py-2 text-slate-600">
-                              {item.subjectArea || "General"}
-                            </td>
-                            <td className="px-3 py-2 text-slate-600">
-                              {item.vacancyCount}
-                            </td>
-                            <td className="px-3 py-2 text-slate-600">
-                              {item.assignedCount}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
 
               {requirements.length > 0 ? (
                 <div className="mt-4">
