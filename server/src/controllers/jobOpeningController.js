@@ -74,6 +74,10 @@ function isDeadlinePast(deadline, deadlineTime) {
   return Number.isNaN(deadlineAt.getTime()) || deadlineAt < new Date();
 }
 
+function firstDefined(...values) {
+  return values.find((value) => value !== undefined);
+}
+
 function createHttpError(message, statusCode = 400) {
   const error = new Error(message);
   error.statusCode = statusCode;
@@ -211,6 +215,14 @@ async function getPosition(positionId) {
   );
 
   return result.rows[0] || null;
+}
+
+function getIncomingPositionId(body = {}) {
+  return firstDefined(
+    body.positionId,
+    body.selectedPositionId,
+    body.position_id
+  );
 }
 
 async function getVacancyItemsByJobIds(queryable, jobIds = []) {
@@ -901,35 +913,51 @@ export async function deleteJobPosition(req, res) {
 }
 
 function normalizeJobOpeningPayload(req, selectedPosition = null, { partial = false } = {}) {
+  const incomingPositionId = getIncomingPositionId(req.body || {});
+  const incomingDeadline = firstDefined(
+    req.body?.deadline,
+    req.body?.applicationDeadline,
+    req.body?.application_deadline
+  );
+  const incomingDeadlineTime = firstDefined(
+    req.body?.deadlineTime,
+    req.body?.applicationDeadlineTime,
+    req.body?.application_deadline_time,
+    req.body?.time
+  );
   const hasItems =
     req.body?.vacancyItems !== undefined ||
     req.body?.items !== undefined ||
     req.body?.jobPostingItems !== undefined;
   const vacancyItems = partial && !hasItems
     ? undefined
-    : normalizeVacancyItems(req.body || {}, { allowFallback: !partial });
+    : normalizeVacancyItems(req.body || {}, { allowFallback: false });
   const title =
-    req.body?.title === undefined && partial
-      ? undefined
-      : String(req.body?.title || selectedPosition?.title || "").trim();
+    selectedPosition
+      ? String(selectedPosition.title || "").trim()
+      : partial
+        ? undefined
+        : "";
   const deadline =
-    req.body?.deadline === undefined && partial
+    incomingDeadline === undefined && partial
       ? undefined
-      : String(req.body?.deadline || "").trim();
+      : String(incomingDeadline || "").trim();
   const deadlineTime =
-    req.body?.deadlineTime === undefined && partial
+    incomingDeadlineTime === undefined && partial
       ? undefined
-      : normalizeDeadlineTime(req.body?.deadlineTime);
+      : normalizeDeadlineTime(incomingDeadlineTime, "");
   const status =
     req.body?.status === undefined && partial
       ? undefined
       : String(req.body?.status || "open").toLowerCase();
   const positionCategory =
-    req.body?.positionCategory === undefined && partial && !selectedPosition
-      ? undefined
-      : String(req.body?.positionCategory || selectedPosition?.category || "").trim();
+    selectedPosition
+      ? String(selectedPosition.category || "").trim()
+      : partial
+        ? undefined
+        : "";
   const positionId =
-    req.body?.positionId === undefined && partial
+    incomingPositionId === undefined && partial
       ? undefined
       : selectedPosition?.id || null;
   const requirements =
@@ -992,12 +1020,12 @@ function validateJobOpeningPayload(payload, currentJob = null) {
   const nextDeadline = payload.deadline ?? getDateInputValue(currentJob?.deadline);
   const nextDeadlineTime = payload.deadlineTime ?? currentJob?.deadline_time ?? "23:59";
 
-  if (payload.title !== undefined && !payload.title) {
-    throw createHttpError("Position title is required.");
+  if (payload.positionId !== undefined && !payload.positionId) {
+    throw createHttpError("Position is required.");
   }
 
-  if (payload.positionId !== undefined && !payload.positionId) {
-    throw createHttpError("Select a position from the Position Library.");
+  if (payload.title !== undefined && !payload.title) {
+    throw createHttpError("Selected position title is missing.");
   }
 
   if (payload.vacancyItems !== undefined && payload.vacancyItems.length === 0) {
@@ -1009,7 +1037,11 @@ function validateJobOpeningPayload(payload, currentJob = null) {
   }
 
   if (payload.deadlineTime === null) {
-    throw createHttpError("Invalid application deadline time.");
+    throw createHttpError("Invalid deadline time.");
+  }
+
+  if (payload.deadlineTime !== undefined && !payload.deadlineTime) {
+    throw createHttpError("Deadline time is required.");
   }
 
   if (payload.status !== undefined && !allowedJobStatuses.includes(payload.status)) {
@@ -1024,13 +1056,18 @@ function validateJobOpeningPayload(payload, currentJob = null) {
     throw createHttpError("Invalid position category.");
   }
 
-  ["salaryGrade", "salaryAmount", "education", "training", "experience", "eligibility"].forEach(
-    (field) => {
-      if (payload[field] !== undefined && !payload[field]) {
-        throw createHttpError(`${field} is required.`);
-      }
+  [
+    ["salaryGrade", "Salary grade"],
+    ["salaryAmount", "Salary amount"],
+    ["education", "Education"],
+    ["training", "Training"],
+    ["experience", "Experience"],
+    ["eligibility", "Eligibility"],
+  ].forEach(([field, label]) => {
+    if (payload[field] !== undefined && !payload[field]) {
+      throw createHttpError(`${label} is required.`);
     }
-  );
+  });
 
   if (nextStatus === "open" && nextDeadline && isDeadlinePast(nextDeadline, nextDeadlineTime)) {
     throw createHttpError("Open vacancies cannot have an expired application deadline.");
@@ -1039,13 +1076,14 @@ function validateJobOpeningPayload(payload, currentJob = null) {
 
 export async function createJobOpening(req, res) {
   try {
-    const selectedPosition = await getPosition(req.body?.positionId);
+    const incomingPositionId = getIncomingPositionId(req.body || {});
+    const selectedPosition = await getPosition(incomingPositionId);
     if (!selectedPosition) {
       return res.status(400).json({
         success: false,
-        message: req.body?.positionId
+        message: incomingPositionId
           ? "Selected position was not found."
-          : "Select a position from the Position Library.",
+          : "Position is required.",
       });
     }
 
@@ -1128,16 +1166,17 @@ export async function createJobOpening(req, res) {
 
 export async function updateJobOpening(req, res) {
   try {
+    const incomingPositionId = getIncomingPositionId(req.body || {});
     const selectedPosition =
-      req.body?.positionId === undefined
+      incomingPositionId === undefined
         ? undefined
-        : await getPosition(req.body.positionId);
-    if (req.body?.positionId !== undefined && !selectedPosition) {
+        : await getPosition(incomingPositionId);
+    if (incomingPositionId !== undefined && !selectedPosition) {
       return res.status(400).json({
         success: false,
-        message: req.body?.positionId
+        message: incomingPositionId
           ? "Selected position was not found."
-          : "Select a position from the Position Library.",
+          : "Position is required.",
       });
     }
 

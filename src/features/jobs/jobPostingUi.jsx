@@ -50,10 +50,15 @@ export const summarizeVacancyItems = (items = []) =>
   items.length
     ? items
         .slice(0, 3)
-        .map(
-          (item) =>
-            `${item.schoolStation}${item.subjectArea ? ` - ${item.subjectArea}` : ""} (${item.vacancyCount})`
-        )
+        .map((item) => {
+          const station = String(item.schoolStation || "School/Station").trim();
+          const subject = String(item.subjectArea || "").trim();
+          const count = Number(item.vacancyCount || 0);
+          const label = count === 1 ? "slot" : "slots";
+          const subjectLabel = subject ? ` (${subject})` : "";
+
+          return `${station}${subjectLabel}: ${count} ${label}`;
+        })
         .join("; ") + (items.length > 3 ? `; +${items.length - 3} more` : "")
     : "School/station not set";
 
@@ -94,7 +99,7 @@ export function JobInfoCard({ label, value, icon }) {
   );
 }
 
-export function VacancySummaryTable({ job }) {
+export function VacancySummaryTable({ job, showHeading = true }) {
   const rows = [
     ["Vacancies", job?.vacancy || "N/A"],
     ["Place of Assignment", job?.location || "N/A"],
@@ -106,8 +111,10 @@ export function VacancySummaryTable({ job }) {
 
   return (
     <section className="rounded-lg border border-slate-200 bg-slate-50 p-3 sm:p-4">
-      <h4 className="text-sm font-bold text-slate-900">Vacancy Summary</h4>
-      <div className="mt-3 overflow-x-auto">
+      {showHeading && (
+        <h4 className="text-sm font-bold text-slate-900">Vacancy Summary</h4>
+      )}
+      <div className={`${showHeading ? "mt-3" : ""} overflow-x-auto`}>
         <table className="w-full min-w-[360px] text-left text-sm">
           <tbody>
             {rows.map(([label, value]) => (
@@ -130,14 +137,16 @@ export function VacancySummaryTable({ job }) {
   );
 }
 
-export function VacancyBreakdown({ job }) {
+export function VacancyBreakdown({ job, showHeading = true }) {
   return (
     <section className="mt-4 rounded-lg border border-slate-200 bg-white p-3 sm:mt-5 sm:p-4">
-      <h4 className="text-sm font-bold text-slate-900">
-        School / Station Vacancy Breakdown
-      </h4>
+      {showHeading && (
+        <h4 className="text-sm font-bold text-slate-900">
+          School / Station Vacancy Breakdown
+        </h4>
+      )}
       {job.vacancyItems?.length ? (
-        <div className="mt-3 overflow-x-auto">
+        <div className={`${showHeading ? "mt-3" : ""} overflow-x-auto`}>
           <table className="w-full min-w-[480px] text-left text-xs sm:text-sm">
             <thead className="bg-slate-50 text-xs uppercase text-slate-500">
               <tr>
@@ -217,15 +226,20 @@ export function RequirementSummary({ job }) {
       <h4 className="text-sm font-bold text-slate-900">
         List of Requirements
       </h4>
-      {submissionRule.requiresPersonalSubmission ? (
+      {submissionRule.requiresPersonalSubmission && (
         <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-900">
           <p className="font-semibold">{submissionRule.notice.title}</p>
           <p className="mt-1">
-            Documentary requirements must be submitted personally to HR/Admin.
+            Applicants must submit the required documents in person to the Division Office.
           </p>
         </div>
-      ) : requirements.length ? (
-        <ul className="mt-3 space-y-2.5">
+      )}
+      {requirements.length ? (
+        <ul
+          className={`${
+            submissionRule.requiresPersonalSubmission ? "mt-4" : "mt-3"
+          } space-y-2.5`}
+        >
           {requirements.map((requirement) => (
             <li
               key={requirement.field || requirement.label}
@@ -244,7 +258,9 @@ export function RequirementSummary({ job }) {
         </ul>
       ) : (
         <p className="mt-3 text-sm text-slate-500">
-          No online upload requirements for this vacancy.
+          {submissionRule.requiresPersonalSubmission
+            ? "No physical requirements are configured for this vacancy."
+            : "No online upload requirements for this vacancy."}
         </p>
       )}
     </section>

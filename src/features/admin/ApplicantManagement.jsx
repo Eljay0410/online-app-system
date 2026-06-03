@@ -329,13 +329,6 @@ export default function ApplicantManagement() {
   return (
     <>
       <section className="oas-panel">
-        <div className="oas-panel-header">
-          <h2 className="oas-panel-title">Applicant Management</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            View applicant accounts and update safe basic profile information.
-          </p>
-        </div>
-
         <div className="border-b border-slate-200 bg-slate-50 px-3 py-3 sm:px-5 sm:py-4">
           <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_220px_auto] sm:gap-3">
             <div className="relative min-w-0">
@@ -388,13 +381,13 @@ export default function ApplicantManagement() {
           <table className="w-full min-w-[1040px] text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-4 py-3">UAN</th>
-                <th className="px-4 py-3">Applicant</th>
-                <th className="px-4 py-3">Contact</th>
-                <th className="px-4 py-3">Account Status</th>
-                <th className="px-4 py-3">Date Registered</th>
-                <th className="px-4 py-3">Applications</th>
-                <th className="px-4 py-3">Files</th>
+                <th className="w-44 px-4 py-3">UAN</th>
+                <th className="min-w-[240px] px-4 py-3">Applicant</th>
+                <th className="w-36 px-4 py-3">Contact</th>
+                <th className="w-36 px-4 py-3">Account Status</th>
+                <th className="w-40 px-4 py-3">Date Registered</th>
+                <th className="w-44 px-4 py-3">Applications</th>
+                <th className="w-20 px-4 py-3">Files</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
@@ -514,18 +507,16 @@ function ApplicantRow({ applicant, onView, onEdit }) {
         {formatDate(applicant.dateRegistered || applicant.createdAt)}
       </td>
       <td className="px-4 py-4">
-        <p className="font-bold text-slate-900">
-          {applicant.applicationCount || 0}
-        </p>
-        {primaryStatus && (
-          <span
-            className={`mt-1 inline-flex rounded-md border px-2 py-0.5 text-[11px] font-semibold ${getStatusBadgeClass(
-              primaryStatus
-            )}`}
-          >
-            {getStatusLabel(primaryStatus)}
-          </span>
-        )}
+        <div
+          className={`inline-flex max-w-full items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 py-1 text-xs font-semibold ${
+            primaryStatus
+              ? getStatusBadgeClass(primaryStatus)
+              : "border-slate-200 bg-slate-50 text-slate-700"
+          }`}
+        >
+          <span className="font-bold">{applicant.applicationCount || 0}</span>
+          {primaryStatus && <span>{getStatusLabel(primaryStatus)}</span>}
+        </div>
       </td>
       <td className="px-4 py-4 text-slate-600">
         {applicant.uploadedFileCount || 0}
@@ -635,8 +626,8 @@ function ApplicantDetailsModal({ applicant, onClose, onEdit, onPreviewFile }) {
             <h3 className="mt-2 break-words text-xl font-bold text-slate-950 [overflow-wrap:anywhere]">
               {applicant.fullName}
             </h3>
-            <p className="mt-1 text-sm text-slate-500">
-              UAN {applicant.uan || "Not assigned"}
+            <p className="mt-1 break-words text-sm text-slate-500 [overflow-wrap:anywhere]">
+              {applicant.uan || "Not assigned"}
             </p>
           </div>
 
@@ -724,11 +715,12 @@ function ApplicantDetailsModal({ applicant, onClose, onEdit, onPreviewFile }) {
                 {applicationStatusItems.map(([status, count]) => (
                   <span
                     key={status}
-                    className={`inline-flex rounded-md border px-2 py-0.5 text-[11px] font-semibold ${getStatusBadgeClass(
+                    className={`inline-flex max-w-full items-center gap-1.5 whitespace-nowrap rounded-md border px-2 py-0.5 text-center text-[11px] font-semibold leading-5 ${getStatusBadgeClass(
                       status
                     )}`}
                   >
-                    {getStatusLabel(status)}: {count}
+                    <span className="font-bold">{count}</span>
+                    <span>{getStatusLabel(status)}</span>
                   </span>
                 ))}
               </div>
@@ -739,7 +731,7 @@ function ApplicantDetailsModal({ applicant, onClose, onEdit, onPreviewFile }) {
                 applications.map((application) => (
                   <div
                     key={application.id}
-                    className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto]"
+                    className="grid min-w-0 gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,9rem)] sm:items-start"
                   >
                     <div className="min-w-0">
                       <p className="break-words text-sm font-bold text-slate-900 [overflow-wrap:anywhere]">
@@ -751,7 +743,7 @@ function ApplicantDetailsModal({ applicant, onClose, onEdit, onPreviewFile }) {
                       </p>
                     </div>
                     <span
-                      className={`inline-flex h-fit rounded-md border px-2 py-0.5 text-[11px] font-semibold ${getStatusBadgeClass(
+                      className={`inline-flex h-fit max-w-full justify-center whitespace-nowrap rounded-md border px-2 py-0.5 text-center text-[11px] font-semibold leading-5 sm:justify-self-end ${getStatusBadgeClass(
                         application.status
                       )}`}
                     >

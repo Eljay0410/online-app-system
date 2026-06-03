@@ -254,18 +254,21 @@ export default function JobOpenings() {
                   <div className="flex min-w-0 items-start gap-2">
                     <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
                     <span className="line-clamp-2 min-h-0 break-words leading-5 [overflow-wrap:anywhere] sm:min-h-10">
+                      <span className="font-semibold text-slate-600">
+                        School/Stations:
+                      </span>{" "}
                       {summarizeVacancyItems(job.vacancyItems || [])}
                     </span>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <BriefcaseBusiness className="h-4 w-4 shrink-0 text-slate-400" />
-                    <span>{job.vacancy} vacancy(ies)</span>
+                    <span>Total vacancies: {job.vacancy ?? "N/A"}</span>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <BriefcaseBusiness className="h-4 w-4 shrink-0 text-slate-400" />
-                    <span>Salary Grade {job.salaryGrade || "N/A"}</span>
+                    <span>Salary Grade: {job.salaryGrade || "N/A"}</span>
                   </div>
 
                   <div className="flex min-w-0 items-start gap-2">
@@ -398,9 +401,9 @@ function JobDetailsModal({ job, onClose, onApply }) {
         </div>
 
         <div className="min-h-0 overflow-y-auto px-4 py-4 sm:px-5">
-          <VacancySummaryTable job={job} />
+          <VacancySummaryTable job={job} showHeading={false} />
 
-          <VacancyBreakdown job={job} />
+          <VacancyBreakdown job={job} showHeading={false} />
           <QualificationStandards job={job} />
           <RequirementSummary job={job} />
         </div>
