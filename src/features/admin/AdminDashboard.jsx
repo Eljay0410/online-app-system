@@ -373,7 +373,8 @@ function clearErrorField(setErrors, field) {
 function normalizeComparableValue(field, value) {
   if (field === "vacancy") return Number(value || 0);
   if (field === "positionId") return value ? Number(value) : "";
-  if (field === "deadline") return String(value || "").slice(0, 10);
+  if (field === "deadline") return getDateInputValue(value);
+  if (field === "deadlineTime") return String(value || "").slice(0, 5);
   if (field === "requirements" || field === "vacancyItems") {
     return JSON.stringify(value || []);
   }
@@ -1644,13 +1645,22 @@ function RequirementPreview({
 function getDateInputValue(value) {
   if (!value) return "";
 
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return String(value).slice(0, 10);
+  const rawValue = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(rawValue)) {
+    return rawValue;
   }
 
-  return date.toISOString().slice(0, 10);
+  const date = new Date(value);
+
+  if (!Number.isNaN(date.getTime())) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  const datePart = rawValue.match(/(\d{4}-\d{2}-\d{2})/);
+  return datePart ? datePart[1] : rawValue.slice(0, 10);
 }
 
 function createEditJobForm(job) {

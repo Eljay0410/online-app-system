@@ -35,10 +35,10 @@ const Navbar = () => {
           </p>
         </Link>
 
-        <div className="hidden h-full flex-1 md:block" />
+        <div className="hidden h-full flex-1 lg:block" />
 
         {/* Desktop Right Side */}
-        <div className="hidden h-full items-center justify-end md:flex">
+        <div className="hidden h-full items-center justify-end lg:flex">
           <div className="flex h-full items-center gap-10 px-8">
             {!isLoggedIn && (
               <>
@@ -79,7 +79,7 @@ const Navbar = () => {
 
         {/* Mobile guest actions */}
         {(showMobileGuestActions || showMobileVacanciesShortcut) && (
-          <div className="ml-auto flex items-center gap-2 px-3 md:hidden">
+          <div className="ml-auto flex items-center gap-2 px-3 lg:hidden">
             {showMobileVacanciesShortcut && (
               <Link
                 to="/"
