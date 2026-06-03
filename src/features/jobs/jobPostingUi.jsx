@@ -267,16 +267,6 @@ export function RequirementSummary({ job }) {
   );
 }
 
-export function VacancyStatusBadge({ status }) {
-  const label = String(status || "open").replaceAll("_", " ");
-
-  return (
-    <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold capitalize tracking-normal text-slate-700">
-      {label}
-    </span>
-  );
-}
-
 export function VacancyDetailsContent({ job, actions = null, showTitle = true }) {
   return (
     <div className="min-w-0">
@@ -295,11 +285,6 @@ export function VacancyDetailsContent({ job, actions = null, showTitle = true })
 
       <div className={showTitle ? "mt-4 sm:mt-5" : ""}>
         <VacancySummaryTable job={job} showHeading={showTitle} />
-      </div>
-
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-        <span>Status</span>
-        <VacancyStatusBadge status={job?.status} />
       </div>
 
       <VacancyBreakdown job={job || {}} showHeading={false} />

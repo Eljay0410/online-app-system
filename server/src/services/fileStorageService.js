@@ -16,10 +16,10 @@ export const allowedUploadMimeTypes = new Map([
   ["image/gif", { extension: ".gif", previewType: "image" }],
   ["application/pdf", { extension: ".pdf", previewType: "pdf" }],
   ["text/plain", { extension: ".txt", previewType: "text" }],
-  ["application/msword", { extension: ".doc", previewType: "download" }],
+  ["application/msword", { extension: ".doc", previewType: "document" }],
   [
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    { extension: ".docx", previewType: "download" },
+    { extension: ".docx", previewType: "document" },
   ],
 ]);
 
@@ -379,7 +379,7 @@ export function toClientFile(row = {}) {
     requirementLabel: row.requirement_label || "",
     status: row.status || "",
     previewType,
-    canPreview: ["image", "pdf", "text"].includes(previewType),
+    canPreview: ["image", "pdf", "text", "document"].includes(previewType),
     previewUrl: `/api/files/${row.id}/preview`,
     downloadUrl: `/api/files/${row.id}/download`,
     uploadedAt: row.created_at,
