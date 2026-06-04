@@ -3448,8 +3448,8 @@ function ApplicationFormModal({
                   ["Position", "position"],
                   ["Agency", "agency"],
                   ["Status", "status"],
-                  ["From", "from"],
-                  ["To", "toYear"],
+                  ["From Date", "from"],
+                  ["To Date", "toYear"],
                 ]}
               />
             </ApplicationSection>
