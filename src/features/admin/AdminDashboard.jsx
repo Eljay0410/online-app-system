@@ -15,6 +15,7 @@ import DateFilterControl from "../../components/ui/DateFilterControl";
 import FilePreviewModal from "../../components/ui/FilePreviewModal";
 import PaginationControls from "../../components/ui/PaginationControls";
 import { useToast } from "../../components/ui/toastContext";
+
 import {
   getInitialSidebarCollapsed,
   getSidebarContentPadding,
@@ -1153,6 +1154,18 @@ export default function AdminDashboard() {
           getApplicantName={getApplicantName}
           onClose={() => setPendingStatusUpdate(null)}
           onSave={updateApplicationStatus}
+        />
+      )}
+
+      {isCreateJobOpen && (
+        <CreateJobOpeningModal
+          form={form}
+          errors={formErrors}
+          positions={positions}
+          handleFormChange={handleFormChange}
+          createJob={createJob}
+          onClose={closeCreateJob}
+          isSaving={isSaving}
         />
       )}
 
@@ -3448,8 +3461,8 @@ function ApplicationFormModal({
                   ["Position", "position"],
                   ["Agency", "agency"],
                   ["Status", "status"],
-                  ["From Date", "from"],
-                  ["To Date", "toYear"],
+                  ["From", "from"],
+                  ["To", "toYear"],
                 ]}
               />
             </ApplicationSection>
@@ -3460,8 +3473,8 @@ function ApplicationFormModal({
                 records={learningDevelopment.trainings || []}
                 fields={[
                   ["Title", "title"],
-                  ["From Date", "fromDate"],
-                  ["To Date", "toDate"],
+                  ["From", "fromDate"],
+                  ["To", "toDate"],
                   ["Hours", "hours"],
                   ["Conducted By", "conductedBy"],
                 ]}

@@ -12,7 +12,7 @@ import {
   normalizeRole,
   useAuth,
 } from "./features/auth/auth";
-
+import AdminFooter from "./components/layout/Footer";
 import JobOpenings from "./features/jobs/JobOpenings";
 import JobDetails from "./features/jobs/JobDetails";
 
@@ -171,6 +171,7 @@ function App() {
 
         <Route path="*" element={<RedirectToHome />} />
       </Routes>
+      <AdminFooter />
     </div>
   );
 }
