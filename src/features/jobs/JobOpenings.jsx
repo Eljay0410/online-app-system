@@ -224,98 +224,119 @@ export default function JobOpenings() {
             )}
           </div>
 
-        {isLoading ? (
-          <div className="oas-panel flex items-center justify-center gap-2 p-10 text-slate-500">
-            <Loader2 className="h-5 w-5 animate-spin" />
-            Loading vacancies...
+          <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-6 text-slate-700">
+            <p>
+              <span className="font-semibold text-[#0056b3]">
+                Application note:
+              </span>{" "}
+              To apply for a position, choose the vacancy you want and click the{" "}
+              <span className="font-semibold">Apply</span> button.
+            </p>
+            <p className="mt-1">
+              You will be directed to the login page. If you already have an
+              account, sign in and update your profile information if needed
+              before continuing your application.
+            </p>
+            <p className="mt-1">
+              If you do not have an account yet, click{" "}
+              <span className="font-semibold">Sign Up</span>, create your
+              account, and complete your profile. Once done, you may proceed
+              with your application.
+            </p>
           </div>
-        ) : jobs.length === 0 ? (
-          <div className="oas-panel p-10 text-center text-slate-500">
-            No vacancies match your filters.
-          </div>
-        ) : (
-          <>
-          <div className="grid gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {jobs.map((job) => (
-              <article
-                key={job.id}
-                className="oas-panel flex h-full min-w-0 flex-col p-4 transition hover:border-blue-200 hover:shadow-md sm:p-5"
-              >
-                <div className="min-w-0">
-                  <h2 className="line-clamp-2 min-h-0 break-words text-sm font-bold leading-5 text-slate-950 [overflow-wrap:anywhere] sm:min-h-[2.5rem]">
-                    {job.title}
-                  </h2>
-                </div>
 
-                <div className="mt-3 space-y-2.5 text-xs text-slate-700 sm:mt-4 sm:space-y-3 sm:text-sm">
-                  <div className="flex min-w-0 items-start gap-2">
-                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
-                    <span className="line-clamp-2 min-h-0 break-words leading-5 [overflow-wrap:anywhere] sm:min-h-10">
-                      <span className="font-semibold text-slate-600">
-                        School/Stations:
-                      </span>{" "}
-                      {summarizeVacancyItems(job.vacancyItems || [])}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <BriefcaseBusiness className="h-4 w-4 shrink-0 text-slate-400" />
-                    <span>Total vacancies: {job.vacancy ?? "N/A"}</span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <BriefcaseBusiness className="h-4 w-4 shrink-0 text-slate-400" />
-                    <span>Salary Grade: {job.salaryGrade || "N/A"}</span>
-                  </div>
-
-                  <div className="flex min-w-0 items-start gap-2">
-                    <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
-                    <DeadlineDetails job={job} compact />
-                  </div>
-                </div>
-
-                <div className="mt-auto grid grid-cols-2 gap-2 pt-4 sm:pt-5">
-                  <button
-                    type="button"
-                    onClick={() => handleViewDetails(job)}
-                    className="oas-action-button oas-card-action-button border border-[#0056b3] bg-white text-[#0056b3] transition hover:bg-blue-50"
+          {isLoading ? (
+            <div className="oas-panel flex items-center justify-center gap-2 p-10 text-slate-500">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Loading vacancies...
+            </div>
+          ) : jobs.length === 0 ? (
+            <div className="oas-panel p-10 text-center text-slate-500">
+              No vacancies match your filters.
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {jobs.map((job) => (
+                  <article
+                    key={job.id}
+                    className="oas-panel flex h-full min-w-0 flex-col p-4 transition hover:border-blue-200 hover:shadow-md sm:p-5"
                   >
-                    View
-                  </button>
+                    <div className="min-w-0">
+                      <h2 className="line-clamp-2 min-h-0 break-words text-sm font-bold leading-5 text-slate-950 [overflow-wrap:anywhere] sm:min-h-[2.5rem]">
+                        {job.title}
+                      </h2>
+                    </div>
 
-                  <button
-                    type="button"
-                    onClick={() => handleApply(job)}
-                    disabled={job.applied}
-                    className={`oas-action-button oas-card-action-button ${
-                      job.applied
-                        ? "cursor-not-allowed bg-slate-200 text-slate-500 hover:bg-slate-200"
-                        : ""
-                    }`}
-                  >
-                    {job.applied ? "Applied" : "Apply"}
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
+                    <div className="mt-3 space-y-2.5 text-xs text-slate-700 sm:mt-4 sm:space-y-3 sm:text-sm">
+                      <div className="flex min-w-0 items-start gap-2">
+                        <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                        <span className="line-clamp-2 min-h-0 break-words leading-5 [overflow-wrap:anywhere] sm:min-h-10">
+                          <span className="font-semibold text-slate-600">
+                            School/Stations:
+                          </span>{" "}
+                          {summarizeVacancyItems(job.vacancyItems || [])}
+                        </span>
+                      </div>
 
-          <PaginationControls
-            page={page}
-            pageSize={pageSize}
-            totalItems={pagination.total || jobs.length}
-            currentCount={jobs.length}
-            onPageChange={setPage}
-            onPageSizeChange={(nextSize) => {
-              setPageSize(nextSize);
-              setPage(1);
-            }}
-            pageSizeOptions={jobPageSizeOptions}
-            itemLabel="vacancies"
-            className="rounded-xl border border-slate-200 shadow-sm"
-          />
-          </>
-        )}
+                      <div className="flex items-center gap-2">
+                        <BriefcaseBusiness className="h-4 w-4 shrink-0 text-slate-400" />
+                        <span>Total vacancies: {job.vacancy ?? "N/A"}</span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <BriefcaseBusiness className="h-4 w-4 shrink-0 text-slate-400" />
+                        <span>Salary Grade: {job.salaryGrade || "N/A"}</span>
+                      </div>
+
+                      <div className="flex min-w-0 items-start gap-2">
+                        <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                        <DeadlineDetails job={job} compact />
+                      </div>
+                    </div>
+
+                    <div className="mt-auto grid grid-cols-2 gap-2 pt-4 sm:pt-5">
+                      <button
+                        type="button"
+                        onClick={() => handleViewDetails(job)}
+                        className="oas-action-button oas-card-action-button border border-[#0056b3] bg-white text-[#0056b3] transition hover:bg-blue-50"
+                      >
+                        View
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleApply(job)}
+                        disabled={job.applied}
+                        className={`oas-action-button oas-card-action-button ${
+                          job.applied
+                            ? "cursor-not-allowed bg-slate-200 text-slate-500 hover:bg-slate-200"
+                            : ""
+                        }`}
+                      >
+                        {job.applied ? "Applied" : "Apply"}
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              <PaginationControls
+                page={page}
+                pageSize={pageSize}
+                totalItems={pagination.total || jobs.length}
+                currentCount={jobs.length}
+                onPageChange={setPage}
+                onPageSizeChange={(nextSize) => {
+                  setPageSize(nextSize);
+                  setPage(1);
+                }}
+                pageSizeOptions={jobPageSizeOptions}
+                itemLabel="vacancies"
+                className="rounded-xl border border-slate-200 shadow-sm"
+              />
+            </>
+          )}
         </div>
       </section>
 
@@ -383,7 +404,9 @@ function JobDetailsModal({ job, onClose, onApply }) {
               {job.title}
             </h3>
             <p className="mt-1 break-words text-xs leading-5 text-slate-500 [overflow-wrap:anywhere] sm:text-sm">
-              {job.salaryGrade ? `Salary Grade ${job.salaryGrade}` : "Salary grade not set"}
+              {job.salaryGrade
+                ? `Salary Grade ${job.salaryGrade}`
+                : "Salary grade not set"}
             </p>
           </div>
 
