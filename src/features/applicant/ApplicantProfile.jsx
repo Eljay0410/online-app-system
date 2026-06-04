@@ -1719,12 +1719,16 @@ function PersonalInfo({
         </div>
 
         <div className="md:col-span-4">
+          <label className="block text-sm font-medium text-slate-600 mb-1 flex text-center "> Address <span className="text-red-500">*</span>
+            <p className="text-xs text-slate-500 my-auto ml-3">House No./Street/Barangay/City/Municipality/Zip Code</p>
+          </label>
           <InputBox
-            label="Address"
+            label=""
             required
             value={personal.address}
             disabled={disabled}
             error={errors.address}
+            placeholder="Address"
             onChange={(value) => updateField("address", value)}
           />
         </div>

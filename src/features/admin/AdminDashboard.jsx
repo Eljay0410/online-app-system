@@ -3653,6 +3653,9 @@ function InfoGrid({ items }) {
 }
 
 function RecordList({ title, records, fields }) {
+  const isDateField = (label) =>
+    /date|valid until|from|to/i.test(String(label || ""));
+
   return (
     <div className="mt-4 min-w-0 max-w-full first:mt-0">
       <h5 className="break-words text-sm font-bold text-slate-800 [overflow-wrap:anywhere]">
@@ -3661,30 +3664,51 @@ function RecordList({ title, records, fields }) {
 
       <div className="mt-3 space-y-3">
         {records.length > 0 ? (
-          records.map((record, index) => (
-            <div
-              key={index}
-              className="min-w-0 max-w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-3"
-            >
-              <p className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
-                Entry {index + 1}
-              </p>
+          records.map((record, index) => {
+            const normalFields = fields.filter(([label]) => !isDateField(label));
+            const dateFields = fields.filter(([label]) => isDateField(label));
 
-              <div className="grid min-w-0 gap-2 sm:grid-cols-2">
-                {fields.map(([label, key]) => (
-                  <div key={key} className="min-w-0 text-sm">
-                    <span className="break-words font-semibold text-slate-700 [overflow-wrap:anywhere]">
-                      {label}:{" "}
-                    </span>
+            return (
+              <div
+                key={index}
+                className="min-w-0 max-w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-3"
+              >
+                <p className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                  Entry {index + 1}
+                </p>
 
-                    <span className="break-words text-slate-600 [overflow-wrap:anywhere]">
-                      {record?.[key] || "N/A"}
-                    </span>
+                <div className="grid min-w-0 gap-x-10 gap-y-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                  <div className="min-w-0 space-y-2">
+                    {normalFields.map(([label, key]) => (
+                      <div key={key} className="min-w-0 text-sm">
+                        <span className="break-words font-semibold text-slate-700 [overflow-wrap:anywhere]">
+                          {label}:{" "}
+                        </span>
+
+                        <span className="break-words text-slate-600 [overflow-wrap:anywhere]">
+                          {record?.[key] || "N/A"}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                ))}
+
+                  <div className="min-w-0 space-y-2">
+                    {dateFields.map(([label, key]) => (
+                      <div key={key} className="min-w-0 text-sm">
+                        <span className="break-words font-semibold text-slate-700 [overflow-wrap:anywhere]">
+                          {label}:{" "}
+                        </span>
+
+                        <span className="break-words text-slate-600 [overflow-wrap:anywhere]">
+                          {record?.[key] || "N/A"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         ) : (
           <p className="text-sm text-slate-500">No records found.</p>
         )}
@@ -3692,7 +3716,6 @@ function RecordList({ title, records, fields }) {
     </div>
   );
 }
-
 function LoadingState({ label }) {
   return (
     <div className="flex items-center justify-center gap-2 p-8 text-slate-500">
