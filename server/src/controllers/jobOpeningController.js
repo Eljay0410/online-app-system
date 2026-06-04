@@ -57,11 +57,22 @@ function normalizeDeadlineTime(value, fallback = "23:59") {
 
 function getDateInputValue(value) {
   if (!value) return "";
-  if (typeof value === "string") return value.slice(0, 10);
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value.toISOString().slice(0, 10);
+
+  const rawValue = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(rawValue)) {
+    return rawValue;
   }
-  return String(value).slice(0, 10);
+
+  const date = value instanceof Date ? value : new Date(value);
+  if (!Number.isNaN(date.getTime())) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  const datePart = rawValue.match(/(\d{4}-\d{2}-\d{2})/);
+  return datePart ? datePart[1] : rawValue.slice(0, 10);
 }
 
 function isDeadlinePast(deadline, deadlineTime) {
@@ -223,6 +234,24 @@ function getIncomingPositionId(body = {}) {
     body.selectedPositionId,
     body.position_id
   );
+}
+
+function getPositionSnapshotFromBody(body = {}) {
+  const title = normalizeSearch(body.title || body.positionTitle);
+  const category = normalizeSearch(
+    body.positionCategory || body.category || body.position_category
+  );
+
+  if (!title || !allowedPositionCategories.includes(category)) {
+    return null;
+  }
+
+  return {
+    id: null,
+    category,
+    title,
+    requirements: body.requirements || body.listOfRequirements || [],
+  };
 }
 
 async function getVacancyItemsByJobIds(queryable, jobIds = []) {
@@ -1020,7 +1049,11 @@ function validateJobOpeningPayload(payload, currentJob = null) {
   const nextDeadline = payload.deadline ?? getDateInputValue(currentJob?.deadline);
   const nextDeadlineTime = payload.deadlineTime ?? currentJob?.deadline_time ?? "23:59";
 
-  if (payload.positionId !== undefined && !payload.positionId) {
+  if (
+    payload.positionId !== undefined &&
+    !payload.positionId &&
+    (!payload.title || !payload.positionCategory)
+  ) {
     throw createHttpError("Position is required.");
   }
 
@@ -1077,17 +1110,39 @@ function validateJobOpeningPayload(payload, currentJob = null) {
 export async function createJobOpening(req, res) {
   try {
     const incomingPositionId = getIncomingPositionId(req.body || {});
-    const selectedPosition = await getPosition(incomingPositionId);
+    const selectedPosition =
+      incomingPositionId === undefined || incomingPositionId === null
+        ? null
+        : await getPosition(incomingPositionId);
+    const fallbackPosition = getPositionSnapshotFromBody(req.body || {});
+    const positionForPayload = selectedPosition || fallbackPosition;
+
     if (!selectedPosition) {
+      if (!positionForPayload) {
+        return res.status(400).json({
+          success: false,
+          message: incomingPositionId
+            ? "Selected position was not found."
+            : "Position is required.",
+        });
+      }
+
+      if (incomingPositionId) {
+        console.warn(
+          "Creating vacancy from position snapshot because selected position was not found:",
+          incomingPositionId
+        );
+      }
+    }
+
+    if (!positionForPayload) {
       return res.status(400).json({
         success: false,
-        message: incomingPositionId
-          ? "Selected position was not found."
-          : "Position is required.",
+        message: "Position is required.",
       });
     }
 
-    const payload = normalizeJobOpeningPayload(req, selectedPosition);
+    const payload = normalizeJobOpeningPayload(req, positionForPayload);
     validateJobOpeningPayload(payload);
 
     const client = await pool.connect();

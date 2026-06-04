@@ -393,6 +393,11 @@ export async function ensureDatabaseSchema() {
   `);
 
   await pool.query(`
+    CREATE INDEX IF NOT EXISTS users_role_name_initial_idx
+      ON users(role, LOWER(COALESCE(NULLIF(last_name, ''), NULLIF(first_name, ''), '')));
+  `);
+
+  await pool.query(`
     CREATE INDEX IF NOT EXISTS users_lower_email_idx
       ON users(LOWER(email));
   `);
@@ -400,6 +405,24 @@ export async function ensureDatabaseSchema() {
   await pool.query(`
     CREATE INDEX IF NOT EXISTS applicant_profiles_user_updated_idx
       ON applicant_profiles(user_id, updated_at DESC);
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS applicant_profiles_personal_name_lookup_idx
+      ON applicant_profiles(
+        LOWER(COALESCE(data->'personalInfo'->>'lastName', '')),
+        LOWER(COALESCE(data->'personalInfo'->>'firstName', ''))
+      );
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS job_openings_position_id_idx
+      ON job_openings(position_id);
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS job_applications_uan_idx
+      ON job_applications(uan);
   `);
 
   await pool.query(`

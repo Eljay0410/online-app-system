@@ -5,14 +5,43 @@ import { assignUan } from "../services/uanService.js";
 const defaultApplicantLimit = 10;
 
 function getPagination(query = {}) {
-  const limit = Number.parseInt(query.limit || String(defaultApplicantLimit), 10);
-  const offset = Number.parseInt(query.offset || "0", 10);
+  const requestedLimit = Number.parseInt(
+    query.limit || String(defaultApplicantLimit),
+    10
+  );
+  const limit = Number.isInteger(requestedLimit)
+    ? Math.min(Math.max(requestedLimit, 1), 100)
+    : defaultApplicantLimit;
+  const requestedPage = Number.parseInt(query.page || "1", 10);
+  const legacyOffset = Number.parseInt(query.offset || "", 10);
+  const page = Number.isInteger(requestedPage)
+    ? Math.max(requestedPage, 1)
+    : 1;
+  const offset = Number.isInteger(legacyOffset)
+    ? Math.max(legacyOffset, 0)
+    : (page - 1) * limit;
 
   return {
-    limit: Number.isInteger(limit)
-      ? Math.min(Math.max(limit, 1), 100)
-      : defaultApplicantLimit,
-    offset: Number.isInteger(offset) ? Math.max(offset, 0) : 0,
+    limit,
+    offset,
+    page: Math.floor(offset / limit) + 1,
+  };
+}
+
+function buildPagination({ page, limit, total }) {
+  const totalRecords = Number(total || 0);
+  const totalPages = Math.max(1, Math.ceil(totalRecords / limit));
+  const currentPage = Math.min(Math.max(Number(page || 1), 1), totalPages);
+
+  return {
+    page: currentPage,
+    limit,
+    offset: (currentPage - 1) * limit,
+    total: totalRecords,
+    totalRecords,
+    totalPages,
+    hasNextPage: currentPage < totalPages,
+    hasPreviousPage: currentPage > 1,
   };
 }
 
@@ -43,6 +72,23 @@ function parseStatusCounts(value) {
     return {};
   }
 }
+
+const profileFirstNameSql = "p.data->'personalInfo'->>'firstName'";
+const profileMiddleNameSql = "p.data->'personalInfo'->>'middleName'";
+const profileLastNameSql = "p.data->'personalInfo'->>'lastName'";
+const applicantFullNameSql = `CONCAT_WS(' ',
+  NULLIF(COALESCE(u.first_name, ${profileFirstNameSql}), ''),
+  NULLIF(COALESCE(u.middle_name, ${profileMiddleNameSql}), ''),
+  NULLIF(COALESCE(u.last_name, ${profileLastNameSql}), '')
+)`;
+const applicantLetterSql = `LOWER(LEFT(COALESCE(
+  NULLIF(u.last_name, ''),
+  NULLIF(${profileLastNameSql}, ''),
+  NULLIF(u.first_name, ''),
+  NULLIF(${profileFirstNameSql}, ''),
+  NULLIF(${applicantFullNameSql}, ''),
+  ''
+), 1))`;
 
 function getProfileData(row = {}) {
   return row.profile_data && typeof row.profile_data === "object"
@@ -117,6 +163,7 @@ function buildApplicantFilters(query = {}) {
   const conditions = ["u.role = 'applicant'"];
   const values = [];
   const search = normalizeQueryValue(query.q || query.search);
+  const letter = normalizeQueryValue(query.letter).toLowerCase();
   const specificDate = normalizeDateValue(query.date || query.registeredDate);
   const dateFrom = normalizeDateValue(query.dateFrom || query.from);
   const dateTo = normalizeDateValue(query.dateTo || query.to);
@@ -127,10 +174,17 @@ function buildApplicantFilters(query = {}) {
       `(LOWER(u.email) LIKE $${values.length}
         OR LOWER(COALESCE(u.first_name, '')) LIKE $${values.length}
         OR LOWER(COALESCE(u.last_name, '')) LIKE $${values.length}
-        OR LOWER(CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name)) LIKE $${values.length}
+        OR LOWER(COALESCE(${profileFirstNameSql}, '')) LIKE $${values.length}
+        OR LOWER(COALESCE(${profileLastNameSql}, '')) LIKE $${values.length}
+        OR LOWER(${applicantFullNameSql}) LIKE $${values.length}
         OR LOWER(COALESCE(u.uan, p.uan, '')) LIKE $${values.length}
         OR LOWER(COALESCE(u.contact_number, '')) LIKE $${values.length})`
     );
+  }
+
+  if (/^[a-z]$/.test(letter)) {
+    values.push(letter);
+    conditions.push(`${applicantLetterSql} = $${values.length}`);
   }
 
   if (specificDate) {
@@ -277,7 +331,7 @@ async function getApplicantDetailData(client, applicantId) {
 
 export async function listApplicantManagement(req, res) {
   try {
-    const { limit, offset } = getPagination(req.query);
+    const { limit, page } = getPagination(req.query);
     const { where, values } = buildApplicantFilters(req.query);
     const countResult = await pool.query(
       `SELECT COUNT(*)::int AS total
@@ -286,9 +340,8 @@ export async function listApplicantManagement(req, res) {
        ${where}`,
       values
     );
-
-    values.push(limit);
-    values.push(offset);
+    const total = countResult.rows[0]?.total || 0;
+    const pagination = buildPagination({ page, limit, total });
 
     const result = await pool.query(
       `WITH filtered_applicants AS (
@@ -314,7 +367,7 @@ export async function listApplicantManagement(req, res) {
          LEFT JOIN applicant_profiles p ON p.user_id = u.id
          ${where}
          ORDER BY u.created_at DESC, u.id DESC
-         LIMIT $${values.length - 1} OFFSET $${values.length}
+         LIMIT $${values.length + 1} OFFSET $${values.length + 2}
        ),
        application_status_counts AS (
          SELECT user_id,
@@ -348,17 +401,16 @@ export async function listApplicantManagement(req, res) {
        LEFT JOIN app_counts ON app_counts.user_id = filtered_applicants.id
        LEFT JOIN file_counts ON file_counts.owner_user_id = filtered_applicants.id
        ORDER BY filtered_applicants.created_at DESC, filtered_applicants.id DESC`,
-      values
+      [...values, limit, pagination.offset]
     );
+
+    const applicants = result.rows.map(mapApplicantListRow);
 
     return res.json({
       success: true,
-      applicants: result.rows.map(mapApplicantListRow),
-      pagination: {
-        limit,
-        offset,
-        total: countResult.rows[0]?.total || 0,
-      },
+      data: applicants,
+      applicants,
+      pagination,
     });
   } catch (error) {
     console.error("Error fetching applicant management list:", error);

@@ -221,6 +221,27 @@ a[class*="rounded"][class*="px"] {
   line-height: 1rem !important;
 }
 
+.oas-docx-preview {
+  color: #0f172a;
+}
+
+.oas-docx-preview .docx-wrapper {
+  background: transparent;
+  padding: 1rem;
+}
+
+.oas-docx-preview .docx {
+  max-width: 100%;
+  margin: 0 auto 1rem;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 0.12);
+}
+
+@media (max-width: 639px) {
+  .oas-docx-preview .docx-wrapper {
+    padding: 0.5rem;
+  }
+}
+
 [class*="rounded-2xl"][class*="border-slate-200"][class*="bg-white"][class*="shadow-sm"],
 [class*="rounded-[28px]"][class*="border-slate-200"][class*="bg-white"][class*="shadow-sm"] {
   border-radius: 0.75rem;

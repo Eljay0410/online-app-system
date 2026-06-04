@@ -266,3 +266,31 @@ export function RequirementSummary({ job }) {
     </section>
   );
 }
+
+export function VacancyDetailsContent({ job, actions = null, showTitle = true }) {
+  return (
+    <div className="min-w-0">
+      {showTitle && (
+        <div className="flex flex-col gap-4 border-b border-slate-200 pb-4 sm:flex-row sm:items-start sm:justify-between sm:pb-5">
+          <div className="min-w-0">
+            <h1 className="oas-page-title">{job?.title || "Vacancy"}</h1>
+            <p className="mt-1 break-words text-sm text-slate-500 [overflow-wrap:anywhere]">
+              {job?.location || job?.barangay || "Place of assignment not set"}
+            </p>
+          </div>
+
+          {actions}
+        </div>
+      )}
+
+      <div className={showTitle ? "mt-4 sm:mt-5" : ""}>
+        <VacancySummaryTable job={job} showHeading={showTitle} />
+      </div>
+
+      <VacancyBreakdown job={job || {}} showHeading={false} />
+      <VacancyDescription job={job || {}} />
+      <QualificationStandards job={job || {}} />
+      <RequirementSummary job={job || {}} />
+    </div>
+  );
+}

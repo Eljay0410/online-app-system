@@ -264,7 +264,6 @@ function getStatusBadgeStyles(status) {
 
 async function sendApplicationStatusEmail({
   application,
-  fromStatus,
   toStatus,
   reviewNotes,
 }) {
@@ -361,14 +360,43 @@ function getJobOpeningId(payload = {}) {
 }
 
 function getPagination(query = {}) {
-  const limit = Number.parseInt(query.limit || String(defaultApplicationLimit), 10);
-  const offset = Number.parseInt(query.offset || "0", 10);
+  const requestedLimit = Number.parseInt(
+    query.limit || String(defaultApplicationLimit),
+    10
+  );
+  const limit = Number.isInteger(requestedLimit)
+    ? Math.min(Math.max(requestedLimit, 1), 100)
+    : defaultApplicationLimit;
+  const requestedPage = Number.parseInt(query.page || "1", 10);
+  const legacyOffset = Number.parseInt(query.offset || "", 10);
+  const page = Number.isInteger(requestedPage)
+    ? Math.max(requestedPage, 1)
+    : 1;
+  const offset = Number.isInteger(legacyOffset)
+    ? Math.max(legacyOffset, 0)
+    : (page - 1) * limit;
 
   return {
-    limit: Number.isInteger(limit)
-      ? Math.min(Math.max(limit, 1), 200)
-      : defaultApplicationLimit,
-    offset: Number.isInteger(offset) ? Math.max(offset, 0) : 0,
+    limit,
+    offset,
+    page: Math.floor(offset / limit) + 1,
+  };
+}
+
+function buildPagination({ page, limit, total }) {
+  const totalRecords = Number(total || 0);
+  const totalPages = Math.max(1, Math.ceil(totalRecords / limit));
+  const currentPage = Math.min(Math.max(Number(page || 1), 1), totalPages);
+
+  return {
+    page: currentPage,
+    limit,
+    offset: (currentPage - 1) * limit,
+    total: totalRecords,
+    totalRecords,
+    totalPages,
+    hasNextPage: currentPage < totalPages,
+    hasPreviousPage: currentPage > 1,
   };
 }
 
@@ -635,6 +663,10 @@ function buildAdminApplicationFilters(query = {}) {
   const values = [];
   const search = normalizeQueryValue(query.q || query.search);
   const position = normalizeQueryValue(query.position);
+  const positionId = Number.parseInt(
+    query.positionId || query.position_id || "",
+    10
+  );
   const school = normalizeQueryValue(query.school || query.location);
   const status = normalizeQueryValue(query.status).toLowerCase();
   const specificDate = normalizeDateValue(query.date || query.applicationDate);
@@ -645,16 +677,24 @@ function buildAdminApplicationFilters(query = {}) {
     values.push(`%${search.toLowerCase()}%`);
     conditions.push(
       `(LOWER(u.email) LIKE $${values.length}
-        OR LOWER(u.first_name) LIKE $${values.length}
-        OR LOWER(u.last_name) LIKE $${values.length}
-        OR LOWER(CONCAT_WS(' ', u.first_name, u.last_name)) LIKE $${values.length}
-        OR LOWER(ja.uan) LIKE $${values.length}
+        OR LOWER(COALESCE(u.first_name, '')) LIKE $${values.length}
+        OR LOWER(COALESCE(u.middle_name, '')) LIKE $${values.length}
+        OR LOWER(COALESCE(u.last_name, '')) LIKE $${values.length}
+        OR LOWER(COALESCE(ja.data->'personalInfo'->>'firstName', '')) LIKE $${values.length}
+        OR LOWER(COALESCE(ja.data->'personalInfo'->>'lastName', '')) LIKE $${values.length}
+        OR LOWER(CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name)) LIKE $${values.length}
+        OR LOWER(CONCAT_WS(' ', ja.data->'personalInfo'->>'firstName', ja.data->'personalInfo'->>'middleName', ja.data->'personalInfo'->>'lastName')) LIKE $${values.length}
+        OR LOWER(COALESCE(ja.uan, '')) LIKE $${values.length}
+        OR LOWER(COALESCE(u.uan, '')) LIKE $${values.length}
         OR LOWER(${applicationPositionSql}) LIKE $${values.length}
         OR LOWER(${applicationLocationSql}) LIKE $${values.length})`
     );
   }
 
-  if (position && position !== "all") {
+  if (Number.isInteger(positionId) && positionId > 0) {
+    values.push(positionId);
+    conditions.push(`jo.position_id = $${values.length}`);
+  } else if (position && position !== "all") {
     values.push(position.toLowerCase());
     conditions.push(`LOWER(${applicationPositionSql}) = $${values.length}`);
   }
@@ -719,6 +759,51 @@ async function getAdminApplicationFilterOptions() {
   };
 }
 
+function buildApplicantNameFromRow(row = {}) {
+  return (
+    [
+      row.first_name || row.data_first_name,
+      row.middle_name || row.data_middle_name,
+      row.last_name || row.data_last_name,
+    ]
+      .map((part) => String(part || "").trim())
+      .filter(Boolean)
+      .join(" ") || "Applicant"
+  );
+}
+
+function mapAdminApplicationListRow(row = {}) {
+  const position = row.application_position || "Not specified";
+  const location = row.application_location || "";
+
+  return {
+    id: row.id,
+    uan: String(row.uan || "").toUpperCase(),
+    userId: row.user_id,
+    profileId: row.applicant_profile_id,
+    jobOpeningId: row.job_opening_id,
+    status: row.status || "submitted",
+    reviewNotes: row.review_notes || "",
+    adminRemarks: row.admin_remarks || row.review_notes || "",
+    applicantName: buildApplicantNameFromRow(row),
+    email: row.email || "",
+    position,
+    jobTitle: position,
+    location,
+    jobLocation: location,
+    dateApplied: row.created_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    assignment: row.assigned_item_id
+      ? {
+          jobOpeningItemId: row.assigned_item_id,
+          schoolStation: row.assigned_school_station || "",
+          subjectArea: row.assigned_subject_area || "",
+        }
+      : null,
+  };
+}
+
 function mapProfileResponse(user, profile) {
   return mapApplicantProfile({
     ...profile,
@@ -735,20 +820,19 @@ function mapProfileResponse(user, profile) {
 
 export async function listAdminApplications(req, res) {
   try {
-    const { limit, offset } = getPagination(req.query);
+    const { limit, page } = getPagination(req.query);
     const { where, values } = buildAdminApplicationFilters(req.query);
     const countResult = await pool.query(
       `SELECT COUNT(*)::int AS total
        FROM job_applications ja
        JOIN users u ON u.id = ja.user_id
        LEFT JOIN job_openings jo ON jo.id = ja.job_opening_id
-       ${where}`,
+      ${where}`,
       values
     );
+    const total = countResult.rows[0]?.total || 0;
+    const pagination = buildPagination({ page, limit, total });
     const filterOptionsPromise = getAdminApplicationFilterOptions();
-
-    values.push(limit);
-    values.push(offset);
 
     const result = await pool.query(
       `
@@ -758,40 +842,23 @@ export async function listAdminApplications(req, res) {
         ja.applicant_profile_id,
         ja.job_opening_id,
         ja.uan,
-        ja.data,
         ja.status,
         ja.review_notes,
-        ja.reviewed_by,
-        ja.reviewed_at,
         ja.admin_remarks,
         ja.created_at,
         ja.updated_at,
         u.email,
         u.first_name,
+        u.middle_name,
         u.last_name,
-        jo.title AS job_title,
-        jo.location AS job_location,
-        jo.district AS job_district,
-        jo.barangay AS job_barangay,
-        jo.vacancy AS job_vacancy,
-        jo.deadline AS job_deadline,
-        jo.deadline_time AS job_deadline_time,
-        jo.position_category AS job_position_category,
-        jo.salary_grade AS job_salary_grade,
-        jo.salary_amount AS job_salary_amount,
-        jo.education AS job_education,
-        jo.training AS job_training,
-        jo.experience AS job_experience,
-        jo.eligibility AS job_eligibility,
-        jo.description AS job_description,
-        jo.requirements AS job_requirements,
+        ja.data->'personalInfo'->>'firstName' AS data_first_name,
+        ja.data->'personalInfo'->>'middleName' AS data_middle_name,
+        ja.data->'personalInfo'->>'lastName' AS data_last_name,
+        ${applicationPositionSql} AS application_position,
+        ${applicationLocationSql} AS application_location,
         aa.job_opening_item_id AS assigned_item_id,
-        aa.assigned_by,
-        aa.assigned_at,
         assigned_item.school_station AS assigned_school_station,
-        assigned_item.subject_area AS assigned_subject_area,
-        assigned_item.vacancy_count AS assigned_vacancy_count,
-        assigned_item.assigned_count
+        assigned_item.subject_area AS assigned_subject_area
       FROM job_applications ja
       JOIN users u ON u.id = ja.user_id
       LEFT JOIN job_openings jo ON jo.id = ja.job_opening_id
@@ -799,25 +866,18 @@ export async function listAdminApplications(req, res) {
       LEFT JOIN job_opening_items assigned_item ON assigned_item.id = aa.job_opening_item_id
       ${where}
       ORDER BY ja.created_at DESC
-      LIMIT $${values.length - 1} OFFSET $${values.length}
+      LIMIT $${values.length + 1} OFFSET $${values.length + 2}
     `,
-      values
+      [...values, limit, pagination.offset]
     );
     const filterOptions = await filterOptionsPromise;
-
-    const applications = await attachApplicationDetails(
-      pool,
-      result.rows.map(mapApplication)
-    );
+    const applications = result.rows.map(mapAdminApplicationListRow);
 
     res.json({
       success: true,
+      data: applications,
       applications,
-      pagination: {
-        limit,
-        offset,
-        total: countResult.rows[0]?.total || 0,
-      },
+      pagination,
       filters: filterOptions,
     });
   } catch (error) {
@@ -826,6 +886,40 @@ export async function listAdminApplications(req, res) {
     res.status(500).json({
       success: false,
       message: "Failed to fetch applications",
+    });
+  }
+}
+
+export async function getAdminApplicationDetail(req, res) {
+  const applicationId = Number.parseInt(req.params.id, 10);
+
+  if (!Number.isInteger(applicationId) || applicationId <= 0) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid application.",
+    });
+  }
+
+  try {
+    const application = await getMappedApplicationById(pool, applicationId);
+
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        message: "Application not found.",
+      });
+    }
+
+    return res.json({
+      success: true,
+      application,
+    });
+  } catch (error) {
+    console.error("Error fetching application detail:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch application details.",
     });
   }
 }
@@ -981,12 +1075,9 @@ export async function updateApplicationStatus(req, res) {
     }
 
     await client.query("COMMIT");
-    const mappedApplication =
-      (await getMappedApplicationById(pool, application.id)) || application;
     const emailSent = !isSameStatus
       ? await sendApplicationStatusEmail({
-          application: mappedApplication,
-          fromStatus: currentStatus,
+          application,
           toStatus: status,
           reviewNotes,
         })
@@ -994,7 +1085,7 @@ export async function updateApplicationStatus(req, res) {
 
     res.json({
       success: true,
-      application: mappedApplication,
+      application,
       notification: {
         emailSent,
       },

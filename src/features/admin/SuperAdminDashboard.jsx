@@ -11,7 +11,7 @@ import {
   getSidebarContentPadding,
 } from "../../lib/sidebar";
 import { useAuth } from "../auth/auth";
-import { VacancySummaryTable, formatTime } from "../jobs/jobPostingUi";
+import { VacancyDetailsContent, formatTime } from "../jobs/jobPostingUi";
 
 const emptyAdminForm = {
   firstName: "",
@@ -1063,55 +1063,7 @@ function JobDetailsModal({ job, onClose }) {
         </div>
 
         <div className="min-h-0 overflow-y-auto p-4 sm:p-5">
-          <VacancySummaryTable job={job} showHeading={false} />
-
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-            <span>Status</span>
-            <JobStatusPill status={job.status} />
-          </div>
-
-          <section className="mt-4 rounded-lg border border-slate-200 p-3 sm:mt-5 sm:p-4">
-            <h4 className="text-sm font-bold text-slate-900">Description</h4>
-            <p className="mt-2 whitespace-pre-wrap break-words text-xs leading-5 text-slate-600 [overflow-wrap:anywhere] sm:mt-3 sm:text-sm sm:leading-6">
-              {job.description || "No description provided yet."}
-            </p>
-          </section>
-
-          <section className="mt-4 rounded-lg border border-slate-200 p-3 sm:mt-5 sm:p-4">
-            <h4 className="text-sm font-bold text-slate-900">
-              List of Requirements
-            </h4>
-            {job.requirements?.length ? (
-              <ul className="mt-3 space-y-2.5">
-                {job.requirements.map((requirement) => (
-                  <li
-                    key={requirement.field || requirement.label}
-                    className="border-b border-slate-200 pb-2.5 last:border-b-0 last:pb-0"
-                  >
-                    <div className="flex min-w-0 items-start justify-between gap-3">
-                      <p className="min-w-0 break-words text-xs font-semibold text-slate-800 [overflow-wrap:anywhere] sm:text-sm">
-                        {requirement.label}
-                      </p>
-                      {requirement.required === false && (
-                        <span className="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] uppercase text-slate-600">
-                          Optional
-                        </span>
-                      )}
-                    </div>
-                    {requirement.description && (
-                      <p className="mt-1 break-words text-xs leading-5 text-slate-500 [overflow-wrap:anywhere]">
-                        {requirement.description}
-                      </p>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-3 text-sm text-slate-500">
-                No requirements configured.
-              </p>
-            )}
-          </section>
+          <VacancyDetailsContent job={job} showTitle={false} />
         </div>
 
         <div className="flex shrink-0 justify-end border-t border-slate-200 px-5 py-4">
@@ -1125,25 +1077,6 @@ function JobDetailsModal({ job, onClose }) {
         </div>
       </div>
     </div>
-  );
-}
-
-function JobStatusPill({ status }) {
-  const isOpen = status === "open";
-  const isExpired = status === "expired";
-
-  return (
-    <span
-      className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold capitalize ${
-        isOpen
-          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-          : isExpired
-            ? "border-amber-200 bg-amber-50 text-amber-700"
-            : "border-slate-200 bg-slate-50 text-slate-600"
-      }`}
-    >
-      {String(status || "open").replaceAll("_", " ")}
-    </span>
   );
 }
 

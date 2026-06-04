@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Loader2,
@@ -25,8 +25,7 @@ import {
 } from "../../lib/applicationRequirements";
 import {
   formatTime,
-  getJobUploadRequirements,
-  VacancySummaryTable,
+  VacancyDetailsContent,
 } from "../jobs/jobPostingUi";
 
 const emptyJob = {
@@ -57,12 +56,12 @@ const statusLabels = {
   draft: "Draft",
   submitted: "Pending Review",
   reviewed: "Reviewed",
-  qualified: "Qualified",
+  qualified: "Qualified (Screened)",
   disqualified: "Disqualified",
   shortlisted: "Shortlisted",
   selected: "Selected",
   rejected: "Rejected",
-  hired: "Hired",
+  hired: "Hired (Final)",
   pending_review: "Pending Review",
   for_compliance: "Pending Review",
   under_review: "Under Review",
@@ -180,12 +179,16 @@ function getStatusBadgeClass(status) {
     return "border-amber-200 bg-amber-50 text-amber-700";
   }
 
-  if (normalizedStatus === "qualified" || normalizedStatus === "selected") {
+  if (normalizedStatus === "qualified") {
+    return "border-sky-200 bg-sky-50 text-sky-700";
+  }
+
+  if (normalizedStatus === "selected") {
     return "border-emerald-200 bg-emerald-50 text-emerald-700";
   }
 
   if (normalizedStatus === "hired") {
-    return "border-emerald-300 bg-emerald-50 text-emerald-800";
+    return "border-teal-300 bg-teal-50 text-teal-800";
   }
 
   if (
@@ -222,12 +225,16 @@ function getStatusOptionClass(status) {
     return "bg-amber-50 text-amber-700";
   }
 
-  if (normalizedStatus === "qualified" || normalizedStatus === "selected") {
+  if (normalizedStatus === "qualified") {
+    return "bg-sky-50 text-sky-700";
+  }
+
+  if (normalizedStatus === "selected") {
     return "bg-emerald-50 text-emerald-700";
   }
 
   if (normalizedStatus === "hired") {
-    return "bg-emerald-50 text-emerald-800";
+    return "bg-teal-50 text-teal-800";
   }
 
   if (
@@ -243,6 +250,13 @@ function getStatusOptionClass(status) {
 
 function getRequirementFileName(file) {
   return file?.name || file?.fileName || file?.filename || "No file attached";
+}
+
+function formatUanDisplay(value) {
+  const rawValue = String(value || "").trim();
+  if (!rawValue) return "No UAN";
+
+  return rawValue.replace(/^UAN[-:\s]*/i, "") || rawValue;
 }
 
 function getControlClass(error, baseClass) {
@@ -359,7 +373,8 @@ function clearErrorField(setErrors, field) {
 function normalizeComparableValue(field, value) {
   if (field === "vacancy") return Number(value || 0);
   if (field === "positionId") return value ? Number(value) : "";
-  if (field === "deadline") return String(value || "").slice(0, 10);
+  if (field === "deadline") return getDateInputValue(value);
+  if (field === "deadlineTime") return String(value || "").slice(0, 5);
   if (field === "requirements" || field === "vacancyItems") {
     return JSON.stringify(value || []);
   }
@@ -415,6 +430,19 @@ function getVacancyTotal(items = []) {
   );
 }
 
+function summarizeVacancyLocation(items = []) {
+  const stations = Array.from(
+    new Set(
+      (items || [])
+        .map((item) => String(item.schoolStation || "").trim())
+        .filter(Boolean)
+    )
+  );
+
+  if (stations.length <= 3) return stations.join(", ");
+  return `${stations.slice(0, 3).join(", ")} +${stations.length - 3} more`;
+}
+
 function getPositionRequirements(position, category = "", title = "") {
   if (Array.isArray(position?.requirements) && position.requirements.length > 0) {
     return position.requirements;
@@ -430,6 +458,8 @@ export default function AdminDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const sectionParam = searchParams.get("section");
   const activeSection = normalizeAdminSection(sectionParam);
+  const applicationListRequestIdRef = useRef(0);
+  const applicationDetailRequestIdRef = useRef(0);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(
     getInitialSidebarCollapsed
   );
@@ -468,6 +498,8 @@ export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [viewApplication, setViewApplication] = useState(null);
+  const [isLoadingApplicationDetail, setIsLoadingApplicationDetail] =
+    useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -510,13 +542,22 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     let isMounted = true;
+    const controller = new AbortController();
+    const requestId = applicationListRequestIdRef.current + 1;
+    applicationListRequestIdRef.current = requestId;
     const params = new URLSearchParams({
       limit: String(applicationPageSize),
-      offset: String((applicationPage - 1) * applicationPageSize),
+      page: String(applicationPage),
     });
 
     if (debouncedSearchTerm) params.set("q", debouncedSearchTerm);
-    if (selectedPosition !== "all") params.set("position", selectedPosition);
+    if (selectedPosition !== "all") {
+      if (/^\d+$/.test(String(selectedPosition))) {
+        params.set("positionId", selectedPosition);
+      } else {
+        params.set("position", selectedPosition);
+      }
+    }
     if (selectedStatus !== "all") params.set("status", selectedStatus);
     if (selectedDate) {
       params.set("date", selectedDate);
@@ -525,27 +566,44 @@ export default function AdminDashboard() {
       if (dateTo) params.set("dateTo", dateTo);
     }
 
+    queueMicrotask(() => {
+      if (isMounted && requestId === applicationListRequestIdRef.current) {
+        setIsLoadingApplications(true);
+      }
+    });
     apiRequest(`/api/admin/applications?${params.toString()}`, {
       dedupe: false,
+      signal: controller.signal,
     })
       .then((result) => {
-        if (!isMounted) return;
+        if (!isMounted || requestId !== applicationListRequestIdRef.current) {
+          return;
+        }
 
-        const nextApplications = result.applications || [];
+        const nextApplications = result.applications || result.data || [];
         setApplications(nextApplications);
         setApplicationPagination(
           result.pagination || {
             limit: applicationPageSize,
             offset: (applicationPage - 1) * applicationPageSize,
             total: nextApplications.length,
+            totalRecords: nextApplications.length,
+            totalPages: 1,
           }
         );
+        if (
+          result.pagination?.page &&
+          result.pagination.page !== applicationPage
+        ) {
+          setApplicationPage(result.pagination.page);
+        }
         setApplicationFilterOptions(
           result.filters || { positions: [], locations: [], schools: [] }
         );
       })
       .catch((err) => {
-        if (isMounted) {
+        if (err?.name === "AbortError") return;
+        if (isMounted && requestId === applicationListRequestIdRef.current) {
           showToast({
             type: "error",
             message: err.message || "Failed to load applicants.",
@@ -553,11 +611,14 @@ export default function AdminDashboard() {
         }
       })
       .finally(() => {
-        if (isMounted) setIsLoadingApplications(false);
+        if (isMounted && requestId === applicationListRequestIdRef.current) {
+          setIsLoadingApplications(false);
+        }
       });
 
     return () => {
       isMounted = false;
+      controller.abort();
     };
   }, [
     applicationPage,
@@ -624,11 +685,30 @@ export default function AdminDashboard() {
     setFormErrors({});
 
     try {
+      const selectedPositionRecord = positions.find(
+        (position) => String(position.id) === String(form.positionId)
+      );
+      const vacancyItems = Array.isArray(form.vacancyItems)
+        ? form.vacancyItems
+        : [];
+      const vacancyTotal = getVacancyTotal(vacancyItems);
+      const vacancyLocation = summarizeVacancyLocation(vacancyItems);
+
       const result = await apiRequest("/api/admin/job-openings", {
         method: "POST",
         body: JSON.stringify({
           positionId: form.positionId ? Number(form.positionId) : null,
-          vacancyItems: form.vacancyItems,
+          positionCategory:
+            selectedPositionRecord?.category || form.positionCategory,
+          title: selectedPositionRecord?.title || form.title,
+          location: vacancyLocation,
+          vacancy: vacancyTotal,
+          vacancyItems,
+          requirements: getPositionRequirements(
+            selectedPositionRecord,
+            form.positionCategory,
+            form.title
+          ),
           deadline: form.deadline,
           deadlineTime: form.deadlineTime,
           salaryGrade: form.salaryGrade,
@@ -649,10 +729,18 @@ export default function AdminDashboard() {
       showToast({ type: "success", message: "Vacancy posted." });
       changeActiveSection("job-posting");
     } catch (err) {
+      const message = err.message || "Failed to post vacancy.";
+      setFormErrors((current) => ({ ...current, form: message }));
       showToast({
         type: "error",
-        message: err.message || "Failed to post vacancy.",
+        message,
       });
+
+      apiRequest("/api/admin/job-positions", { dedupe: false })
+        .then((positionResult) => {
+          setPositions(positionResult.positions || []);
+        })
+        .catch(() => {});
     } finally {
       setIsSaving(false);
     }
@@ -737,6 +825,11 @@ export default function AdminDashboard() {
         item.id === application.id ? normalizedApplication : item
       )
     );
+    setViewApplication((current) =>
+      current?.id === application.id
+        ? normalizeAdminApplication(updatedApplication, current)
+        : current
+    );
     showToast({
       type: "success",
       message: result.notification?.emailSent
@@ -744,6 +837,40 @@ export default function AdminDashboard() {
         : "Application update saved.",
     });
     return { skipped: false, application: normalizedApplication };
+  };
+
+  const openApplicationDetails = async (application) => {
+    const controller = new AbortController();
+    const requestId = applicationDetailRequestIdRef.current + 1;
+    applicationDetailRequestIdRef.current = requestId;
+
+    setIsLoadingApplicationDetail(true);
+    setViewApplication(null);
+
+    try {
+      const result = await apiRequest(`/api/admin/applications/${application.id}`, {
+        dedupe: false,
+        signal: controller.signal,
+      });
+
+      if (requestId !== applicationDetailRequestIdRef.current) return;
+
+      setViewApplication(
+        normalizeAdminApplication(result.application || application, application)
+      );
+    } catch (err) {
+      if (err?.name !== "AbortError") {
+        showToast({
+          type: "error",
+          message: err.message || "Failed to load application details.",
+        });
+      }
+    } finally {
+      if (requestId === applicationDetailRequestIdRef.current) {
+        setIsLoadingApplicationDetail(false);
+      }
+    }
+
   };
 
 
@@ -827,15 +954,32 @@ export default function AdminDashboard() {
     );
   };
 
-  const applicationPositions = useMemo(() => {
-    return Array.from(
-      new Set(
-        (
-          applicationFilterOptions.positions ||
-          (positions || []).map((position) => position.title)
-        ).filter(Boolean)
+  const applicationPositionOptions = useMemo(() => {
+    const libraryOptions = (positions || [])
+      .filter((position) => position?.id && position?.title)
+      .map((position) => ({
+        id: String(position.id),
+        title: position.title,
+      }));
+
+    if (libraryOptions.length > 0) {
+      return libraryOptions.sort((a, b) => a.title.localeCompare(b.title));
+    }
+
+    return (applicationFilterOptions.positions || [])
+      .filter(Boolean)
+      .map((position) =>
+        typeof position === "object"
+          ? {
+              id: String(position.id || position.positionId || position.title || ""),
+              title: position.title || position.value || "Position",
+            }
+          : {
+              id: String(position),
+              title: String(position),
+            }
       )
-    ).sort();
+      .sort((a, b) => a.title.localeCompare(b.title));
   }, [applicationFilterOptions.positions, positions]);
 
   const filteredApplications = applications;
@@ -883,7 +1027,7 @@ export default function AdminDashboard() {
             <ApplicantListSection
               isLoading={isLoadingApplications}
               filteredApplications={filteredApplications}
-              positions={applicationPositions}
+              positions={applicationPositionOptions}
               selectedPosition={selectedPosition}
               selectedStatus={selectedStatus}
               selectedDate={selectedDate}
@@ -911,7 +1055,7 @@ export default function AdminDashboard() {
                 setApplicationPage(1);
               }}
               setSearchTerm={setSearchTerm}
-              setViewApplication={setViewApplication}
+              onViewApplication={openApplicationDetails}
               openStatusUpdate={(application, status) =>
                 setPendingStatusUpdate({ application, status })
               }
@@ -996,6 +1140,10 @@ export default function AdminDashboard() {
           getApplicationLocation={getApplicationLocation}
           getApplicationDate={getApplicationDate}
         />
+      )}
+
+      {isLoadingApplicationDetail && (
+        <LoadingOverlay label="Loading application details..." />
       )}
 
       {pendingStatusUpdate && (
@@ -1087,6 +1235,12 @@ function CreateJobOpeningModal({
 
         <form onSubmit={createJob} className="flex min-h-0 flex-col" noValidate>
           <div className="grid min-h-0 gap-4 overflow-y-auto p-5">
+            {errors.form && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold leading-6 text-red-700">
+                {errors.form}
+              </div>
+            )}
+
             <div className="grid gap-4 sm:grid-cols-2">
               <JobFormField label="Position Category" required>
                 <select
@@ -1491,13 +1645,22 @@ function RequirementPreview({
 function getDateInputValue(value) {
   if (!value) return "";
 
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return String(value).slice(0, 10);
+  const rawValue = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(rawValue)) {
+    return rawValue;
   }
 
-  return date.toISOString().slice(0, 10);
+  const date = new Date(value);
+
+  if (!Number.isNaN(date.getTime())) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  const datePart = rawValue.match(/(\d{4}-\d{2}-\d{2})/);
+  return datePart ? datePart[1] : rawValue.slice(0, 10);
 }
 
 function createEditJobForm(job) {
@@ -2651,7 +2814,7 @@ function ApplicantListSection({
   setDateFrom,
   setDateTo,
   setSearchTerm,
-  setViewApplication,
+  onViewApplication,
   openStatusUpdate,
   pagination,
   page,
@@ -2682,7 +2845,7 @@ function ApplicantListSection({
   return (
     <section className="oas-panel">
       <div className="border-b border-slate-200 bg-slate-50 px-3 py-3 sm:px-5 sm:py-4">
-        <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-[minmax(0,1.2fr)_180px_170px_220px_auto]">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-[minmax(0,1.2fr)_180px_210px_220px_auto]">
           <div className="relative col-span-2 xl:col-span-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
 
@@ -2703,8 +2866,11 @@ function ApplicantListSection({
           >
             <option value="all">All Positions</option>
             {positionOptions.map((position) => (
-              <option key={position} value={position}>
-                {position}
+              <option
+                key={position.id || position.title}
+                value={position.id || position.title}
+              >
+                {position.title}
               </option>
             ))}
           </select>
@@ -2768,7 +2934,7 @@ function ApplicantListSection({
               >
               <div className="min-w-0">
                 <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-blue-700">
-                  {application.uan || "No UAN"}
+                  {formatUanDisplay(application.uan)}
                 </p>
                 <h3 className="mt-1 break-words text-sm font-bold text-slate-950 [overflow-wrap:anywhere]">
                   {getApplicantName(application)}
@@ -2825,7 +2991,7 @@ function ApplicantListSection({
                 <div className="mt-2">
                   <button
                     type="button"
-                    onClick={() => setViewApplication(application)}
+                    onClick={() => onViewApplication(application)}
                     className="oas-action-button oas-card-action-button"
                   >
                     View
@@ -2857,7 +3023,7 @@ function ApplicantListSection({
                   className="border-t border-slate-100 align-top"
                 >
                 <td className="px-5 py-4 font-semibold text-slate-900">
-                  {application.uan || "No UAN"}
+                  {formatUanDisplay(application.uan)}
                 </td>
 
                 <td className="px-5 py-4">
@@ -2889,7 +3055,7 @@ function ApplicantListSection({
                     onChange={(event) =>
                       openStatusUpdate(application, event.target.value)
                     }
-                    className={`h-10 min-w-[155px] cursor-pointer rounded-full border px-3 text-sm font-semibold outline-none transition ${getStatusBadgeClass(
+                    className={`h-10 min-w-[190px] cursor-pointer rounded-full border px-3 text-sm font-semibold outline-none transition ${getStatusBadgeClass(
                       application.status
                     )} disabled:cursor-not-allowed disabled:opacity-80`}
                   >
@@ -2910,7 +3076,7 @@ function ApplicantListSection({
                 <td className="px-5 py-4 text-right">
                   <button
                     type="button"
-                    onClick={() => setViewApplication(application)}
+                    onClick={() => onViewApplication(application)}
                     className="oas-action-button"
                   >
                     View
@@ -2933,7 +3099,7 @@ function ApplicantListSection({
         <PaginationControls
           page={page}
           pageSize={pageSize}
-          totalItems={pagination?.total || applicationRows.length}
+          totalItems={pagination?.totalRecords || pagination?.total || applicationRows.length}
           currentCount={applicationRows.length}
           onPageChange={onPageChange}
           onPageSizeChange={onPageSizeChange}
@@ -3032,8 +3198,6 @@ function JobListingSection({ jobs, isLoading, formatDate }) {
 }
 
 function JobListingDetailsModal({ job, onClose }) {
-  const requirements = getJobUploadRequirements(job);
-
   return (
     <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-x-hidden overflow-y-auto bg-black/50 p-2 sm:items-center sm:p-6">
       <div className="flex max-h-[calc(100dvh-1rem)] w-full min-w-0 max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-lg bg-white shadow-2xl sm:max-h-[92vh] sm:max-w-3xl sm:rounded-xl">
@@ -3057,58 +3221,7 @@ function JobListingDetailsModal({ job, onClose }) {
         </div>
 
         <div className="min-h-0 min-w-0 overflow-x-hidden overflow-y-auto px-3 py-4 sm:px-6 sm:py-5">
-          <VacancySummaryTable job={job} showHeading={false} />
-
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-            <span>Status</span>
-            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold capitalize tracking-normal text-slate-700">
-              {String(job.status || "open").replaceAll("_", " ")}
-            </span>
-          </div>
-
-          <section className="mt-4 rounded-lg border border-slate-200 bg-white p-3 sm:mt-5 sm:rounded-xl sm:p-4">
-            <h4 className="text-sm font-bold text-slate-900">Description</h4>
-            <p className="mt-2 whitespace-pre-wrap break-words text-xs leading-5 text-slate-600 [overflow-wrap:anywhere] sm:mt-3 sm:text-sm sm:leading-6">
-              {job.description || "No description provided yet."}
-            </p>
-          </section>
-
-          <section className="mt-4 rounded-lg border border-slate-200 bg-white p-3 sm:mt-5 sm:rounded-xl sm:p-4">
-            <h4 className="text-sm font-bold text-slate-900">
-              List of Requirements
-            </h4>
-
-            {requirements.length > 0 ? (
-              <ul className="mt-3 space-y-2.5">
-                {requirements.map((requirement) => (
-                  <li
-                    key={requirement.field}
-                    className="border-b border-slate-200 pb-2.5 text-xs last:border-b-0 last:pb-0 sm:text-sm"
-                  >
-                    <div className="flex min-w-0 items-start justify-between gap-3">
-                      <p className="min-w-0 break-words font-semibold text-slate-800 [overflow-wrap:anywhere]">
-                        {requirement.label}
-                      </p>
-                      {requirement.required === false && (
-                        <span className="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] uppercase text-slate-600">
-                          Optional
-                        </span>
-                      )}
-                    </div>
-                    {requirement.description && (
-                      <p className="mt-1 break-words text-xs text-slate-500 [overflow-wrap:anywhere]">
-                        {requirement.description}
-                      </p>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-3 text-sm text-slate-500">
-                No requirements configured.
-              </p>
-            )}
-          </section>
+          <VacancyDetailsContent job={job} showTitle={false} />
         </div>
 
         <div className="flex shrink-0 justify-end border-t border-slate-200 px-6 py-4">
@@ -3183,9 +3296,6 @@ function ApplicationFormModal({
 
   const files =
     jobPosition.files || application.files || application.attachments || {};
-  const vacancyItems = Array.isArray(application.jobItems)
-    ? application.jobItems
-    : [];
   const fullName =
     getApplicantName(application) ||
     [
@@ -3212,7 +3322,7 @@ function ApplicationFormModal({
             </h3>
 
             <p className="mt-1 break-words text-sm text-slate-500 [overflow-wrap:anywhere]">
-              {application.uan || "No UAN"} /{" "}
+              {formatUanDisplay(application.uan)} /{" "}
               {applicationPosition} /{" "}
               {formatDate(getApplicationDate(application))}
             </p>
@@ -3384,45 +3494,6 @@ function ApplicationFormModal({
                   ["Salary Amount", application.jobSalaryAmount || "N/A"],
                 ]}
               />
-
-              {vacancyItems.length > 0 && (
-                <div className="mt-4 min-w-0 max-w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-3 sm:rounded-xl">
-                  <h5 className="text-sm font-bold text-slate-800">
-                    School / Station Vacancy Items
-                  </h5>
-
-                  <div className="mt-3 w-full max-w-full overflow-x-auto overscroll-x-contain">
-                    <table className="w-full min-w-[520px] text-left text-xs">
-                      <thead className="uppercase text-slate-500">
-                        <tr>
-                          <th className="px-3 py-2">School/Station</th>
-                          <th className="px-3 py-2">Subject</th>
-                          <th className="px-3 py-2">Vacancy</th>
-                          <th className="px-3 py-2">Assigned</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {vacancyItems.map((item) => (
-                          <tr key={item.id} className="border-t border-slate-200">
-                            <td className="px-3 py-2 font-semibold text-slate-800">
-                              {item.schoolStation}
-                            </td>
-                            <td className="px-3 py-2 text-slate-600">
-                              {item.subjectArea || "General"}
-                            </td>
-                            <td className="px-3 py-2 text-slate-600">
-                              {item.vacancyCount}
-                            </td>
-                            <td className="px-3 py-2 text-slate-600">
-                              {item.assignedCount}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
 
               {requirements.length > 0 ? (
                 <div className="mt-4">
@@ -3627,6 +3698,17 @@ function LoadingState({ label }) {
     <div className="flex items-center justify-center gap-2 p-8 text-slate-500">
       <Loader2 className="h-5 w-5 animate-spin" />
       {label}
+    </div>
+  );
+}
+
+function LoadingOverlay({ label }) {
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/55 p-4">
+      <div className="flex items-center gap-2 rounded-xl bg-white px-5 py-4 text-sm font-semibold text-slate-600 shadow-2xl">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        {label}
+      </div>
     </div>
   );
 }

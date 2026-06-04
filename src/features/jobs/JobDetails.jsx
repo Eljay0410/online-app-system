@@ -17,11 +17,7 @@ import { useToast } from "../../components/ui/toastContext";
 import {
   getJobSubmissionRule,
   getJobUploadRequirements,
-  QualificationStandards,
-  RequirementSummary,
-  VacancyBreakdown,
-  VacancyDescription,
-  VacancySummaryTable,
+  VacancyDetailsContent,
 } from "./jobPostingUi";
 const uploadMaxFileSize = 15 * 1024 * 1024;
 const maxRequirementFilesPerField = 5;
@@ -357,31 +353,19 @@ export default function JobDetails() {
           </div>
         ) : (
           <section className="oas-panel p-4 sm:p-6">
-            <div className="flex flex-col gap-4 border-b border-slate-200 pb-4 sm:flex-row sm:items-start sm:justify-between sm:pb-5">
-              <div>
-                <h1 className="oas-page-title">
-                  {job.title}
-                </h1>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleApply}
-                disabled={isApplying || job.applied}
-                className="oas-action-button disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
-              >
-                {job.applied ? "Applied" : isApplying ? "Applying..." : "Apply"}
-              </button>
-            </div>
-
-            <div className="mt-4 sm:mt-5">
-              <VacancySummaryTable job={job} />
-            </div>
-
-            <VacancyBreakdown job={job} />
-            <VacancyDescription job={job} />
-            <QualificationStandards job={job} />
-            <RequirementSummary job={job} />
+            <VacancyDetailsContent
+              job={job}
+              actions={
+                <button
+                  type="button"
+                  onClick={handleApply}
+                  disabled={isApplying || job.applied}
+                  className="oas-action-button disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
+                >
+                  {job.applied ? "Applied" : isApplying ? "Applying..." : "Apply"}
+                </button>
+              }
+            />
           </section>
         )}
         </div>
